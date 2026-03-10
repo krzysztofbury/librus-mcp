@@ -35,7 +35,7 @@ Add to your `claude_desktop_config.json`:
 
 #### Claude Code
 
-Via the `/mcp` command or in `.claude/settings.json`:
+Via the `/mcp` command or in `~/.claude.json` (global):
 
 ```json
 {
