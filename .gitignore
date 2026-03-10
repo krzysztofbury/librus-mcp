@@ -1,0 +1,68 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Distribution / packaging
+build/
+dist/
+*.egg-info/
+*.egg
+
+# Virtual environments
+.env
+.venv
+env/
+venv/
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.pytest_cache/
+coverage.xml
+
+# mypy / Pyre type checkers
+.mypy_cache/
+.dmypy.json
+dmypy.json
+.pyre/
+
+# pyenv
+.python-version
+
+# Secrets
+secrets.json
+
+# IDE settings
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# AI coding assistants
+.claude/              # Claude Code
+.gemini/              # Gemini CLI
+.codex/               # OpenAI Codex CLI
+.cursor/              # Cursor
+.windsurf/            # Windsurf
+.aider*               # Aider
+.continue/            # Continue.dev
+.codeium/             # Codeium
+.copilot/             # GitHub Copilot
+.augment/             # Augment Code
+.junie/               # JetBrains Junie
+
+# Linter / formatter cache
+.ruff_cache/
+
+# Logs
+*.log

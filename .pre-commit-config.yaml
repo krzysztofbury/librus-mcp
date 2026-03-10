@@ -1,0 +1,51 @@
+repos:
+  # General file checks
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      # Prevent committing large files (default 500KB)
+      - id: check-added-large-files
+        args: ['--maxkb=500']
+      # Prevent committing files with credentials or secrets patterns
+      - id: detect-private-key
+      # Ensure JSON files are valid
+      - id: check-json
+      # Ensure TOML files are valid
+      - id: check-toml
+      # Ensure YAML files are valid
+      - id: check-yaml
+      # Prevent committing directly to main/master
+      - id: no-commit-to-branch
+        args: ['--branch', 'main', '--branch', 'master']
+      # Ensure files end with a newline
+      - id: end-of-file-fixer
+      # Remove trailing whitespace
+      - id: trailing-whitespace
+      # Catch common merge conflict markers
+      - id: check-merge-conflict
+      # Prevent adding symlinks that point nowhere
+      - id: check-symlinks
+
+  # Block secrets from being committed
+  - repo: https://github.com/Yelp/detect-secrets
+    rev: v1.5.0
+    hooks:
+      - id: detect-secrets
+        args: ['--baseline', '.secrets.baseline']
+        exclude: (uv\.lock|\.secrets\.baseline)$
+
+  # Python linting
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.11.11
+    hooks:
+      - id: ruff
+        args: ['--fix']
+      - id: ruff-format
+
+  # Security checks for Python code
+  - repo: https://github.com/PyCQA/bandit
+    rev: 1.8.3
+    hooks:
+      - id: bandit
+        args: ['-c', 'pyproject.toml']
+        additional_dependencies: ['bandit[toml]']
