@@ -1,16 +1,35 @@
 [project]
 name = "librus-mcp"
 version = "0.1.0"
-description = "MCP server for Librus Synergia electronic gradebook"
-authors = [{name = "Krzysztof Bury"}]
+description = "MCP server for Librus Synergia — access grades, messages, attendance, homework, timetables, and announcements from AI assistants"
+authors = [{name = "Krzysztof Bury", email = "contact@datacraze.io"}]
 license = {text = "MIT"}
 readme = "README.md"
 requires-python = ">=3.10"
+keywords = ["mcp", "librus", "synergia", "gradebook", "llm", "claude", "gemini"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+]
 dependencies = [
     "mcp>=0.1.0",
     "librus-apix>=0.1.0",
-    "python-dotenv>=1.0.0"
+    "python-dotenv>=1.0.0",
 ]
+
+[project.urls]
+Homepage = "https://github.com/krzysztoofbury/librus-mcp"
+Repository = "https://github.com/krzysztoofbury/librus-mcp"
+Issues = "https://github.com/krzysztoofbury/librus-mcp/issues"
+
+[project.scripts]
+librus-mcp = "src.server:main"
 
 [build-system]
 requires = ["hatchling"]
@@ -32,5 +51,4 @@ line-ending = "auto"
 [tool.bandit]
 exclude_dirs = [".venv", "venv", "__pycache__"]
 # B101: assert used intentionally for input validation.
-# B603/B607: subprocess calls are not used in this project.
 skips = ["B101"]

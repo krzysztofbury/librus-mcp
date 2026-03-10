@@ -1,9 +1,3 @@
-import sys
-import os
-
-# Allow imports from src when running the script directly.
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
 from mcp.server.fastmcp import FastMCP
 from src.librus_client import LibrusManager
 from src.patches import apply_patches
@@ -144,5 +138,9 @@ async def get_announcements(student_alias: str) -> Any:
     return to_dict(announcements)
 
 
-if __name__ == "__main__":
+def main():
     mcp.run()
+
+
+if __name__ == "__main__":
+    main()

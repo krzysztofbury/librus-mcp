@@ -87,7 +87,13 @@ If you find a bug in `librus-apix` that needs a runtime fix:
 
 ### Configuration
 
-Credentials live in `secrets.json` (gitignored). The schema is defined by `AppConfig` and `AccountConfig` Pydantic models in `src/config.py`. The template is in `secrets.json.template`.
+Credentials are loaded by `src/config.py` in this priority order:
+
+1. **`LIBRUS_ACCOUNTS` env var** — a JSON array of `{alias, username, password}` objects. Best for `uvx` users.
+2. **`LIBRUS_CONFIG` env var** — absolute path to a `secrets.json` file. Best for custom locations.
+3. **`secrets.json` in CWD** — then project root as fallback. Best for local development.
+
+The schema is defined by `AppConfig` and `AccountConfig` Pydantic models in `src/config.py`. The template is in `secrets.json.template`.
 
 **Never commit `secrets.json`.** It contains plaintext Librus credentials.
 
