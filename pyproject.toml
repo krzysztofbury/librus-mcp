@@ -19,6 +19,9 @@ build-backend = "hatchling.build"
 [tool.hatch.build.targets.wheel]
 packages = ["src"]
 
+[dependency-groups]
+dev = ["ruff>=0.11.0", "bandit[toml]>=1.8.0"]
+
 [tool.ruff]
 line-length = 100
 target-version = "py310"
