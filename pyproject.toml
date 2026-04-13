@@ -1,6 +1,6 @@
 [project]
 name = "librus-mcp"
-version = "0.1.0"
+version = "0.2.0"
 description = "MCP server for Librus Synergia — access grades, messages, attendance, homework, timetables, and announcements from AI assistants"
 authors = [{name = "Krzysztof Bury", email = "contact@datacraze.io"}]
 license = {text = "MIT"}
@@ -18,9 +18,8 @@ classifiers = [
     "Programming Language :: Python :: 3.13",
 ]
 dependencies = [
-    "mcp>=0.1.0",
-    "librus-apix>=0.1.0",
-    "python-dotenv>=1.0.0",
+    "mcp>=1.25.0",
+    "librus-apix>=1.5.1",
 ]
 
 [project.urls]
@@ -39,7 +38,7 @@ build-backend = "hatchling.build"
 packages = ["src"]
 
 [dependency-groups]
-dev = ["ruff>=0.11.0", "bandit[toml]>=1.8.0"]
+dev = ["ruff>=0.11.0", "bandit[toml]>=1.8.0", "pytest>=8.0.0", "pytest-asyncio>=0.24.0"]
 
 [tool.ruff]
 line-length = 100
@@ -50,6 +49,9 @@ quote-style = "double"
 indent-style = "space"
 skip-magic-trailing-comma = false
 line-ending = "auto"
+
+[tool.pytest.ini_options]
+asyncio_mode = "strict"
 
 [tool.bandit]
 exclude_dirs = [".venv", "venv", "__pycache__"]

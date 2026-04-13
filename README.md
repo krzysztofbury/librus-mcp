@@ -3,7 +3,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![PyPI](https://img.shields.io/pypi/v/librus-mcp)](https://pypi.org/project/librus-mcp/)
 
-An [MCP (Model Context Protocol)](https://modelcontextprotocol.io/) server that provides AI assistants with access to the **Librus Synergia** electronic gradebook. It supports multiple student accounts simultaneously and exposes tools for grades, messages, attendance, homework, schedules, timetables, and announcements.
+An [MCP (Model Context Protocol)](https://modelcontextprotocol.io/) server that provides AI assistants with access to the **Librus Synergia** electronic gradebook. It supports multiple student accounts simultaneously and exposes tools for grades (numeric, GPA, and descriptive), messages, attendance, homework, schedules, timetables, announcements, completed lessons, and student information.
 
 ## Acknowledgments
 
@@ -150,14 +150,18 @@ Then use the full path in your MCP config:
 | Tool | Description |
 |------|-------------|
 | `list_students()` | List configured student aliases |
-| `get_grades(student_alias)` | Get grades for a student |
+| `get_grades(student_alias)` | Get numeric grades, GPA, and descriptive grades |
 | `get_messages(student_alias)` | Get received messages |
 | `get_message_content(student_alias, message_id)` | Get the body of a specific message |
 | `get_attendance(student_alias)` | Get attendance records |
+| `get_subject_frequency(student_alias, start?, end?)` | Get per-subject attendance percentage, optionally filtered by date range |
 | `get_homework(student_alias)` | Get homework for the next 2 weeks |
+| `get_homework_detail(student_alias, detail_url)` | Get full details of a specific homework assignment |
 | `get_schedule(student_alias, year, month)` | Get calendar events/exams for a month |
 | `get_timetable(student_alias)` | Get current week's timetable |
 | `get_announcements(student_alias)` | Get school announcements |
+| `get_completed_lessons(student_alias, date_from, date_to)` | Get completed lessons (subject, teacher, topic) for a date range |
+| `get_student_information(student_alias)` | Get student profile (name, class, tutor, school, lucky number) |
 
 ## Project Structure
 
@@ -166,7 +170,8 @@ src/
   server.py          # MCP server with tool definitions and entry point
   librus_client.py   # Librus API client wrapper with caching and retry
   config.py          # Configuration loader (reads secrets.json)
-  patches.py         # Runtime patches for librus-apix bugs
+tests/
+  test_server.py     # Tool-level tests with mocked librus-apix
 ```
 
 ## Contributing
