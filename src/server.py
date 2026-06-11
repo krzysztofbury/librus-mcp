@@ -212,6 +212,21 @@ async def get_student_information(student_alias: str) -> Any:
 
 
 @mcp.tool()
+async def get_final_grades(student_alias: str) -> Any:
+    """
+    Fetches end-of-year grade summary per subject: midterm grade, predicted
+    annual grade (przewidywana roczna), and the annual grade once issued.
+    A '-' value means the grade has not been issued yet.
+    Args:
+        student_alias: The alias of the student.
+    """
+    assert student_alias, "student_alias must not be empty"
+    assert isinstance(student_alias, str), "student_alias must be a string"
+    grades = await LibrusManager.fetch_final_grades(student_alias)
+    return to_dict(grades)
+
+
+@mcp.tool()
 async def get_recent_schedule_events(student_alias: str) -> Any:
     """
     Fetches schedule events added since the last Librus login (new tests, trips, meetings).

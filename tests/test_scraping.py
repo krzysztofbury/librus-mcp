@@ -284,3 +284,204 @@ class TestUnrecognizedUwagiLayout:
         loudly — a silent [] here would read as 'no behaviour notes'."""
         with pytest.raises(AssertionError, match="unrecognized"):
             parse_behaviour_notes(UWAGI_UNRECOGNIZED_HTML)
+
+
+# --- final grades (przewidywane roczne / roczne) ---
+
+# Mirrors the real przegladaj_oceny table captured live 2026-06-11:
+# thead with title attributes, 12-cell line0/line1 rows, nested noise rows.
+FINAL_GRADES_HTML = """
+<html><body>
+<table class="decorated stretch">
+<thead>
+  <tr><td colspan="2"></td><td colspan="4" class="colspan center"><span>Okres 1</span></td>
+      <td colspan="3" class="colspan center"><span>Okres 2</span></td>
+      <td colspan="3" class="colspan center"><span>Koniec roku</span></td></tr>
+  <tr>
+    <td class="no-border-top spacing">Oceny bieżące</td>
+    <td title="Średnia ocen<br> z pierwszego okresu">Śr.I</td>
+    <td title="Przewidywana ocena śródroczna<br> z pierwszego okresu">(I)</td>
+    <td title="Ocena śródroczna z pierwszego okresu">I</td>
+    <td>Oceny bieżące</td>
+    <td title="Średnia ocen z drugiego okresu">Śr.II</td>
+    <td title="Ocena śródroczna z drugiego okresu">II</td>
+    <td title="Średnia roczna">Śr.R</td>
+    <td title="Przewidywana ocena roczna">(R)</td>
+    <td title="Ocena roczna">R</td>
+  </tr>
+</thead>
+<tr class="line0">
+  <td class="center micro screen-only"><img src="/images/tree.png"/></td>
+  <td>Historia</td>
+  <td>6 4 [ 4 5 ] 4 5</td><td></td><td>5</td><td>5</td>
+  <td>5 6 [ 1 5 ] 4 5</td><td></td><td>-</td><td></td>
+  <td>5</td><td>-</td>
+</tr>
+<tr class="line1">
+  <td class="center micro screen-only"></td>
+  <td>Plastyka</td>
+  <td>5 6</td><td></td><td>5</td><td>5</td>
+  <td>6 6</td><td></td><td>-</td><td></td>
+  <td>6</td><td>6</td>
+</tr>
+<tr class="line0">
+  <td class="center micro screen-only"></td>
+  <td>Etyka</td>
+  <td></td><td></td><td>-</td><td>-</td>
+  <td></td><td></td><td>-</td><td></td>
+  <td>-</td><td>-</td>
+</tr>
+<tr class="line1">
+  <td></td><td>Ocena</td><td>Nauczyciel</td><td>Brak ocen</td>
+  <td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td>
+</tr>
+</table>
+</body></html>
+"""
+
+FINAL_GRADES_NO_HEADER_HTML = """
+<html><body>
+<table class="decorated stretch">
+<tr class="line0"><td></td><td>Historia</td><td>5</td></tr>
+</table>
+</body></html>
+"""
+
+
+class TestParseFinalGrades:
+    def test_extracts_midterm_predicted_and_final(self):
+        from src.scraping import FinalGrade, parse_final_grades
+
+        grades = parse_final_grades(FINAL_GRADES_HTML)
+        assert FinalGrade("Historia", "5", "5", "-") in grades
+        assert FinalGrade("Plastyka", "5", "6", "6") in grades
+
+    def test_subjects_without_grades_are_kept_with_dashes(self):
+        from src.scraping import parse_final_grades
+
+        grades = parse_final_grades(FINAL_GRADES_HTML)
+        etyka = next(g for g in grades if g.subject == "Etyka")
+        assert etyka.predicted_final == "-"
+        assert etyka.final == "-"
+
+    def test_noise_rows_are_filtered(self):
+        from src.scraping import parse_final_grades
+
+        grades = parse_final_grades(FINAL_GRADES_HTML)
+        assert all(g.subject != "Ocena" for g in grades)
+        assert len(grades) == 3
+
+    def test_missing_header_titles_raise(self):
+        """Layout drift must fail loudly, not return an empty list."""
+        from src.scraping import parse_final_grades
+
+        with pytest.raises(AssertionError, match="header"):
+            parse_final_grades(FINAL_GRADES_NO_HEADER_HTML)
+
+    def test_empty_html_raises(self):
+        from src.scraping import parse_final_grades
+
+        with pytest.raises(AssertionError):
+            parse_final_grades("")
+
+
+# Preschool layout (captured live): titled header WITHOUT the predicted column.
+FINAL_GRADES_NO_PREDICTED_HTML = """
+<html><body>
+<table class="decorated stretch">
+<thead>
+  <tr>
+    <td>Oceny bieżące</td>
+    <td title="Ocena śródroczna z pierwszego okresu">I</td>
+    <td>Oceny bieżące</td>
+    <td title="Ocena śródroczna z drugiego okresu">II</td>
+    <td title="Ocena roczna">R</td>
+  </tr>
+</thead>
+<tr class="line0">
+  <td></td><td>Religia</td>
+  <td></td><td>-</td><td></td><td>-</td><td>5</td>
+</tr>
+</table>
+</body></html>
+"""
+
+
+class TestParseFinalGradesVariants:
+    def test_layout_without_predicted_column_defaults_to_dash(self):
+        from src.scraping import parse_final_grades
+
+        grades = parse_final_grades(FINAL_GRADES_NO_PREDICTED_HTML)
+        assert len(grades) == 1
+        assert grades[0].subject == "Religia"
+        assert grades[0].midterm == "-"
+        assert grades[0].predicted_final == "-"  # column absent in this layout
+        assert grades[0].final == "5"
+
+    def test_rows_outside_grades_table_are_ignored(self):
+        from src.scraping import parse_final_grades
+
+        # Prepend an unrelated line0 table (like the filter table on real pages).
+        html = FINAL_GRADES_HTML.replace(
+            '<table class="decorated stretch">',
+            '<table class="decorated stretch"><tr class="line0">'
+            "<td></td><td>FilterNoise</td><td></td><td></td><td></td><td></td>"
+            "<td></td><td></td><td></td><td></td><td></td><td></td></tr></table>"
+            '<table class="decorated stretch">',
+            1,
+        )
+        grades = parse_final_grades(html)
+        assert all(g.subject != "FilterNoise" for g in grades)
+
+    def test_nested_table_rows_are_ignored(self):
+        """Expanded grade details render as nested tables reusing line0/line1
+        classes; their rows must not become fake subjects."""
+        from src.scraping import parse_final_grades
+
+        nested = (
+            '<tr class="line0"><td></td><td><table class="decorated">'
+            '<tr class="line1"><td>Kategoria</td><td>Komentarz</td><td>Oceny</td>'
+            "<td>Data</td><td>x</td><td>x</td><td>x</td><td>x</td><td>x</td>"
+            "<td>x</td><td>x</td><td>x</td></tr></table></td>"
+            "<td></td><td></td><td></td><td></td><td></td><td></td><td></td>"
+            "<td></td><td></td><td></td></tr>"
+        )
+        html = FINAL_GRADES_HTML.replace("</table>", nested + "</table>", 1)
+        grades = parse_final_grades(html)
+        assert all("Kategoria" not in g.subject for g in grades)
+
+    def test_colspan_before_titled_header_cell_shifts_mapping(self):
+        """A spanning header cell occupies N body columns; index mapping must
+        sum colspans, not enumerate cells."""
+        from src.scraping import parse_final_grades
+
+        html = """
+        <html><body><table class="decorated stretch">
+        <thead><tr>
+          <td colspan="2">Oceny</td>
+          <td title="Ocena roczna">R</td>
+        </tr></thead>
+        <tr class="line0">
+          <td></td><td>Historia</td><td>g1</td><td>g2</td><td>5</td>
+        </tr>
+        </table></body></html>
+        """
+        grades = parse_final_grades(html)
+        assert len(grades) == 1
+        assert grades[0].final == "5"  # body index 4, not enumerate index 1 + 2
+
+    def test_br_wrapped_matched_title_still_matches(self):
+        from src.scraping import parse_final_grades
+
+        html = FINAL_GRADES_HTML.replace('title="Ocena roczna"', 'title="Ocena roczna<br> 2025/26"')
+        grades = parse_final_grades(html)
+        assert any(g.final == "6" for g in grades)  # Plastyka still parsed
+
+    def test_colspan_in_grade_row_raises(self):
+        """Body-side alignment contract: one td per column. A spanning cell in
+        a parsed row must fail loudly, not shift values silently."""
+        from src.scraping import parse_final_grades
+
+        html = FINAL_GRADES_HTML.replace("<td>Plastyka</td>", '<td colspan="2">Plastyka</td>', 1)
+        with pytest.raises(AssertionError, match="colspan"):
+            parse_final_grades(html)

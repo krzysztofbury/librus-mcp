@@ -1,6 +1,6 @@
 [project]
 name = "librus-mcp"
-version = "0.3.0"
+version = "0.4.0"
 description = "MCP server for Librus Synergia — access grades, messages, attendance, homework, timetables, and announcements from AI assistants"
 authors = [{name = "Krzysztof Bury", email = "contact@datacraze.io"}]
 license = {text = "MIT"}

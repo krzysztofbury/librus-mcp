@@ -234,3 +234,118 @@ def _note_from_fields(fields: dict[str, str]) -> BehaviourNote:
         category=fields.get("category", ""),
         content=fields.get("content", ""),
     )
+
+
+@dataclass
+class FinalGrade:
+    """End-of-year grade summary row: midterm (I), predicted annual (R), annual."""
+
+    subject: str
+    midterm: str
+    predicted_final: str
+    final: str
+
+
+_FINAL_GRADE_HEADER_TITLES = {
+    "Ocena śródroczna z pierwszego okresu": "midterm",
+    "Przewidywana ocena roczna": "predicted_final",
+    "Ocena roczna": "final",
+}
+# Header cells skip the checkbox and subject columns present in body rows.
+_HEADER_TO_BODY_OFFSET = 2
+
+
+def parse_final_grades(html: str) -> list[FinalGrade]:
+    """Parse the grades page summary columns librus-apix ignores:
+    (I) midterm, (R) predicted annual, R annual.
+
+    Column sets vary by account type (preschool pages lack the predicted
+    column), so fields map to '-' when their column is absent. A page with
+    no annual-grade column at all fails loudly: that is layout drift or the
+    wrong page, not an account variant seen so far.
+    """
+    assert html, "html must not be empty"
+    soup = BeautifulSoup(html, "lxml")
+    located = _locate_final_grades_table(soup)
+    assert located is not None, "grades page header not recognized (no annual grade column)"
+    table, column_map = located
+    assert column_map, "column map must contain at least the annual grade column"
+
+    # Expanded grade details nest whole tables inside rows, reusing the
+    # line0/line1 classes; count and parse only rows belonging directly
+    # to the grades table.
+    rows = [
+        row
+        for row in table.find_all("tr", attrs={"class": ["line0", "line1"]})
+        if row.find_parent("table") is table
+    ]
+    assert len(rows) <= 200, f"implausible grade row count: {len(rows)}"
+    grades: list[FinalGrade] = []
+    for row in rows:
+        grade = _final_grade_from_row(row, table, column_map)
+        if grade is not None:
+            grades.append(grade)
+    # A recognized grades table that yields zero rows means the row filters
+    # drifted, not that the student has no subjects: the table always lists
+    # subjects even when every grade cell is '-'.
+    assert grades, "grades table recognized but no rows parsed"
+    return grades
+
+
+def _final_grade_from_row(row: Tag, table: Tag, column_map: dict[str, int]) -> FinalGrade | None:
+    """Extract one FinalGrade from a table row; None for non-subject rows."""
+    assert row.find_parent("table") is table, "row must belong directly to the grades table"
+    # Rows wrapping a nested detail table carry no subject of their own.
+    if row.find("table") is not None:
+        return None
+    cells = row.find_all("td")
+    if len(cells) <= max(column_map.values()):
+        return None
+    # Subject is always the second body cell (after the expand checkbox).
+    subject = cells[1].get_text(" ", strip=True)
+    # Nested detail tables repeat 'Ocena'/'Nauczyciel' label rows; skip them.
+    if not subject or subject == "Ocena":
+        return None
+    # Column mapping assumes one td per body column; a spanning cell would
+    # silently shift every value past it.
+    assert not any(cell.has_attr("colspan") for cell in cells), "unexpected colspan in grade row"
+    values = {field: cells[index].get_text(" ", strip=True) for field, index in column_map.items()}
+    return FinalGrade(
+        subject=subject,
+        midterm=values.get("midterm", "-"),
+        predicted_final=values.get("predicted_final", "-"),
+        final=values.get("final", "-"),
+    )
+
+
+def _locate_final_grades_table(soup: BeautifulSoup) -> tuple[Tag, dict[str, int]] | None:
+    """Find the grades table by its titled header cells and map FinalGrade
+    fields to body-row cell indexes. The annual grade column is required;
+    other columns are optional account-type variants."""
+    for table in soup.select("table.decorated.stretch"):
+        thead = table.find("thead")
+        if thead is None:
+            continue
+        for row in thead.find_all("tr"):
+            column_map: dict[str, int] = {}
+            # A header cell with colspan=N occupies N body columns; sum spans
+            # instead of enumerating cells, or the mapping silently shifts.
+            body_column = _HEADER_TO_BODY_OFFSET
+            for cell in row.find_all("td"):
+                title = cell.get("title", "").split("<br>")[0].strip()
+                field = _FINAL_GRADE_HEADER_TITLES.get(title)
+                if field is not None:
+                    column_map[field] = body_column
+                span = cell.get("colspan", "1")
+                assert str(span).isdigit(), f"non-numeric colspan: {span!r}"
+                body_column += int(span)
+            if "final" in column_map:
+                return table, column_map
+    return None
+
+
+def get_final_grades(client: Client) -> list[FinalGrade]:
+    """Fetch and parse end-of-year grade columns from the grades page."""
+    response = client.get(client.GRADES_URL)
+    no_access_check(BeautifulSoup(response.text, "lxml"))
+    return parse_final_grades(response.text)
