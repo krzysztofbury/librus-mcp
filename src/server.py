@@ -43,15 +43,22 @@ async def get_grades(student_alias: str) -> Any:
 
 
 @mcp.tool()
-async def get_messages(student_alias: str) -> Any:
+async def get_messages(student_alias: str, page: int = 0, folder: str = "received") -> Any:
     """
-    Fetches received messages for the specified student.
+    Fetches one page of messages for the specified student.
     Args:
         student_alias: The alias of the student.
+        page: 0-based page number; page 0 holds the newest messages. The response
+            includes max_page (last valid index) for the received folder. For the
+            sent folder max_page is null because Librus exposes no page counter
+            there — null does NOT mean the current page is the last one. Pages
+            hold 50 messages; a page with fewer than 50 is the last one (Librus
+            clamps out-of-range pages to the last page instead of returning empty).
+        folder: Message folder, 'received' or 'sent'. Defaults to 'received'.
     """
     assert student_alias, "student_alias must not be empty"
     assert isinstance(student_alias, str), "student_alias must be a string"
-    messages = await LibrusManager.fetch_messages(student_alias)
+    messages = await LibrusManager.fetch_messages(student_alias, page, folder)
     return to_dict(messages)
 
 
@@ -204,7 +211,160 @@ async def get_student_information(student_alias: str) -> Any:
     return to_dict(info)
 
 
+@mcp.tool()
+async def get_recent_schedule_events(student_alias: str) -> Any:
+    """
+    Fetches schedule events added since the last Librus login (new tests, trips, meetings).
+    Args:
+        student_alias: The alias of the student.
+    """
+    assert student_alias, "student_alias must not be empty"
+    assert isinstance(student_alias, str), "student_alias must be a string"
+    events = await LibrusManager.fetch_recent_schedule_events(student_alias)
+    return to_dict(events)
+
+
+# --- Optional tools, registered by register_optional_tools() based on config features ---
+
+
+async def get_new_notifications(student_alias: str) -> Any:
+    """
+    Returns what is new since the previous call: grades, attendance, messages,
+    announcements, schedule events, and homework. Seen-state is persisted per
+    student, so each item is reported only once. On the first call for a student
+    it returns the baseline (items since last Librus login) with first_run=true.
+    Args:
+        student_alias: The alias of the student.
+    """
+    assert student_alias, "student_alias must not be empty"
+    assert isinstance(student_alias, str), "student_alias must be a string"
+    result = await LibrusManager.fetch_new_notifications(student_alias)
+    return to_dict(result)
+
+
+async def get_message_attachments(student_alias: str, message_id: str) -> Any:
+    """
+    Lists attachments (filename, message_id, file_id) of a specific message.
+    Args:
+        student_alias: The alias of the student.
+        message_id: The ID of the message (from the 'href' field in message list).
+    """
+    assert student_alias, "student_alias must not be empty"
+    assert isinstance(student_alias, str), "student_alias must be a string"
+    assert message_id, "message_id must not be empty"
+    attachments = await LibrusManager.fetch_message_attachments(student_alias, message_id)
+    return to_dict(attachments)
+
+
+async def download_attachment(student_alias: str, message_id: str, file_id: str) -> Any:
+    """
+    Downloads a message attachment to the configured download directory
+    (LIBRUS_DOWNLOAD_DIR env, 'download_dir' in secrets.json, or ~/.librus-mcp/downloads).
+    Returns the saved path, filename, size, and content type.
+    Args:
+        student_alias: The alias of the student.
+        message_id: The ID of the message.
+        file_id: The ID of the file (from get_message_attachments).
+    """
+    assert student_alias, "student_alias must not be empty"
+    assert isinstance(student_alias, str), "student_alias must be a string"
+    assert message_id, "message_id must not be empty"
+    assert file_id, "file_id must not be empty"
+    info = await LibrusManager.download_message_attachment(student_alias, message_id, file_id)
+    return to_dict(info)
+
+
+async def get_behaviour_notes(student_alias: str) -> Any:
+    """
+    Fetches behaviour notes (uwagi) for the specified student: date, teacher,
+    category, and content. Returns an empty list when there are no notes.
+    Args:
+        student_alias: The alias of the student.
+    """
+    assert student_alias, "student_alias must not be empty"
+    assert isinstance(student_alias, str), "student_alias must be a string"
+    notes = await LibrusManager.fetch_behaviour_notes(student_alias)
+    return to_dict(notes)
+
+
+async def get_recipient_groups(student_alias: str) -> Any:
+    """
+    Lists recipient group identifiers available for sending messages.
+    Args:
+        student_alias: The alias of the student.
+    """
+    assert student_alias, "student_alias must not be empty"
+    assert isinstance(student_alias, str), "student_alias must be a string"
+    groups = await LibrusManager.fetch_recipient_groups(student_alias)
+    return to_dict(groups)
+
+
+async def get_recipients(student_alias: str, group: str) -> Any:
+    """
+    Lists recipients (name -> recipient ID) in a recipient group.
+    Args:
+        student_alias: The alias of the student.
+        group: A group identifier from get_recipient_groups.
+    """
+    assert student_alias, "student_alias must not be empty"
+    assert isinstance(student_alias, str), "student_alias must be a string"
+    assert group, "group must not be empty"
+    recipients = await LibrusManager.fetch_recipients(student_alias, group)
+    return to_dict(recipients)
+
+
+async def send_message(
+    student_alias: str, title: str, content: str, recipient_ids: list[str]
+) -> Any:
+    """
+    Sends a message to school staff via the Librus messaging system.
+    WRITE ACTION: this delivers a real message to teachers. Disabled by default;
+    enable with features.send_message in the configuration.
+    Args:
+        student_alias: The alias of the student.
+        title: Message subject.
+        content: Message body.
+        recipient_ids: Recipient IDs from get_recipients.
+    """
+    assert student_alias, "student_alias must not be empty"
+    assert isinstance(student_alias, str), "student_alias must be a string"
+    assert title, "title must not be empty"
+    assert content, "content must not be empty"
+    assert isinstance(recipient_ids, list), "recipient_ids must be a list"
+    assert len(recipient_ids) > 0, "recipient_ids must not be empty"
+    result = await LibrusManager.send_message_to(student_alias, title, content, recipient_ids)
+    return to_dict(result)
+
+
+_FEATURE_TOOLS: dict[str, list[Any]] = {
+    "notifications": [get_new_notifications],
+    "attachments": [get_message_attachments, download_attachment],
+    "behaviour_notes": [get_behaviour_notes],
+    "send_message": [get_recipient_groups, get_recipients, send_message],
+}
+_registered_optional_tools: set[str] = set()
+
+
+def register_optional_tools() -> list[str]:
+    """Register feature-gated tools per config. Idempotent; returns newly added names."""
+    features = LibrusManager._get_config().features
+    registered: list[str] = []
+    for feature_name, tools in _FEATURE_TOOLS.items():
+        enabled = getattr(features, feature_name)
+        assert isinstance(enabled, bool), f"feature '{feature_name}' must be a bool"
+        if not enabled:
+            continue
+        for tool in tools:
+            if tool.__name__ in _registered_optional_tools:
+                continue
+            mcp.add_tool(tool)
+            _registered_optional_tools.add(tool.__name__)
+            registered.append(tool.__name__)
+    return registered
+
+
 def main():
+    register_optional_tools()
     mcp.run()
 
 
