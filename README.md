@@ -151,6 +151,7 @@ Then use the full path in your MCP config:
 |------|-------------|
 | `list_students()` | List configured student aliases |
 | `get_grades(student_alias)` | Get numeric grades, GPA, and descriptive grades |
+| `get_final_grades(student_alias)` | Get end-of-year summary per subject: midterm, predicted annual (przewidywana roczna), and annual grade |
 | `get_messages(student_alias, page?, folder?)` | Get one page of messages from the `received` or `sent` folder |
 | `get_message_content(student_alias, message_id)` | Get the body of a specific message |
 | `get_attendance(student_alias)` | Get attendance records |

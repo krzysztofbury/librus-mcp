@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.4.0] - 2026-06-11
+
+### Added
+- `get_final_grades(student_alias)` — end-of-year grade summary per subject: midterm (I), predicted annual (przewidywana roczna, R-in-parentheses column), and annual grade (R). Own scraping: librus-apix parses only current grades and skips these columns entirely. Header-title-driven column mapping handles account-type variants (preschool pages lack the predicted column); a page without the annual column fails loudly instead of returning an empty list
+
 ## [0.3.0] - 2026-06-11
 
 ### Added

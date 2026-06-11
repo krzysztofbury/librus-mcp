@@ -1,4 +1,4 @@
-"""Tests for tools added in 0.3.0: notifications, recent events, sent messages,
+"""Tests for tools added in 0.3.0+: final grades, notifications, recent events, sent messages,
 send_message, attachments, behaviour notes, and feature gating."""
 
 from unittest.mock import AsyncMock, patch
@@ -280,3 +280,27 @@ class TestRegisterOptionalTools:
         monkeypatch.delenv("LIBRUS_FEATURES", raising=False)
         register_optional_tools()
         assert register_optional_tools() == []
+
+
+# --- final grades tool ---
+
+
+class TestGetFinalGrades:
+    @pytest.mark.asyncio
+    async def test_returns_final_grades(self):
+        from src.scraping import FinalGrade
+        from src.server import get_final_grades
+
+        grades = [FinalGrade("Historia", "5", "5", "-")]
+        with _mock_execute(grades):
+            result = await get_final_grades("test_student")
+        assert result[0]["subject"] == "Historia"
+        assert result[0]["predicted_final"] == "5"
+        assert result[0]["final"] == "-"
+
+    @pytest.mark.asyncio
+    async def test_empty_alias_raises(self):
+        from src.server import get_final_grades
+
+        with pytest.raises(AssertionError):
+            await get_final_grades("")

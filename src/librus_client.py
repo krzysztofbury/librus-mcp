@@ -351,6 +351,18 @@ class LibrusManager:
         return info
 
     @classmethod
+    async def fetch_final_grades(cls, alias: str) -> list[Any]:
+        """Fetch end-of-year grade columns (midterm, predicted annual, annual).
+
+        Own scraping: librus-apix parses only current grades and skips the
+        (I)/(R)/R summary columns of the grades table.
+        """
+        assert alias, "Alias must not be empty"
+        grades = await cls._execute(alias, scraping.get_final_grades)
+        assert isinstance(grades, list), "get_final_grades must return a list"
+        return grades
+
+    @classmethod
     async def fetch_behaviour_notes(cls, alias: str) -> list[Any]:
         """Fetch behaviour notes (uwagi) — own scraping; librus-apix lacks this."""
         assert alias, "Alias must not be empty"
