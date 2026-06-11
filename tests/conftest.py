@@ -24,7 +24,25 @@ def reset_librus_manager():
     LibrusManager._instances.clear()
     LibrusManager._tokens.clear()
     LibrusManager._config_cache = None
+    LibrusManager._notification_locks.clear()
     yield
     LibrusManager._instances.clear()
     LibrusManager._tokens.clear()
     LibrusManager._config_cache = None
+    LibrusManager._notification_locks.clear()
+
+
+@pytest.fixture(autouse=True)
+def reset_optional_tools():
+    """Unregister optional tools between tests so each test sees a clean
+    FastMCP registry and gating tests prove the real registration path."""
+    from src import server
+
+    def _clear():
+        for name in list(server._registered_optional_tools):
+            server.mcp._tool_manager._tools.pop(name, None)
+        server._registered_optional_tools.clear()
+
+    _clear()
+    yield
+    _clear()

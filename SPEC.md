@@ -16,10 +16,11 @@ This document describes how AI agents and bots should interact with this codebas
 
 ```
 src/
-  server.py          - FastMCP server. Defines all MCP tools. Entry point.
-  librus_client.py   - LibrusManager class. Handles auth, caching, retry, and data fetching.
-  config.py          - Reads secrets.json via Pydantic models.
-  patches.py         - Monkey-patches for librus-apix bugs. Applied at startup.
+  server.py              - FastMCP server. Defines all MCP tools. Entry point.
+  librus_client.py       - LibrusManager class. Handles auth, caching, retry, and data fetching.
+  config.py              - Reads secrets.json via Pydantic models (accounts, features, dirs).
+  notification_state.py  - Per-alias persistence of seen-notification IDs (JSON files).
+  scraping.py            - Own Synergia scraping: message attachments, behaviour notes (uwagi).
 ```
 
 ### Key Design Decisions
@@ -29,6 +30,16 @@ src/
 3. **Token expiry is handled** by `_execute()` which retries once on auth-related errors.
 4. **Config is loaded once** and cached in `LibrusManager._config_cache`.
 5. **Dataclasses are converted** to dicts via `to_dict()` for JSON-RPC serialization.
+6. **Optional tools are feature-gated.** Core tools use `@mcp.tool()`; optional tools are
+   plain functions registered by `register_optional_tools()` in `main()` based on
+   `config.features` (env override: `LIBRUS_FEATURES`). `send_message` defaults off.
+7. **Notification state is persisted** per alias as JSON under `state_dir`
+   (`LIBRUS_STATE_DIR` > config > `~/.librus-mcp/state`), written atomically.
+   First run diffs against empty IDs — never use `get_initial_notification_data`,
+   it 403s on `/uczen/index` for parent (rodzic) accounts.
+8. **Own scraping lives in `src/scraping.py`** for gaps in librus-apix
+   (attachments, uwagi). Attachment download flow: `/wiadomosci/pobierz_zalacznik/{msg}/{file}`
+   → 302 to `sandbox.librus.pl/GetFile/<key>` → GET `<key>/get` returns the bytes.
 
 ## How to Work With This Codebase
 

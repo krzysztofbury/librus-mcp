@@ -239,10 +239,12 @@ class TestGetMessages:
     @pytest.mark.asyncio
     async def test_returns_received(self):
         messages = [FakeMessage("Teacher", "Test title", "2026-01-01", "/m/1")]
-        with _mock_execute(messages):
+        mock = AsyncMock()
+        mock.side_effect = [0, messages]  # max_page, then messages
+        with patch("src.librus_client.LibrusManager._execute", mock):
             result = await get_messages("test_student")
-        assert "received" in result
-        assert len(result["received"]) == 1
+        assert result["folder"] == "received"
+        assert len(result["messages"]) == 1
 
     @pytest.mark.asyncio
     async def test_empty_alias_raises(self):
@@ -473,7 +475,9 @@ class TestFetchAssertions:
 
     @pytest.mark.asyncio
     async def test_messages_rejects_non_list(self):
-        with _mock_execute("not a list"):
+        mock = AsyncMock()
+        mock.side_effect = [0, "not a list"]  # valid max_page, malformed messages
+        with patch("src.librus_client.LibrusManager._execute", mock):
             with pytest.raises(AssertionError, match="must return a list"):
                 await get_messages("test_student")
 
