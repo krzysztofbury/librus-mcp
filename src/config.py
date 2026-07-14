@@ -3,13 +3,22 @@ import os
 import sys
 from typing import List, Optional
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class AccountConfig(BaseModel):
     alias: str
     username: str
     password: str
+
+    @field_validator("alias", "username", "password")
+    @classmethod
+    def _non_blank(cls, value: str, info) -> str:
+        """A blank alias would make an account unaddressable; blank credentials
+        would fail only later, deep inside the login flow, with a worse error."""
+        if not value.strip():
+            raise ValueError(f"account {info.field_name} must not be blank")
+        return value
 
 
 class FeaturesConfig(BaseModel):
@@ -34,6 +43,20 @@ class AppConfig(BaseModel):
     state_dir: Optional[str] = None
     download_dir: Optional[str] = None
 
+    @field_validator("accounts")
+    @classmethod
+    def _unique_aliases(cls, accounts: List[AccountConfig]) -> List[AccountConfig]:
+        """Duplicate aliases would silently route every call to the first
+        matching account — a wrong-child data leak, not a cosmetic issue."""
+        if len(accounts) == 0:
+            raise ValueError("accounts must contain at least one account")
+        seen: set[str] = set()
+        for account in accounts:
+            if account.alias in seen:
+                raise ValueError(f"duplicate account alias: '{account.alias}'")
+            seen.add(account.alias)
+        return accounts
+
 
 def _load_from_env_accounts() -> AppConfig:
     """Parse LIBRUS_ACCOUNTS env var: a JSON array of account objects."""
@@ -42,8 +65,10 @@ def _load_from_env_accounts() -> AppConfig:
         accounts = json.loads(raw)
     except json.JSONDecodeError:
         raise ValueError("LIBRUS_ACCOUNTS contains invalid JSON")
-    assert isinstance(accounts, list), "LIBRUS_ACCOUNTS must be a JSON array"
-    assert len(accounts) > 0, "LIBRUS_ACCOUNTS must contain at least one account"
+    if not isinstance(accounts, list):
+        raise ValueError("LIBRUS_ACCOUNTS must be a JSON array")
+    if len(accounts) == 0:
+        raise ValueError("LIBRUS_ACCOUNTS must contain at least one account")
     return AppConfig(accounts=accounts)
 
 
@@ -56,7 +81,8 @@ def _apply_features_env(config: AppConfig) -> AppConfig:
         overrides = json.loads(raw)
     except json.JSONDecodeError:
         raise ValueError("LIBRUS_FEATURES contains invalid JSON")
-    assert isinstance(overrides, dict), "LIBRUS_FEATURES must be a JSON object"
+    if not isinstance(overrides, dict):
+        raise ValueError("LIBRUS_FEATURES must be a JSON object")
     unknown_keys = set(overrides) - set(FeaturesConfig.model_fields)
     if unknown_keys:
         raise ValueError(

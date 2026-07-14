@@ -59,7 +59,7 @@ class TestGetMessagesPagination:
         mock = AsyncMock()
         mock.side_effect = [1]  # max_page only; messages never fetched
         with patch("src.librus_client.LibrusManager._execute", mock):
-            with pytest.raises(AssertionError, match="max_page"):
+            with pytest.raises(ValueError, match="max_page"):
                 await get_messages("test_student", page=5)
 
     @pytest.mark.asyncio
@@ -74,12 +74,12 @@ class TestGetMessagesPagination:
 
     @pytest.mark.asyncio
     async def test_invalid_folder_raises(self):
-        with pytest.raises(AssertionError, match="folder"):
+        with pytest.raises(ValueError, match="folder"):
             await get_messages("test_student", folder="archive")
 
     @pytest.mark.asyncio
     async def test_negative_page_raises(self):
-        with pytest.raises(AssertionError, match="page"):
+        with pytest.raises(ValueError, match="page"):
             await get_messages("test_student", page=-1)
 
 
@@ -95,7 +95,7 @@ class TestGetRecentScheduleEvents:
 
     @pytest.mark.asyncio
     async def test_empty_alias_raises(self):
-        with pytest.raises(AssertionError):
+        with pytest.raises(ValueError, match="student_alias"):
             await get_recent_schedule_events("")
 
 
@@ -172,7 +172,7 @@ class TestGetMessageAttachments:
 
     @pytest.mark.asyncio
     async def test_empty_message_id_raises(self):
-        with pytest.raises(AssertionError, match="message_id"):
+        with pytest.raises(ValueError, match="message_id"):
             await get_message_attachments("test_student", "")
 
 
@@ -192,7 +192,7 @@ class TestDownloadAttachmentTool:
 
     @pytest.mark.asyncio
     async def test_empty_file_id_raises(self):
-        with pytest.raises(AssertionError, match="file_id"):
+        with pytest.raises(ValueError, match="file_id"):
             await download_attachment("test_student", "1234567", "")
 
 
@@ -209,7 +209,7 @@ class TestGetBehaviourNotes:
 
     @pytest.mark.asyncio
     async def test_empty_alias_raises(self):
-        with pytest.raises(AssertionError):
+        with pytest.raises(ValueError, match="student_alias"):
             await get_behaviour_notes("")
 
 
@@ -231,23 +231,84 @@ class TestSendMessageTools:
 
     @pytest.mark.asyncio
     async def test_recipients_empty_group_raises(self):
-        with pytest.raises(AssertionError, match="group"):
+        with pytest.raises(ValueError, match="group"):
             await get_recipients("test_student", "")
 
     @pytest.mark.asyncio
-    async def test_send_message_success(self):
-        with _mock_execute((True, "Wiadomość została wysłana")):
+    async def test_first_call_returns_confirmation_not_send(self):
+        mock = AsyncMock()
+        with patch("src.librus_client.LibrusManager._execute", mock):
             result = await send_message("test_student", "Temat", "Treść", ["12345"])
+        assert result["status"] == "confirmation_required"
+        assert result["preview"]["title"] == "Temat"
+        assert result["confirm_token"]
+        # Nothing may reach Librus on the preview step.
+        assert mock.call_count == 0
+
+    @pytest.mark.asyncio
+    async def test_confirmed_call_sends(self):
+        preview = await send_message("test_student", "Temat", "Treść", ["12345"])
+        # Upstream returns success=False even on success (dead status_code
+        # check); the page text alone must drive the reported outcome.
+        with _mock_execute((False, "Wiadomość została wysłana")):
+            result = await send_message(
+                "test_student", "Temat", "Treść", ["12345"], preview["confirm_token"]
+            )
+        assert result["status"] == "sent"
         assert result["success"] is True
+        assert result["recipient_count"] == 1
+
+    @pytest.mark.asyncio
+    async def test_failure_text_reports_failure(self):
+        preview = await send_message("test_student", "Temat", "Treść", ["12345"])
+        with _mock_execute((False, "Wiadomość nie została wysłana")):
+            result = await send_message(
+                "test_student", "Temat", "Treść", ["12345"], preview["confirm_token"]
+            )
+        assert result["success"] is False
+
+    @pytest.mark.asyncio
+    async def test_unrecognized_result_text_raises(self):
+        preview = await send_message("test_student", "Temat", "Treść", ["12345"])
+        with _mock_execute((False, "Coś poszło nie tak")):
+            with pytest.raises(RuntimeError, match="unrecognized send_message result"):
+                await send_message(
+                    "test_student", "Temat", "Treść", ["12345"], preview["confirm_token"]
+                )
+
+    @pytest.mark.asyncio
+    async def test_confirm_token_is_single_use(self):
+        preview = await send_message("test_student", "Temat", "Treść", ["12345"])
+        with _mock_execute((False, "Wiadomość została wysłana")):
+            await send_message(
+                "test_student", "Temat", "Treść", ["12345"], preview["confirm_token"]
+            )
+        with pytest.raises(ValueError, match="already-used"):
+            await send_message(
+                "test_student", "Temat", "Treść", ["12345"], preview["confirm_token"]
+            )
+
+    @pytest.mark.asyncio
+    async def test_changed_payload_invalidates_token(self):
+        preview = await send_message("test_student", "Temat", "Treść", ["12345"])
+        with pytest.raises(ValueError, match="differs"):
+            await send_message(
+                "test_student", "Inny temat", "Treść", ["12345"], preview["confirm_token"]
+            )
+
+    @pytest.mark.asyncio
+    async def test_unknown_token_raises(self):
+        with pytest.raises(ValueError, match="unknown"):
+            await send_message("test_student", "Temat", "Treść", ["12345"], "bogus-token")
 
     @pytest.mark.asyncio
     async def test_send_message_empty_title_raises(self):
-        with pytest.raises(AssertionError, match="title"):
+        with pytest.raises(ValueError, match="title"):
             await send_message("test_student", "", "Treść", ["12345"])
 
     @pytest.mark.asyncio
     async def test_send_message_empty_recipients_raises(self):
-        with pytest.raises(AssertionError, match="recipient"):
+        with pytest.raises(ValueError, match="recipient"):
             await send_message("test_student", "Temat", "Treść", [])
 
 
@@ -282,6 +343,30 @@ class TestRegisterOptionalTools:
         assert register_optional_tools() == []
 
 
+class TestToolAnnotations:
+    @pytest.mark.asyncio
+    async def test_send_message_is_marked_destructive(self, monkeypatch):
+        monkeypatch.setenv("LIBRUS_FEATURES", '{"send_message": true}')
+        register_optional_tools()
+        tools = {tool.name: tool for tool in await mcp.list_tools()}
+        annotations = tools["send_message"].annotations
+        assert annotations.destructiveHint is True
+        assert annotations.readOnlyHint is False
+        assert annotations.idempotentHint is False
+
+    @pytest.mark.asyncio
+    async def test_read_tools_are_marked_read_only(self, monkeypatch):
+        monkeypatch.delenv("LIBRUS_FEATURES", raising=False)
+        register_optional_tools()
+        tools = {tool.name: tool for tool in await mcp.list_tools()}
+        assert tools["get_grades"].annotations.readOnlyHint is True
+        assert tools["get_message_attachments"].annotations.readOnlyHint is True
+        # Notification/download tools write local state, never school data.
+        assert tools["get_new_notifications"].annotations.readOnlyHint is False
+        assert tools["get_new_notifications"].annotations.destructiveHint is False
+        assert tools["download_attachment"].annotations.destructiveHint is False
+
+
 # --- final grades tool ---
 
 
@@ -302,5 +387,5 @@ class TestGetFinalGrades:
     async def test_empty_alias_raises(self):
         from src.server import get_final_grades
 
-        with pytest.raises(AssertionError):
+        with pytest.raises(ValueError, match="student_alias"):
             await get_final_grades("")

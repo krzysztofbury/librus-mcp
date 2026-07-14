@@ -168,55 +168,82 @@ class TestParseBehaviourNotes:
             parse_behaviour_notes("")
 
 
-# --- download_attachment with a fake client ---
+# --- download_attachment with mocked HTTP ---
 
 
-class FakeResponse:
-    def __init__(self, status_code=200, url="", content=b"", headers=None):
+class FakeRedirectResponse:
+    def __init__(self, status_code=302, location="https://sandbox.librus.pl/GetFile/abc123"):
         self.status_code = status_code
-        self.url = url
-        self.content = content
-        self.headers = headers or {}
+        self.headers = {"Location": location} if location else {}
+
+
+class FakeStreamResponse:
+    """Mimics a streaming requests.Response used as a context manager."""
+
+    def __init__(self, status_code=200, content=b"%PDF-1.4 data", headers=None):
+        self.status_code = status_code
+        self._content = content
+        self.headers = headers if headers is not None else {}
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc_info):
+        return False
+
+    def iter_content(self, chunk_size):
+        for offset in range(0, len(self._content), chunk_size):
+            yield self._content[offset : offset + chunk_size]
 
 
 class FakeClient:
     BASE_URL = "https://synergia.librus.pl"
 
-    def __init__(self, responses):
-        self._responses = list(responses)
-        self.requested_urls = []
+    def __init__(self):
+        self.cookies = {"synergia_session": "secret-cookie"}
+        self.proxy = {}
+        self.token = type(
+            "FakeToken", (), {"access_cookies": staticmethod(lambda: {"DZIENNIKSID": "sid"})}
+        )()
 
-    def get(self, url):
-        self.requested_urls.append(url)
-        return self._responses.pop(0)
+
+def _patch_http(responses):
+    from unittest.mock import patch, MagicMock
+
+    mock = MagicMock(side_effect=list(responses))
+    return patch("src.scraping.requests.get", mock), mock
 
 
 class TestDownloadAttachment:
-    def _client(self, filename='attachment; filename="raport.pdf"', content=b"%PDF-1.4 data"):
-        redirect = FakeResponse(url="https://sandbox.librus.pl/GetFile/abc123")
-        file_response = FakeResponse(
-            content=content,
-            headers={"Content-Disposition": filename, "Content-Type": "application/pdf"},
-        )
-        return FakeClient([redirect, file_response])
+    def _responses(self, filename='attachment; filename="raport.pdf"', content=b"%PDF-1.4 data"):
+        headers = {"Content-Disposition": filename, "Content-Type": "application/pdf"}
+        return [FakeRedirectResponse(), FakeStreamResponse(content=content, headers=headers)]
 
     def test_writes_file_and_returns_info(self, tmp_path):
         from src.scraping import download_attachment
 
-        client = self._client()
-        info = download_attachment(client, "1234567", "7654321", tmp_path)
+        patcher, mock = _patch_http(self._responses())
+        with patcher:
+            info = download_attachment(FakeClient(), "1234567", "7654321", tmp_path)
         assert (tmp_path / "raport.pdf").read_bytes() == b"%PDF-1.4 data"
         assert info["filename"] == "raport.pdf"
         assert info["size"] == 13
         assert info["content_type"] == "application/pdf"
-        # Second request must hit the redirect target with /get appended.
-        assert client.requested_urls[1] == "https://sandbox.librus.pl/GetFile/abc123/get"
+        # First request: authenticated, redirects disabled.
+        first_call = mock.call_args_list[0]
+        assert first_call.kwargs["allow_redirects"] is False
+        assert "synergia_session" in first_call.kwargs["cookies"]
+        # Second request: signed sandbox URL with /get appended and NO cookies.
+        second_call = mock.call_args_list[1]
+        assert second_call.args[0] == "https://sandbox.librus.pl/GetFile/abc123/get"
+        assert "cookies" not in second_call.kwargs
 
     def test_path_traversal_in_filename_is_stripped(self, tmp_path):
         from src.scraping import download_attachment
 
-        client = self._client(filename='attachment; filename="../../evil.sh"')
-        info = download_attachment(client, "1", "2", tmp_path)
+        patcher, _ = _patch_http(self._responses(filename='attachment; filename="../../evil.sh"'))
+        with patcher:
+            info = download_attachment(FakeClient(), "1", "2", tmp_path)
         assert info["filename"] == "evil.sh"
         assert (tmp_path / "evil.sh").exists()
         assert not (tmp_path.parent / "evil.sh").exists()
@@ -224,32 +251,135 @@ class TestDownloadAttachment:
     def test_missing_disposition_falls_back_to_ids(self, tmp_path):
         from src.scraping import download_attachment
 
-        redirect = FakeResponse(url="https://sandbox.librus.pl/GetFile/abc123")
-        file_response = FakeResponse(content=b"data", headers={})
-        client = FakeClient([redirect, file_response])
-        info = download_attachment(client, "11", "22", tmp_path)
+        patcher, _ = _patch_http([FakeRedirectResponse(), FakeStreamResponse(content=b"data")])
+        with patcher:
+            info = download_attachment(FakeClient(), "11", "22", tmp_path)
         assert info["filename"] == "attachment_11_22"
 
-    def test_unexpected_redirect_target_raises(self, tmp_path):
+    def test_no_redirect_raises_token_error(self, tmp_path):
+        from librus_apix.exceptions import TokenError
         from src.scraping import download_attachment
 
-        redirect = FakeResponse(url="https://synergia.librus.pl/uczen/index")
-        client = FakeClient([redirect])
-        with pytest.raises(AssertionError, match="redirect"):
+        patcher, _ = _patch_http([FakeRedirectResponse(status_code=200, location=None)])
+        with patcher:
+            with pytest.raises(TokenError, match="did not redirect"):
+                download_attachment(FakeClient(), "1", "2", tmp_path)
+
+    def test_redirect_to_foreign_host_raises(self, tmp_path):
+        from librus_apix.exceptions import TokenError
+        from src.scraping import download_attachment
+
+        patcher, mock = _patch_http(
+            [FakeRedirectResponse(location="https://evil.example/GetFile/abc123")]
+        )
+        with patcher:
+            with pytest.raises(TokenError, match="unexpected attachment redirect"):
+                download_attachment(FakeClient(), "1", "2", tmp_path)
+        # The forged Location must never be requested.
+        assert mock.call_count == 1
+
+    def test_redirect_to_plain_http_raises(self, tmp_path):
+        from librus_apix.exceptions import TokenError
+        from src.scraping import download_attachment
+
+        patcher, _ = _patch_http(
+            [FakeRedirectResponse(location="http://sandbox.librus.pl/GetFile/abc123")]
+        )
+        with patcher:
+            with pytest.raises(TokenError, match="unexpected attachment redirect"):
+                download_attachment(FakeClient(), "1", "2", tmp_path)
+
+    def test_redirect_with_odd_port_raises(self, tmp_path):
+        from librus_apix.exceptions import TokenError
+        from src.scraping import download_attachment
+
+        patcher, _ = _patch_http(
+            [FakeRedirectResponse(location="https://sandbox.librus.pl:8080/GetFile/abc123")]
+        )
+        with patcher:
+            with pytest.raises(TokenError, match="unexpected attachment redirect"):
+                download_attachment(FakeClient(), "1", "2", tmp_path)
+
+    def test_redirect_with_query_raises(self, tmp_path):
+        from librus_apix.exceptions import TokenError
+        from src.scraping import download_attachment
+
+        patcher, _ = _patch_http(
+            [FakeRedirectResponse(location="https://sandbox.librus.pl/GetFile/abc?key=1")]
+        )
+        with patcher:
+            with pytest.raises(TokenError, match="unexpected attachment redirect"):
+                download_attachment(FakeClient(), "1", "2", tmp_path)
+
+    def test_dot_dot_filename_falls_back_to_ids(self, tmp_path):
+        """A disposition of '..' survives an emptiness check but sanitizes to
+        ''; it must fall back to the ID-based name, not create ' (1)' files."""
+        from src.scraping import download_attachment
+
+        patcher, _ = _patch_http(self._responses(filename='attachment; filename=".."'))
+        with patcher:
+            info = download_attachment(FakeClient(), "11", "22", tmp_path)
+        assert info["filename"] == "attachment_11_22"
+
+    def test_download_uses_client_proxy(self, tmp_path):
+        from src.scraping import download_attachment
+
+        client = FakeClient()
+        client.proxy = {"https": "http://proxy.local:3128"}
+        patcher, mock = _patch_http(self._responses())
+        with patcher:
             download_attachment(client, "1", "2", tmp_path)
+        for call in mock.call_args_list:
+            assert call.kwargs["proxies"] == client.proxy
 
     def test_empty_body_raises(self, tmp_path):
         from src.scraping import download_attachment
 
-        client = self._client(content=b"")
-        with pytest.raises(AssertionError, match="empty"):
-            download_attachment(client, "1", "2", tmp_path)
+        patcher, _ = _patch_http(self._responses(content=b""))
+        with patcher:
+            with pytest.raises(ValueError, match="empty"):
+                download_attachment(FakeClient(), "1", "2", tmp_path)
+
+    def test_oversized_body_raises(self, tmp_path, monkeypatch):
+        from src import scraping
+
+        monkeypatch.setattr(scraping, "MAX_ATTACHMENT_BYTES", 8)
+        patcher, _ = _patch_http(self._responses(content=b"0123456789"))
+        with patcher:
+            with pytest.raises(ValueError, match="byte limit"):
+                scraping.download_attachment(FakeClient(), "1", "2", tmp_path)
+        assert list(tmp_path.iterdir()) == []
 
     def test_slash_in_file_id_raises(self, tmp_path):
         from src.scraping import download_attachment
 
-        with pytest.raises(AssertionError, match="bare ID"):
-            download_attachment(FakeClient([]), "1", "2/3", tmp_path)
+        with pytest.raises(ValueError, match="numeric ID"):
+            download_attachment(FakeClient(), "1", "2/3", tmp_path)
+
+    def test_existing_file_is_not_overwritten(self, tmp_path):
+        from src.scraping import download_attachment
+
+        (tmp_path / "raport.pdf").write_bytes(b"original")
+        patcher, _ = _patch_http(self._responses())
+        with patcher:
+            info = download_attachment(FakeClient(), "1", "2", tmp_path)
+        assert (tmp_path / "raport.pdf").read_bytes() == b"original"
+        assert info["filename"] == "raport (1).pdf"
+        assert (tmp_path / "raport (1).pdf").read_bytes() == b"%PDF-1.4 data"
+
+    def test_symlink_is_not_followed(self, tmp_path):
+        from src.scraping import download_attachment
+
+        outside_target = tmp_path.parent / "outside.pdf"
+        outside_target.write_bytes(b"outside")
+        (tmp_path / "downloads").mkdir()
+        (tmp_path / "downloads" / "raport.pdf").symlink_to(outside_target)
+        patcher, _ = _patch_http(self._responses())
+        with patcher:
+            info = download_attachment(FakeClient(), "1", "2", tmp_path / "downloads")
+        # The symlink target must stay untouched; content lands in a new file.
+        assert outside_target.read_bytes() == b"outside"
+        assert info["filename"] == "raport (1).pdf"
 
 
 class TestResolveDownloadDir:

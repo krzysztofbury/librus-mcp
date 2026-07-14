@@ -7,6 +7,10 @@ Attachment flow (verified live 2026-06-11):
   GET  <redirect url>/get
        -> file bytes with Content-Disposition filename
 
+The redirect is followed manually: the first request carries session cookies
+and must not follow an attacker-controllable Location; the sandbox URL is a
+signed key, so the actual download is made with no cookies at all.
+
 Uwagi page layout was captured live only in its empty state ("Brak uwag");
 the populated parser handles both Synergia table shapes (label-pair detail
 tables and column tables) and may need adjustment against a real note.
@@ -14,17 +18,29 @@ tables and column tables) and may need adjustment against a real note.
 
 import os
 import re
+import time
 from dataclasses import dataclass
 from pathlib import Path
+from urllib.parse import urlparse
 
+import requests
 from bs4 import BeautifulSoup, Tag
+from librus_apix import urls as librus_urls
 from librus_apix.client import Client
+from librus_apix.exceptions import TokenError
 from librus_apix.helpers import no_access_check
+from requests.cookies import RequestsCookieJar
 
 # Matches both raw and JS-escaped hrefs: /wiadomosci/pobierz_zalacznik/123/456
 ATTACHMENT_PATTERN = re.compile(r"pobierz_zalacznik(?:\\/|/)(\d+)(?:\\/|/)(\d+)")
 MAX_ATTACHMENT_BYTES = 50 * 1024 * 1024
 MAX_ATTACHMENTS_PER_MESSAGE = 20
+DOWNLOAD_HOST = "sandbox.librus.pl"
+DOWNLOAD_PATH_PREFIX = "/GetFile/"
+REQUEST_TIMEOUT_SECONDS = 30.0
+DOWNLOAD_DEADLINE_SECONDS = 120.0
+DOWNLOAD_CHUNK_BYTES = 64 * 1024
+MAX_FILENAME_ATTEMPTS = 100
 
 _LABEL_FIELD_MAP = {
     "data": "date",
@@ -73,7 +89,8 @@ def parse_attachments(html: str) -> list[Attachment]:
         attachments.append(
             Attachment(_attachment_filename(img, message_id, file_id), message_id, file_id)
         )
-    assert len(attachments) <= MAX_ATTACHMENTS_PER_MESSAGE, "implausible attachment count"
+    if len(attachments) > MAX_ATTACHMENTS_PER_MESSAGE:
+        raise ValueError(f"implausible attachment count: {len(attachments)}")
     return attachments
 
 
@@ -91,55 +108,129 @@ def _attachment_filename(download_img: Tag, message_id: str, file_id: str) -> st
 
 def get_attachments(client: Client, message_id: str) -> list[Attachment]:
     """Fetch the message detail page and list its attachments."""
-    assert message_id, "message_id must not be empty"
-    assert "/" not in message_id, "message_id must be a bare ID"
+    _require_bare_id(message_id, "message_id")
     response = client.get(client.MESSAGE_URL + "/" + message_id)
     no_access_check(BeautifulSoup(response.text, "lxml"))
     return parse_attachments(response.text)
 
 
 def download_attachment(client: Client, message_id: str, file_id: str, download_dir: Path) -> dict:
-    """Download one attachment to download_dir. Returns path/filename/size/content_type.
-
-    Relies on Client.get following redirects (the requests default): the first
-    GET returns the *followed* sandbox.librus.pl/GetFile/<key> page, and the
-    file bytes live at <key>/get.
-    """
-    assert message_id, "message_id must not be empty"
-    assert file_id, "file_id must not be empty"
-    assert "/" not in message_id, "message_id must be a bare ID"
-    assert "/" not in file_id, "file_id must be a bare ID"
+    """Download one attachment to download_dir. Returns path/filename/size/content_type."""
+    _require_bare_id(message_id, "message_id")
+    _require_bare_id(file_id, "file_id")
 
     url = f"{client.BASE_URL}/wiadomosci/pobierz_zalacznik/{message_id}/{file_id}"
-    landing_response = client.get(url)
-    assert landing_response.status_code == 200, (
-        f"attachment redirect failed: {landing_response.status_code}"
-    )
-    assert "/GetFile/" in landing_response.url, (
-        f"unexpected download redirect target: {landing_response.url}"
-    )
+    download_url = _resolve_download_url(client, url)
+    content, content_type, disposition = _fetch_attachment_bytes(download_url, client.proxy)
 
-    response = client.get(landing_response.url + "/get")
-    assert response.status_code == 200, f"attachment download failed: {response.status_code}"
-    content = response.content
-    assert len(content) > 0, "attachment download returned empty body"
-    assert len(content) <= MAX_ATTACHMENT_BYTES, f"attachment too large: {len(content)} bytes"
-
-    filename = _filename_from_disposition(response.headers.get("Content-Disposition", ""))
-    if not filename:
+    # Sanitize BEFORE the validity check. Path(...).name strips directories
+    # but passes ".." through unchanged, and ".." as a filename is a live
+    # path component — dot names must fall back like empty ones.
+    filename = Path(_filename_from_disposition(disposition)).name.strip()
+    if filename in ("", ".", ".."):
         filename = f"attachment_{message_id}_{file_id}"
-    # Strip any path components so the server-supplied name cannot escape download_dir.
-    filename = Path(filename).name
 
-    download_dir.mkdir(parents=True, exist_ok=True)
-    target_path = download_dir / filename
-    target_path.write_bytes(content)
+    target_path = _write_unique_file(download_dir, filename, content)
     return {
         "path": str(target_path),
-        "filename": filename,
+        "filename": target_path.name,
         "size": len(content),
-        "content_type": response.headers.get("Content-Type", ""),
+        "content_type": content_type,
     }
+
+
+def _require_bare_id(value: str, name: str) -> None:
+    if not isinstance(value, str) or not value.isdigit():
+        raise ValueError(f"{name} must be a numeric ID, got: '{value}'")
+
+
+def _resolve_download_url(client: Client, url: str) -> str:
+    """Request the attachment endpoint without following redirects and return
+    the validated sandbox download URL. The authenticated request must not
+    follow an arbitrary Location: the client's auth cookies are domainless and
+    would be sent to whatever host the redirect names."""
+    cookie_jar = RequestsCookieJar()
+    cookie_jar.update(client.cookies)
+    cookie_jar.update(client.token.access_cookies())
+    response = requests.get(
+        url,
+        headers=librus_urls.HEADERS,
+        cookies=cookie_jar,
+        allow_redirects=False,
+        timeout=REQUEST_TIMEOUT_SECONDS,
+        proxies=client.proxy,
+    )
+    # An expired session redirects to the login page instead of the sandbox;
+    # TokenError lets the manager's retry re-authenticate once.
+    if response.status_code != 302:
+        raise TokenError(f"attachment request did not redirect (HTTP {response.status_code})")
+    location = response.headers.get("Location", "")
+    parsed = urlparse(location)
+    is_sandbox = (
+        parsed.scheme == "https"
+        and parsed.hostname == DOWNLOAD_HOST
+        and parsed.port in (None, 443)
+        and parsed.path.startswith(DOWNLOAD_PATH_PREFIX)
+        and not parsed.query
+        and not parsed.fragment
+    )
+    if not is_sandbox:
+        raise TokenError(f"unexpected attachment redirect target: '{location}'")
+    return location
+
+
+def _fetch_attachment_bytes(download_url: str, proxy: dict) -> tuple[bytes, str, str]:
+    """Stream the file from the signed sandbox URL with a byte cap and a
+    deadline. Sent with no cookies: the URL key alone authorizes the download,
+    and Synergia session cookies must never reach the sandbox host."""
+    deadline = time.monotonic() + DOWNLOAD_DEADLINE_SECONDS
+    chunks: list[bytes] = []
+    received_bytes = 0
+    with requests.get(
+        download_url + "/get",
+        headers=librus_urls.HEADERS,
+        stream=True,
+        allow_redirects=False,
+        timeout=REQUEST_TIMEOUT_SECONDS,
+        proxies=proxy,
+    ) as response:
+        if response.status_code != 200:
+            raise ValueError(f"attachment download failed: HTTP {response.status_code}")
+        content_type = response.headers.get("Content-Type", "")
+        disposition = response.headers.get("Content-Disposition", "")
+        for chunk in response.iter_content(DOWNLOAD_CHUNK_BYTES):
+            received_bytes += len(chunk)
+            if received_bytes > MAX_ATTACHMENT_BYTES:
+                raise ValueError(f"attachment exceeds the {MAX_ATTACHMENT_BYTES} byte limit")
+            if time.monotonic() > deadline:
+                raise ValueError("attachment download exceeded its deadline")
+            chunks.append(chunk)
+    content = b"".join(chunks)
+    if len(content) == 0:
+        raise ValueError("attachment download returned an empty body")
+    return content, content_type, disposition
+
+
+def _write_unique_file(download_dir: Path, filename: str, content: bytes) -> Path:
+    """Create the file exclusively (never overwrite, never follow a symlink);
+    on a name collision append ' (n)' before the extension."""
+    assert filename not in ("", ".", ".."), "filename must not be empty or a dot component"
+    assert filename == Path(filename).name, "filename must be bare, with no path components"
+    download_dir.mkdir(parents=True, exist_ok=True)
+    stem = Path(filename).stem
+    suffix = Path(filename).suffix
+    open_flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0)
+    for attempt in range(MAX_FILENAME_ATTEMPTS):
+        candidate = filename if attempt == 0 else f"{stem} ({attempt}){suffix}"
+        target_path = download_dir / candidate
+        try:
+            descriptor = os.open(target_path, open_flags, 0o600)
+        except FileExistsError:
+            continue
+        with os.fdopen(descriptor, "wb") as handle:
+            handle.write(content)
+        return target_path
+    raise ValueError(f"no unique filename for '{filename}' after {MAX_FILENAME_ATTEMPTS} attempts")
 
 
 def _filename_from_disposition(disposition: str) -> str:

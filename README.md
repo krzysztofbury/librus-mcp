@@ -88,6 +88,10 @@ LIBRUS_ACCOUNTS = '[{"alias":"daughter","username":"12345","password":"..."}]'
 
 Each account represents a **parent's login** to Librus Synergia for a specific child. In the Polish school system, parents receive separate Librus login credentials for each of their children. The `alias` is a friendly name you choose to identify which child's data you're accessing. The `username` and `password` are the parent portal credentials you use to log in at [synergia.librus.pl](https://synergia.librus.pl/).
 
+> **Limitation:** accounts that require interactive two-factor authentication
+> are not supported — the underlying librus-apix library has no 2FA flow, so
+> such accounts fail at login.
+
 There are three ways to provide credentials (checked in this order):
 
 | Method | Best for | Example |
@@ -127,7 +131,7 @@ If you prefer a file over inline JSON:
 If you prefer to run from a local clone:
 
 ```bash
-git clone https://github.com/krzysztoofbury/librus-mcp.git
+git clone https://github.com/krzysztofbury/librus-mcp.git
 cd librus-mcp
 uv venv && uv pip install -e .
 cp secrets.json.template secrets.json   # Then fill in credentials
@@ -150,20 +154,26 @@ Then use the full path in your MCP config:
 | Tool | Description |
 |------|-------------|
 | `list_students()` | List configured student aliases |
-| `get_grades(student_alias)` | Get numeric grades, GPA, and descriptive grades |
+| `get_grades(student_alias, sort_by?)` | Get numeric grades, GPA, and descriptive grades (`all`, `week`, or `last_login`) |
 | `get_final_grades(student_alias)` | Get end-of-year summary per subject: midterm, predicted annual (przewidywana roczna), and annual grade |
-| `get_messages(student_alias, page?, folder?)` | Get one page of messages from the `received` or `sent` folder |
-| `get_message_content(student_alias, message_id)` | Get the body of a specific message |
-| `get_attendance(student_alias)` | Get attendance records |
+| `get_messages(student_alias, page?, folder?, all_pages?)` | Get one page of messages from the `received` or `sent` folder, or the whole folder (bounded at 2000 messages) |
+| `get_message_content(student_alias, message_id)` | Get a message: author, title, date, and content |
+| `get_attendance(student_alias, sort_by?)` | Get attendance records (`all`, `week`, or `last_login`) |
+| `get_attendance_detail(student_alias, detail_url)` | Get details of one attendance entry |
+| `get_attendance_frequency(student_alias)` | Get attendance frequency per semester and overall |
 | `get_subject_frequency(student_alias, start?, end?)` | Get per-subject attendance percentage, optionally filtered by date range |
-| `get_homework(student_alias)` | Get homework for the next 2 weeks |
+| `get_homework(student_alias, date_from?, date_to?)` | Get homework for a date range (default: next 2 weeks) |
 | `get_homework_detail(student_alias, detail_url)` | Get full details of a specific homework assignment |
 | `get_schedule(student_alias, year, month)` | Get calendar events/exams for a month |
+| `get_schedule_detail(student_alias, href)` | Get details of one schedule event (test scope, room, teacher) |
 | `get_recent_schedule_events(student_alias)` | Get schedule events added since the last Librus login |
-| `get_timetable(student_alias)` | Get current week's timetable |
+| `get_timetable(student_alias, monday?)` | Get a week's timetable (default: current week; `monday` picks another week) |
 | `get_announcements(student_alias)` | Get school announcements |
 | `get_completed_lessons(student_alias, date_from, date_to)` | Get completed lessons (subject, teacher, topic) for a date range |
 | `get_student_information(student_alias)` | Get student profile (name, class, tutor, school, lucky number) |
+
+All tools carry MCP `ToolAnnotations` (read-only / destructive / idempotent
+hints), so MCP hosts can apply their own safety policies.
 
 ### Optional tools (feature gates)
 
@@ -178,7 +188,11 @@ These tools are registered based on the `features` section of the configuration
 | `get_behaviour_notes(student_alias)` | `behaviour_notes` | on | Behaviour notes (uwagi): date, teacher, category, content |
 | `get_recipient_groups(student_alias)` | `send_message` | **off** | List recipient groups for messaging |
 | `get_recipients(student_alias, group)` | `send_message` | **off** | List recipients (name → ID) in a group |
-| `send_message(student_alias, title, content, recipient_ids)` | `send_message` | **off** | Send a real message to school staff — enable deliberately |
+| `send_message(student_alias, title, content, recipient_ids, confirm_token?)` | `send_message` | **off** | Send a real message to school staff — enable deliberately |
+
+`send_message` uses a two-step confirmation: the first call sends nothing and
+returns a preview plus a single-use `confirm_token` (valid 5 minutes); only a
+second call with that token delivers the message.
 
 Example with all options:
 

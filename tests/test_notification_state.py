@@ -57,6 +57,24 @@ class TestSaveLoadRoundtrip:
         assert load_notification_ids(tmp_path, "primary").grades == ["/g/1", "/g/2"]
         assert load_notification_ids(tmp_path, "secondary").grades == []
 
+    def test_aliases_sanitizing_to_same_name_do_not_collide(self, tmp_path):
+        """'child/a' and 'child?a' both sanitize to 'child_a'; their state
+        files must stay distinct or notifications would cross accounts."""
+        ids_a = _sample_ids()
+        ids_b = NotificationIds([], [], [], [], [], [])
+        save_notification_ids(tmp_path, "child/a", ids_a)
+        save_notification_ids(tmp_path, "child?a", ids_b)
+        assert load_notification_ids(tmp_path, "child/a").grades == ["/g/1", "/g/2"]
+        assert load_notification_ids(tmp_path, "child?a").grades == []
+
+    def test_sanitized_alias_does_not_shadow_literal_alias(self, tmp_path):
+        ids_literal = _sample_ids()
+        ids_sanitized = NotificationIds([], [], [], [], [], [])
+        save_notification_ids(tmp_path, "child_a", ids_literal)
+        save_notification_ids(tmp_path, "child/a", ids_sanitized)
+        assert load_notification_ids(tmp_path, "child_a").grades == ["/g/1", "/g/2"]
+        assert load_notification_ids(tmp_path, "child/a").grades == []
+
     def test_empty_alias_raises(self, tmp_path):
         with pytest.raises(AssertionError):
             save_notification_ids(tmp_path, "", _sample_ids())
