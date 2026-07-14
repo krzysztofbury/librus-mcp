@@ -2,6 +2,25 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.6.0] - 2026-07-14
+
+### Security
+- `send_message` never retries an authentication failure after its POST. A retry
+  could duplicate a real school message, so the server instead reports an
+  uncertain result and directs the caller to inspect the sent folder
+- Attendance and homework detail references must now be bare numeric IDs from
+  Librus, preventing a tool call from traversing to an arbitrary authenticated
+  Synergia route
+- Notification seen-state transactions now use an advisory file lock in
+  addition to the existing in-process lock, preventing two MCP processes that
+  share `state_dir` from re-reporting or losing updates
+
+### Fixed
+- `send_message` reports `status: "failed"` when Librus rejects delivery
+- Every upstream requests-based call, including login, has a 30-second HTTP
+  timeout; each upstream operation also has a 120-second deadline, quarantines
+  its alias while a timed-out worker finishes, and retires its client
+
 ## [0.5.2] - 2026-07-14
 
 ### Added

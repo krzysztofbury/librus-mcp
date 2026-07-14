@@ -8,8 +8,12 @@ on:
 
 jobs:
   lint:
-    name: Lint, test, and build
+    name: Lint, test, and build (Python ${{ matrix.python-version }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11", "3.12", "3.13"]
     steps:
       - uses: actions/checkout@v4
 
@@ -20,7 +24,9 @@ jobs:
         run: uv lock --check
 
       - name: Set up Python and install dependencies
-        run: uv sync --locked
+        run: |
+          uv python install ${{ matrix.python-version }}
+          uv sync --locked --python ${{ matrix.python-version }}
 
       - name: Ruff check
         run: uv run ruff check src/ tests/

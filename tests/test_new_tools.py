@@ -266,6 +266,7 @@ class TestSendMessageTools:
                 "test_student", "Temat", "Treść", ["12345"], preview["confirm_token"]
             )
         assert result["success"] is False
+        assert result["status"] == "failed"
 
     @pytest.mark.asyncio
     async def test_unrecognized_result_text_raises(self):

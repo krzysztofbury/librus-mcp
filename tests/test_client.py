@@ -4,7 +4,7 @@ serialization, auth retry, error normalization, and bounded all-pages fetch."""
 import asyncio
 import dataclasses
 import json
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from librus_apix.exceptions import MaintananceError, ParseError, TokenError
@@ -83,6 +83,54 @@ class TestExecuteRetry:
                 await LibrusManager._execute("test_student", always_failing)
 
     @pytest.mark.asyncio
+    async def test_non_idempotent_call_is_not_retried(self):
+        calls = {"count": 0}
+
+        def token_failure(client):
+            calls["count"] += 1
+            raise TokenError("Brak dostępu")
+
+        with patch.object(LibrusManager, "get_client", new_callable=AsyncMock) as get_client:
+            get_client.return_value = object()
+            with pytest.raises(TokenError):
+                await LibrusManager._execute(
+                    "test_student", token_failure, retry_auth_on_failure=False
+                )
+        assert calls["count"] == 1
+        assert get_client.await_count == 1
+
+    @pytest.mark.asyncio
+    async def test_send_disables_auth_retry(self):
+        with patch.object(
+            LibrusManager,
+            "_execute",
+            new_callable=AsyncMock,
+            side_effect=TokenError("Brak dostępu"),
+        ) as execute:
+            with pytest.raises(RuntimeError, match="not retried"):
+                await LibrusManager.send_message_to("test_student", "Subject", "Body", ["1"])
+        assert execute.await_args.kwargs["retry_auth_on_failure"] is False
+
+    @pytest.mark.asyncio
+    async def test_send_timeout_reports_an_uncertain_delivery(self):
+        with patch.object(
+            LibrusManager, "_execute", new_callable=AsyncMock, side_effect=TimeoutError()
+        ):
+            with pytest.raises(RuntimeError, match="delivery is uncertain"):
+                await LibrusManager.send_message_to("test_student", "Subject", "Body", ["1"])
+
+    @pytest.mark.asyncio
+    async def test_send_cancellation_reports_an_uncertain_delivery(self):
+        with patch.object(
+            LibrusManager,
+            "_execute",
+            new_callable=AsyncMock,
+            side_effect=asyncio.CancelledError(),
+        ):
+            with pytest.raises(RuntimeError, match="delivery is uncertain"):
+                await LibrusManager.send_message_to("test_student", "Subject", "Body", ["1"])
+
+    @pytest.mark.asyncio
     async def test_maintenance_error_is_actionable(self):
         def maintenance(client):
             raise MaintananceError("prace serwisowe")
@@ -101,6 +149,75 @@ class TestExecuteRetry:
             get_client.return_value = object()
             with pytest.raises(RuntimeError, match="librus-apix"):
                 await LibrusManager._execute("test_student", unparseable)
+
+
+class TestUpstreamTimeouts:
+    def test_session_applies_default_request_timeout(self):
+        session = librus_client_module.LibrusTimeoutSession()
+        with patch("requests.Session.request", return_value=MagicMock()) as request:
+            session.get("https://example.invalid")
+        session.close()
+        assert (
+            request.call_args.kwargs["timeout"]
+            == librus_client_module.UPSTREAM_REQUEST_TIMEOUT_SECONDS
+        )
+
+    @pytest.mark.asyncio
+    async def test_operation_timeout_evicts_the_client(self, monkeypatch):
+        monkeypatch.setattr(librus_client_module, "UPSTREAM_OPERATION_TIMEOUT_SECONDS", 0.01)
+        client = object()
+        LibrusManager._instances["test_student"] = client
+
+        def slow_call(received_client):
+            assert received_client is client
+            import time
+
+            time.sleep(0.1)
+
+        with patch.object(LibrusManager, "get_client", new_callable=AsyncMock) as get_client:
+            get_client.return_value = client
+            with pytest.raises(TimeoutError, match="timed out"):
+                await LibrusManager._execute("test_student", slow_call)
+            with pytest.raises(RuntimeError, match="still completing"):
+                await LibrusManager._execute("test_student", lambda _: "unexpected")
+            await asyncio.sleep(0.15)
+            assert await LibrusManager._execute("test_student", lambda _: "ok") == "ok"
+        assert "test_student" not in LibrusManager._instances
+
+    @pytest.mark.asyncio
+    async def test_login_timeout_does_not_start_an_auth_cooldown(self, monkeypatch):
+        monkeypatch.setattr(librus_client_module, "UPSTREAM_OPERATION_TIMEOUT_SECONDS", 0.01)
+
+        async def slow_login(*args, **kwargs):
+            await asyncio.sleep(0.1)
+
+        with patch("src.librus_client.asyncio.to_thread", side_effect=slow_login):
+            with pytest.raises(TimeoutError, match="authentication timed out"):
+                await LibrusManager.get_client("test_student")
+        assert LibrusManager._auth_cooldowns == {}
+
+    @pytest.mark.asyncio
+    async def test_login_timeout_quarantines_the_alias(self, monkeypatch):
+        monkeypatch.setattr(librus_client_module, "UPSTREAM_OPERATION_TIMEOUT_SECONDS", 0.01)
+
+        class SlowClient:
+            def __init__(self):
+                self._session = MagicMock()
+                self.cookies = None
+
+            def get_token(self, username, password):
+                import time
+
+                time.sleep(0.1)
+                return object()
+
+        with patch("src.librus_client.new_client", return_value=SlowClient()):
+            with pytest.raises(TimeoutError, match="authentication timed out"):
+                await LibrusManager.get_client("test_student")
+            with pytest.raises(RuntimeError, match="still completing"):
+                await LibrusManager.get_client("test_student")
+            await asyncio.sleep(0.15)
+        assert LibrusManager._timed_out_workers == {}
 
 
 class TestAuthCooldown:
@@ -207,6 +324,22 @@ class TestPerAliasSerialization:
                 LibrusManager._execute("test_student", tracked),
             )
         assert active["max"] == 1
+
+
+class TestNotificationStateLock:
+    @pytest.mark.asyncio
+    async def test_cancelled_lock_wait_does_not_acquire_a_descriptor(self, monkeypatch, tmp_path):
+        monkeypatch.setattr(librus_client_module, "NOTIFICATION_LOCK_MAX_ATTEMPTS", 100)
+        monkeypatch.setattr(
+            librus_client_module, "try_acquire_notification_state_lock", lambda *_: None
+        )
+        task = asyncio.create_task(
+            LibrusManager._acquire_notification_state_lock(tmp_path, "test_student")
+        )
+        await asyncio.sleep(0)
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
 
 
 class TestFetchAllMessages:

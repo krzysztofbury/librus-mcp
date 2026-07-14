@@ -366,7 +366,7 @@ class TestGetHomeworkDetail:
     async def test_returns_detail(self):
         detail = FakeHomeworkDetail("Math", "Smith", "Full description", "2026-01-01", "2026-01-15")
         with _mock_execute(detail):
-            result = await get_homework_detail("test_student", "/hw/1")
+            result = await get_homework_detail("test_student", "1")
         assert result["subject"] == "Math"
         assert result["description"] == "Full description"
 
@@ -377,13 +377,18 @@ class TestGetHomeworkDetail:
 
     @pytest.mark.asyncio
     async def test_absolute_detail_url_raises(self):
-        with pytest.raises(ValueError, match="relative"):
+        with pytest.raises(ValueError, match="numeric ID"):
             await get_homework_detail("test_student", "https://evil.example/hw/1")
+
+    @pytest.mark.asyncio
+    async def test_path_traversal_detail_url_raises(self):
+        with pytest.raises(ValueError, match="numeric ID"):
+            await get_homework_detail("test_student", "../../../../wiadomosci/5")
 
     @pytest.mark.asyncio
     async def test_empty_alias_raises(self):
         with pytest.raises(ValueError, match="student_alias"):
-            await get_homework_detail("", "/hw/1")
+            await get_homework_detail("", "1")
 
 
 class TestGetSchedule:
@@ -612,4 +617,4 @@ class TestFetchAssertions:
     async def test_homework_detail_rejects_none(self):
         with _mock_execute(None):
             with pytest.raises(AssertionError, match="returned None"):
-                await get_homework_detail("test_student", "/hw/1")
+                await get_homework_detail("test_student", "1")

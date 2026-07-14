@@ -1,9 +1,11 @@
 import asyncio
 import re
 import time
-from typing import Callable, Any
 from datetime import datetime, timedelta
+from pathlib import Path
+from typing import Any, Callable
 
+from requests import Session
 from requests.cookies import RequestsCookieJar
 from requests.exceptions import JSONDecodeError as RequestsJSONDecodeError
 
@@ -42,8 +44,10 @@ from src import scraping
 from src.config import load_config, AccountConfig, AppConfig
 from src.notification_state import (
     load_notification_ids,
+    release_notification_state_lock,
     resolve_state_dir,
     save_notification_ids,
+    try_acquire_notification_state_lock,
 )
 
 MESSAGE_FOLDERS = ("received", "sent")
@@ -57,7 +61,6 @@ MAX_ALL_MESSAGE_PAGES = 40
 MAX_HOMEWORK_RANGE_DAYS = 370
 MAX_COMPLETED_LESSONS_RANGE_DAYS = 370
 MAX_COMPLETED_LESSONS_PAGES = 100
-MAX_DETAIL_URL_LENGTH = 300
 DATE_FORMAT = "%Y-%m-%d"
 # Upstream reports expired sessions in three ways: AuthorizationError and
 # TokenKeyError from the auth layer, TokenError when a page renders the
@@ -68,6 +71,16 @@ AUTH_ERRORS = (AuthorizationError, TokenError, TokenKeyError)
 # retrying a failing tool in a loop would otherwise deepen the throttle
 # (or, with bad credentials, risk a real lockout).
 AUTH_COOLDOWN_SECONDS = 60.0
+# Upstream librus-apix does not pass a timeout to requests.Session. Replace
+# each client session so login and every synchronous upstream call have one.
+UPSTREAM_REQUEST_TIMEOUT_SECONDS = 30.0
+# This also bounds non-requests work in librus-apix, such as HTML parsing and
+# its aiohttp attendance helper. A timed-out client is retired before the
+# per-alias lock is released, so its lingering worker can never share a
+# requests.Session with a subsequent call.
+UPSTREAM_OPERATION_TIMEOUT_SECONDS = 120.0
+NOTIFICATION_LOCK_RETRY_SECONDS = 0.05
+NOTIFICATION_LOCK_MAX_ATTEMPTS = 2400
 
 SCHEDULE_HREF_PATTERN = re.compile(r"^[A-Za-z0-9_-]+/[A-Za-z0-9_/-]+$")
 
@@ -91,15 +104,6 @@ def _require_message_id(value: Any, name: str = "message_id") -> str:
     return value
 
 
-def _require_detail_url(value: Any, name: str) -> str:
-    _require_non_empty(value, name)
-    if len(value) > MAX_DETAIL_URL_LENGTH:
-        raise ValueError(f"{name} is implausibly long ({len(value)} characters)")
-    if "://" in value:
-        raise ValueError(f"{name} must be a relative Librus path, not an absolute URL")
-    return value
-
-
 def _require_sort_by(value: Any) -> str:
     if value not in SORT_FILTERS:
         raise ValueError(f"sort_by must be one of {SORT_FILTERS}, got: '{value}'")
@@ -114,6 +118,14 @@ def _parse_date(value: Any, name: str) -> datetime:
         raise ValueError(f"{name} must be a YYYY-MM-DD date, got: '{value}'")
 
 
+class LibrusTimeoutSession(Session):
+    """A requests session that supplies the timeout librus-apix omits."""
+
+    def request(self, method: str, url: str, **kwargs: Any) -> Any:
+        kwargs.setdefault("timeout", UPSTREAM_REQUEST_TIMEOUT_SECONDS)
+        return super().request(method, url, **kwargs)
+
+
 class LibrusManager:
     _instances: dict[str, Client] = {}
     _tokens: dict[str, Token] = {}
@@ -123,6 +135,9 @@ class LibrusManager:
     # alias -> (monotonic deadline, failure reason). Bounded: only configured
     # aliases reach the code that writes here.
     _auth_cooldowns: dict[str, tuple[float, str]] = {}
+    # A Python thread cannot be stopped. Timed-out workers keep the alias
+    # unavailable until they finish, preventing concurrent reuse of its session.
+    _timed_out_workers: dict[str, asyncio.Task[Any]] = {}
 
     @classmethod
     def _require_account(cls, alias: str) -> AccountConfig:
@@ -177,6 +192,7 @@ class LibrusManager:
         per-alias client lock lives there, and this method mutates the shared
         instance/token caches."""
         account = cls._require_account(alias)
+        cls._raise_if_worker_is_running(alias)
 
         if alias in cls._instances:
             return cls._instances[alias]
@@ -184,12 +200,16 @@ class LibrusManager:
         cls._check_auth_cooldown(alias)
 
         client = new_client()
+        client._session.close()
+        client._session = LibrusTimeoutSession()
         # Upstream librus-apix creates every client with the same mutable
         # default cookie jar, so one child's session cookies would leak into
         # another child's requests. A fresh jar per client isolates sessions.
         client.cookies = RequestsCookieJar()
         try:
-            token = await asyncio.to_thread(client.get_token, account.username, account.password)
+            token = await cls._run_upstream_call(
+                alias, client.get_token, account.username, account.password
+            )
         except MaintananceError as error:
             # No cooldown: maintenance is service-wide, not a per-account
             # signal, and the check happens before the login POST.
@@ -204,6 +224,10 @@ class LibrusManager:
             )
             cls._start_auth_cooldown(alias, reason)
             raise ValueError(reason) from error
+        except (asyncio.TimeoutError, TimeoutError) as error:
+            raise TimeoutError(
+                f"Librus authentication timed out after {UPSTREAM_OPERATION_TIMEOUT_SECONDS:.0f}s"
+            ) from error
         except Exception as error:
             reason = f"Failed to authenticate for '{alias}': {error}"
             cls._start_auth_cooldown(alias, reason)
@@ -245,7 +269,65 @@ class LibrusManager:
         cls._tokens.pop(alias, None)
 
     @classmethod
-    async def _execute(cls, alias: str, func: Callable[..., Any], *args, **kwargs) -> Any:
+    def _raise_if_worker_is_running(cls, alias: str) -> None:
+        worker = cls._timed_out_workers.get(alias)
+        if worker is None:
+            return
+        if worker.done():
+            cls._timed_out_workers.pop(alias, None)
+            return
+        raise RuntimeError(
+            f"A previous Librus operation for '{alias}' is still completing after a timeout; "
+            "try again shortly."
+        )
+
+    @classmethod
+    def _quarantine_timed_out_worker(cls, alias: str, worker: asyncio.Task[Any]) -> None:
+        """Retain a timed-out worker until it finishes, then make the alias available."""
+        cls._timed_out_workers[alias] = worker
+        cls._evict_client(alias)
+
+        def clear_worker(completed_worker: asyncio.Task[Any]) -> None:
+            if cls._timed_out_workers.get(alias) is completed_worker:
+                cls._timed_out_workers.pop(alias, None)
+            try:
+                completed_worker.exception()
+            except asyncio.CancelledError:
+                pass
+
+        worker.add_done_callback(clear_worker)
+
+    @classmethod
+    async def _run_upstream_call(cls, alias: str, func: Callable[..., Any], *args, **kwargs) -> Any:
+        """Run one blocking upstream call with a deadline.
+
+        asyncio cannot terminate a worker thread. Retiring the timed-out client
+        and quarantining its alias prevents the lingering worker from overlapping
+        with a subsequent request for the same account.
+        """
+        worker = asyncio.create_task(asyncio.to_thread(func, *args, **kwargs))
+        try:
+            done, _ = await asyncio.wait({worker}, timeout=UPSTREAM_OPERATION_TIMEOUT_SECONDS)
+        except asyncio.CancelledError:
+            if not worker.done():
+                cls._quarantine_timed_out_worker(alias, worker)
+            raise
+        if worker in done:
+            return worker.result()
+        cls._quarantine_timed_out_worker(alias, worker)
+        raise TimeoutError(
+            f"Librus operation timed out after {UPSTREAM_OPERATION_TIMEOUT_SECONDS:.0f}s"
+        )
+
+    @classmethod
+    async def _execute(
+        cls,
+        alias: str,
+        func: Callable[..., Any],
+        *args,
+        retry_auth_on_failure: bool = True,
+        **kwargs,
+    ) -> Any:
         """Execute a blocking librus-apix call on a thread, with one retry on auth failure.
 
         The retry exists because Librus session tokens expire after ~30 minutes
@@ -257,15 +339,18 @@ class LibrusManager:
         """
         cls._require_account(alias)
         async with cls._client_lock(alias):
+            cls._raise_if_worker_is_running(alias)
             try:
                 try:
                     client = await cls.get_client(alias)
-                    return await asyncio.to_thread(func, client, *args, **kwargs)
+                    return await cls._run_upstream_call(alias, func, client, *args, **kwargs)
                 except AUTH_ERRORS:
+                    if not retry_auth_on_failure:
+                        raise
                     # Token likely expired. Clear cache and re-authenticate once.
                     cls._evict_client(alias)
                     client = await cls.get_client(alias)
-                    return await asyncio.to_thread(func, client, *args, **kwargs)
+                    return await cls._run_upstream_call(alias, func, client, *args, **kwargs)
             except MaintananceError as error:
                 raise RuntimeError(
                     f"Librus is under maintenance, try again later: {error}"
@@ -408,7 +493,7 @@ class LibrusManager:
     @classmethod
     async def fetch_attendance_detail(cls, alias: str, detail_url: str) -> dict[str, str]:
         """Fetch details of one attendance entry (from its 'href' field)."""
-        _require_detail_url(detail_url, "detail_url")
+        _require_message_id(detail_url, "detail_url")
         detail = await cls._execute(alias, get_attendance_detail, detail_url)
         assert isinstance(detail, dict), "get_detail must return a dict"
         return detail
@@ -475,7 +560,7 @@ class LibrusManager:
     @classmethod
     async def fetch_homework_detail(cls, alias: str, detail_url: str) -> Any:
         """Fetch full details of a specific homework assignment."""
-        _require_detail_url(detail_url, "detail_url")
+        _require_message_id(detail_url, "detail_url")
         detail = await cls._execute(alias, homework_detail, detail_url)
         assert detail is not None, "homework_detail returned None"
         return detail
@@ -580,16 +665,35 @@ class LibrusManager:
         config = cls._get_config()
         state_dir = resolve_state_dir(config.state_dir)
         async with cls._notification_lock(alias):
-            seen_ids = load_notification_ids(state_dir, alias)
-            first_run = seen_ids is None
-            if seen_ids is None:
-                seen_ids = NotificationIds([], [], [], [], [], [])
-            result = await cls._execute(alias, get_new_notification_data, seen_ids)
-            assert isinstance(result, tuple), "notification fetch must return a tuple"
-            assert len(result) == 2, "notification fetch must return (data, ids)"
-            data, updated_ids = result
-            save_notification_ids(state_dir, alias, updated_ids)
+            lock_descriptor = await cls._acquire_notification_state_lock(state_dir, alias)
+            try:
+                seen_ids = load_notification_ids(state_dir, alias)
+                first_run = seen_ids is None
+                if seen_ids is None:
+                    seen_ids = NotificationIds([], [], [], [], [], [])
+                result = await cls._execute(alias, get_new_notification_data, seen_ids)
+                assert isinstance(result, tuple), "notification fetch must return a tuple"
+                assert len(result) == 2, "notification fetch must return (data, ids)"
+                data, updated_ids = result
+                save_notification_ids(state_dir, alias, updated_ids)
+            finally:
+                release_notification_state_lock(lock_descriptor)
         return {"first_run": first_run, "new": data}
+
+    @classmethod
+    async def _acquire_notification_state_lock(cls, state_dir: Path, alias: str) -> int:
+        """Acquire a cross-process state lock without blocking cancellation.
+
+        Each attempt is non-blocking and the bounded sleep yields to the event
+        loop, so a cancelled MCP request cannot orphan a lock descriptor in a
+        background thread.
+        """
+        for _ in range(NOTIFICATION_LOCK_MAX_ATTEMPTS):
+            descriptor = try_acquire_notification_state_lock(state_dir, alias)
+            if descriptor is not None:
+                return descriptor
+            await asyncio.sleep(NOTIFICATION_LOCK_RETRY_SECONDS)
+        raise TimeoutError("notification state is locked by another MCP process; try again later")
 
     @classmethod
     async def fetch_recipient_groups(cls, alias: str) -> list[str]:
@@ -629,22 +733,40 @@ class LibrusManager:
     ) -> dict[str, Any]:
         """Send a message via the school messaging system. Write action."""
         cls.validate_send_message_args(alias, title, content, recipient_ids)
-        result = await cls._execute(alias, send_message, title, content, recipient_ids)
-        assert isinstance(result, tuple), "send_message must return a tuple"
-        assert len(result) == 2, "send_message must return (success, message)"
-        _, status_message = result
-        # Upstream's success bool is structurally always False: it compares
-        # soup.status_code (a bs4 tag lookup, always None) to 200. The page
-        # text is the source of truth. The negative check must run first —
-        # "nie została wysłana" contains "została wysłana" as a substring.
-        if "nie została" in status_message:
-            return {"success": False, "result": status_message}
-        if "została wysłana" in status_message:
-            return {"success": True, "result": status_message}
-        raise RuntimeError(
-            f"unrecognized send_message result (message may or may not have been "
-            f"delivered — check the sent folder): '{status_message}'"
-        )
+        try:
+            result = await cls._execute(
+                alias,
+                send_message,
+                title,
+                content,
+                recipient_ids,
+                retry_auth_on_failure=False,
+            )
+            if not isinstance(result, tuple) or len(result) != 2:
+                raise RuntimeError("librus-apix returned an invalid send_message result")
+            _, status_message = result
+            if not isinstance(status_message, str):
+                raise RuntimeError("librus-apix returned a non-string send_message status")
+            # The negative check must run first: "nie została wysłana"
+            # contains "została wysłana" as a substring.
+            if "nie została" in status_message:
+                return {"success": False, "result": status_message}
+            if "została wysłana" in status_message:
+                return {"success": True, "result": status_message}
+            raise RuntimeError(
+                f"unrecognized send_message result (message may or may not have been "
+                f"delivered — check the sent folder): '{status_message}'"
+            )
+        except asyncio.CancelledError as error:
+            raise RuntimeError(
+                "Librus send delivery is uncertain and was not retried to avoid duplicate delivery; "
+                "check the sent folder before trying again."
+            ) from error
+        except Exception as error:
+            raise RuntimeError(
+                "Librus send delivery is uncertain and was not retried to avoid duplicate delivery; "
+                f"check the sent folder before trying again. Upstream error: {error}"
+            ) from error
 
     @classmethod
     async def fetch_message_attachments(cls, alias: str, message_id: str) -> list[Any]:

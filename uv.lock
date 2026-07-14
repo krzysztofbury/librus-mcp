@@ -749,7 +749,7 @@ wheels = [
 
 [[package]]
 name = "librus-mcp"
-version = "0.5.2"
+version = "0.6.0"
 source = { editable = "." }
 dependencies = [
     { name = "beautifulsoup4" },
@@ -771,7 +771,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "beautifulsoup4", specifier = ">=4.12,<5" },
-    { name = "librus-apix", specifier = ">=1.5.1,<2" },
+    { name = "librus-apix", specifier = "==1.5.1" },
     { name = "lxml", specifier = ">=5.0,<7" },
     { name = "mcp", specifier = ">=1.25.0,<2" },
     { name = "pydantic", specifier = ">=2.7,<3" },
