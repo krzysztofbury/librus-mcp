@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.5.1] - 2026-07-14
+
+### Fixed
+- `get_attendance_frequency` failed with a bare `KeyError` (e.g. `'4766'`) for schools that define custom attendance types — upstream librus-apix hardcodes the gateway attendance-type map. The error is now actionable and points to `get_subject_frequency`, which scrapes the frequency page and is unaffected
+
 ## [0.5.0] - 2026-07-14
 
 Security- and safety-focused release based on a full code audit.

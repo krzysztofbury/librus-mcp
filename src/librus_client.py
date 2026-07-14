@@ -367,7 +367,18 @@ class LibrusManager:
     @classmethod
     async def fetch_attendance_frequency(cls, alias: str) -> dict[str, float]:
         """Fetch attendance frequency ratios (0..1) per semester and overall."""
-        result = await cls._execute(alias, get_attendance_frequency)
+        try:
+            result = await cls._execute(alias, get_attendance_frequency)
+        except KeyError as error:
+            # Upstream hardcodes the gateway attendance-type map; schools can
+            # define custom types (seen live: ID 4766), which KeyError out of
+            # it. Per-subject frequency scrapes a page instead and still works.
+            raise RuntimeError(
+                f"librus-apix cannot compute overall attendance frequency for "
+                f"'{alias}': the school uses a custom attendance type (ID {error}) "
+                f"missing from the library's hardcoded map. "
+                f"Use get_subject_frequency instead."
+            ) from error
         assert isinstance(result, tuple), "get_attendance_frequency must return a tuple"
         assert len(result) == 3, "get_attendance_frequency must return three ratios"
         first_semester, second_semester, overall = result
