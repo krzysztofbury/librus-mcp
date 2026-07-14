@@ -33,6 +33,16 @@ def reset_librus_manager():
 
 
 @pytest.fixture(autouse=True)
+def reset_pending_confirmations():
+    """Clear send_message confirmation tokens between tests."""
+    from src import server
+
+    server._pending_confirmations.clear()
+    yield
+    server._pending_confirmations.clear()
+
+
+@pytest.fixture(autouse=True)
 def reset_optional_tools():
     """Unregister optional tools between tests so each test sees a clean
     FastMCP registry and gating tests prove the real registration path."""

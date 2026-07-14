@@ -10,7 +10,8 @@ This document describes how AI agents and bots should interact with this codebas
 - **Package manager:** [uv](https://github.com/astral-sh/uv) (preferred) or pip
 - **Formatter/Linter:** [ruff](https://github.com/astral-sh/ruff) (line-length: 100, target: py310)
 - **Build system:** hatchling
-- **License:** MIT
+- **License:** MIT (note: upstream librus-apix ships GPL-3.0 in its repository
+  but MIT in its PyPI metadata — an open upstream question tracked before releases)
 
 ## Architecture
 
@@ -27,51 +28,74 @@ src/
 
 1. **All librus-apix calls are blocking** and run via `asyncio.to_thread()`.
 2. **Client instances are cached** per student alias in `LibrusManager._instances`.
-3. **Token expiry is handled** by `_execute()` which retries once on auth-related errors.
-4. **Config is loaded once** and cached in `LibrusManager._config_cache`.
-5. **Dataclasses are converted** to dicts via `to_dict()` for JSON-RPC serialization.
-6. **Optional tools are feature-gated.** Core tools use `@mcp.tool()`; optional tools are
+   Each client gets a **fresh cookie jar**: upstream `new_client()` shares one
+   mutable default jar across all clients, which would leak one child's session
+   cookies into another child's requests.
+3. **Requests are serialized per alias** by `_client_locks`: `requests.Session`
+   and the cookie jar are not thread-safe. Different aliases run concurrently.
+4. **Token expiry is handled** by `_execute()`, which retries once on
+   `AuthorizationError`, `TokenError` ("Brak dostępu" page), or `TokenKeyError`.
+   `MaintananceError` and `ParseError` are normalized into actionable `RuntimeError`s.
+5. **Config is loaded once** and cached in `LibrusManager._config_cache`.
+   Aliases must be unique and non-blank (enforced by Pydantic validators).
+6. **Dataclasses are converted** to dicts via `to_dict()` for JSON-RPC serialization.
+7. **Every tool carries `ToolAnnotations`** (readOnly / destructive / idempotent /
+   openWorld hints). `send_message` is destructive and uses a **two-step
+   confirmation**: the first call returns a preview plus a single-use
+   `confirm_token` (5-minute TTL, bound to the exact payload); only the second
+   call with that token sends.
+8. **Optional tools are feature-gated.** Core tools use `@mcp.tool()`; optional tools are
    plain functions registered by `register_optional_tools()` in `main()` based on
    `config.features` (env override: `LIBRUS_FEATURES`). `send_message` defaults off.
-7. **Notification state is persisted** per alias as JSON under `state_dir`
+9. **Notification state is persisted** per alias as JSON under `state_dir`
    (`LIBRUS_STATE_DIR` > config > `~/.librus-mcp/state`), written atomically.
-   First run diffs against empty IDs — never use `get_initial_notification_data`,
-   it 403s on `/uczen/index` for parent (rodzic) accounts.
-8. **Own scraping lives in `src/scraping.py`** for gaps in librus-apix
-   (attachments, uwagi). Attachment download flow: `/wiadomosci/pobierz_zalacznik/{msg}/{file}`
-   → 302 to `sandbox.librus.pl/GetFile/<key>` → GET `<key>/get` returns the bytes.
+   Aliases that need filename sanitization get a digest suffix so distinct
+   aliases can never share a state file. First run diffs against empty IDs —
+   never use `get_initial_notification_data`, it 403s on `/uczen/index` for
+   parent (rodzic) accounts.
+10. **Own scraping lives in `src/scraping.py`** for gaps in librus-apix
+    (attachments, uwagi, final grades). Attachment download flow:
+    `/wiadomosci/pobierz_zalacznik/{msg}/{file}` → 302 (not followed
+    automatically) → Location validated as exactly `https://sandbox.librus.pl/GetFile/…`
+    → GET `<key>/get` **without cookies**, streamed with a 50 MiB cap and a
+    deadline, written with `O_EXCL|O_NOFOLLOW` (never overwrites).
 
 ## How to Work With This Codebase
 
 ### Setup
 
 ```bash
-uv venv && uv pip install -e .
+uv sync
 cp secrets.json.template secrets.json  # Then fill in credentials
 ```
 
 ### Running
 
 ```bash
-python src/server.py          # Start the MCP server
-python verify_connection.py   # Test connectivity
+uv run librus-mcp                       # Start the MCP server
+uv run python verify_connection.py     # Live smoke test (real credentials)
 ```
 
-### Linting and Formatting
+### Linting, Formatting, Tests
 
 ```bash
-uvx ruff check src/           # Lint
-uvx ruff format src/           # Format
+uv run ruff check src/ tests/
+uv run ruff format src/ tests/
+uv run pytest -q
 ```
 
 ### Code Style
 
 - **Safety > Performance > DX** (in that priority order)
-- Aggressive assertions: validate inputs, outputs, and state (~2 per function)
-- Split assertions: `assert a; assert b` not `assert a and b`
-- Assert negative space: all `if/elif` chains need a final `else` with `assert False`
+- **Untrusted input** (MCP tool arguments, config files, upstream HTML) is
+  validated with explicit `raise ValueError(...)` — never `assert`, which
+  vanishes under `python -O`
+- **Internal invariants** (upstream return shapes, post-conditions) keep
+  aggressive assertions (~2 per function); split compound assertions
+- Constrain MCP inputs in the signature too: `Literal[...]`,
+  `Annotated[int, Field(ge=..., le=...)]`, regex patterns for IDs and dates
 - Functions must be <= 70 lines
-- No recursion; prefer simple loops
+- No recursion; prefer simple loops with asserted upper bounds
 - No abbreviations in names (`user` not `usr`)
 - Comments explain "why", not "what"
 - All lines <= 100 columns
@@ -79,22 +103,15 @@ uvx ruff format src/           # Format
 ### Adding a New Tool
 
 1. Add the data-fetching method to `LibrusManager` in `src/librus_client.py`:
-   - Use `cls._execute(alias, library_function, *args)` for automatic retry.
-   - Add input assertions and post-condition assertions.
+   - Use `cls._execute(alias, library_function, *args)` for automatic retry and
+     per-alias serialization.
+   - Validate untrusted arguments with `ValueError`; assert upstream post-conditions.
 2. Add the MCP tool function in `src/server.py`:
-   - Decorate with `@mcp.tool()`.
-   - Add input assertions (`assert student_alias`, `assert isinstance(...)`).
+   - Decorate with `@mcp.tool(annotations=READ_ONLY)` (or the appropriate annotations).
+   - Constrain inputs in the signature (`StudentAlias`, `MessageId`, `IsoDate`, `Literal`).
    - Convert output via `to_dict()` if it contains dataclasses.
-3. Update the tools table in `README.md`.
-
-### Adding a Patch
-
-If you find a bug in `librus-apix` that needs a runtime fix:
-
-1. Add the patched function to `src/patches.py`.
-2. Apply it in `apply_patches()`.
-3. Add a comment explaining the original bug and what the patch changes.
-4. Consider upstreaming the fix to [librus-apix](https://github.com/RustySnek/librus-apix).
+3. Add tests in `tests/` (mock `LibrusManager._execute`; never hit the real API).
+4. Update the tools table in `README.md` and `CHANGELOG.md`.
 
 ### Configuration
 
@@ -110,16 +127,14 @@ The schema is defined by `AppConfig` and `AccountConfig` Pydantic models in `src
 
 ## Testing
 
-Run the verification script to test authentication and basic data fetching:
-
-```bash
-python verify_connection.py
-```
-
-There is no automated test suite yet. When adding one, use `pytest` and mock the `librus_apix` calls to avoid hitting the real Librus API.
+- **Unit tests:** `uv run pytest -q` — mocked, no network. CI runs them on every push/PR.
+- **Live smoke test:** `uv run python verify_connection.py [--all-accounts]` —
+  requires real credentials; exercises auth, grades, messages, and timetable.
 
 ## Important Constraints
 
 - **stdout is the MCP transport channel.** Never `print()` to stdout. Use `sys.stderr` or `logging` for diagnostics.
 - **secrets.json must never be committed.** It is in `.gitignore`.
 - **librus-apix is a scraper**, not an official API. It can break when Librus updates their HTML. If tools start failing, check for librus-apix updates first.
+- **Accounts requiring interactive 2FA are unsupported** — upstream librus-apix
+  has no 2FA flow; such accounts fail at authentication.

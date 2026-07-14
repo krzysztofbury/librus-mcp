@@ -58,7 +58,10 @@ class FakeMessage:
 
 @dataclasses.dataclass
 class FakeMessageData:
+    author: str
+    title: str
     content: str
+    date: str
 
 
 @dataclasses.dataclass
@@ -225,8 +228,13 @@ class TestGetGrades:
 
     @pytest.mark.asyncio
     async def test_empty_alias_raises(self):
-        with pytest.raises(AssertionError, match="must not be empty"):
+        with pytest.raises(ValueError, match="student_alias"):
             await get_grades("")
+
+    @pytest.mark.asyncio
+    async def test_invalid_sort_by_raises(self):
+        with pytest.raises(ValueError, match="sort_by"):
+            await get_grades("test_student", "newest")
 
     @pytest.mark.asyncio
     async def test_non_tuple_result_raises(self):
@@ -248,27 +256,37 @@ class TestGetMessages:
 
     @pytest.mark.asyncio
     async def test_empty_alias_raises(self):
-        with pytest.raises(AssertionError):
+        with pytest.raises(ValueError, match="student_alias"):
             await get_messages("")
 
 
 class TestGetMessageContent:
     @pytest.mark.asyncio
-    async def test_returns_content_string(self):
-        msg_data = FakeMessageData(content="Hello parent")
+    async def test_returns_full_metadata(self):
+        msg_data = FakeMessageData("Teacher", "Trip", "Hello parent", "2026-01-01")
         with _mock_execute(msg_data):
-            result = await get_message_content("test_student", "/m/1")
-        assert result == "Hello parent"
+            result = await get_message_content("test_student", "123")
+        assert result == {
+            "author": "Teacher",
+            "title": "Trip",
+            "date": "2026-01-01",
+            "content": "Hello parent",
+        }
 
     @pytest.mark.asyncio
     async def test_empty_message_id_raises(self):
-        with pytest.raises(AssertionError, match="message_id"):
+        with pytest.raises(ValueError, match="message_id"):
             await get_message_content("test_student", "")
 
     @pytest.mark.asyncio
+    async def test_non_numeric_message_id_raises(self):
+        with pytest.raises(ValueError, match="message_id"):
+            await get_message_content("test_student", "/m/1")
+
+    @pytest.mark.asyncio
     async def test_empty_alias_raises(self):
-        with pytest.raises(AssertionError):
-            await get_message_content("", "/m/1")
+        with pytest.raises(ValueError, match="student_alias"):
+            await get_message_content("", "123")
 
 
 class TestGetAttendance:
@@ -282,8 +300,13 @@ class TestGetAttendance:
 
     @pytest.mark.asyncio
     async def test_empty_alias_raises(self):
-        with pytest.raises(AssertionError):
+        with pytest.raises(ValueError, match="student_alias"):
             await get_attendance("")
+
+    @pytest.mark.asyncio
+    async def test_invalid_sort_by_raises(self):
+        with pytest.raises(ValueError, match="sort_by"):
+            await get_attendance("test_student", "oldest")
 
 
 class TestGetSubjectFrequency:
@@ -304,7 +327,7 @@ class TestGetSubjectFrequency:
 
     @pytest.mark.asyncio
     async def test_empty_alias_raises(self):
-        with pytest.raises(AssertionError):
+        with pytest.raises(ValueError, match="student_alias"):
             await get_subject_frequency("")
 
 
@@ -319,8 +342,23 @@ class TestGetHomework:
 
     @pytest.mark.asyncio
     async def test_empty_alias_raises(self):
-        with pytest.raises(AssertionError):
+        with pytest.raises(ValueError, match="student_alias"):
             await get_homework("")
+
+    @pytest.mark.asyncio
+    async def test_reversed_date_range_raises(self):
+        with pytest.raises(ValueError, match="after"):
+            await get_homework("test_student", "2026-02-01", "2026-01-01")
+
+    @pytest.mark.asyncio
+    async def test_single_date_raises(self):
+        with pytest.raises(ValueError, match="together"):
+            await get_homework("test_student", "2026-01-01", None)
+
+    @pytest.mark.asyncio
+    async def test_oversized_range_raises(self):
+        with pytest.raises(ValueError, match="range exceeds"):
+            await get_homework("test_student", "2024-01-01", "2026-01-01")
 
 
 class TestGetHomeworkDetail:
@@ -334,12 +372,17 @@ class TestGetHomeworkDetail:
 
     @pytest.mark.asyncio
     async def test_empty_detail_url_raises(self):
-        with pytest.raises(AssertionError, match="detail_url"):
+        with pytest.raises(ValueError, match="detail_url"):
             await get_homework_detail("test_student", "")
 
     @pytest.mark.asyncio
+    async def test_absolute_detail_url_raises(self):
+        with pytest.raises(ValueError, match="relative"):
+            await get_homework_detail("test_student", "https://evil.example/hw/1")
+
+    @pytest.mark.asyncio
     async def test_empty_alias_raises(self):
-        with pytest.raises(AssertionError):
+        with pytest.raises(ValueError, match="student_alias"):
             await get_homework_detail("", "/hw/1")
 
 
@@ -353,12 +396,12 @@ class TestGetSchedule:
 
     @pytest.mark.asyncio
     async def test_invalid_month_raises(self):
-        with pytest.raises(AssertionError, match="Month must be a number"):
+        with pytest.raises(ValueError, match="month must be 1-12"):
             await get_schedule("test_student", "2026", "abc")
 
     @pytest.mark.asyncio
     async def test_invalid_year_raises(self):
-        with pytest.raises(AssertionError, match="Year must be a number"):
+        with pytest.raises(ValueError, match="year must be"):
             await get_schedule("test_student", "abc", "1")
 
 
@@ -372,8 +415,21 @@ class TestGetTimetable:
 
     @pytest.mark.asyncio
     async def test_empty_alias_raises(self):
-        with pytest.raises(AssertionError):
+        with pytest.raises(ValueError, match="student_alias"):
             await get_timetable("")
+
+    @pytest.mark.asyncio
+    async def test_non_monday_raises(self):
+        # 2026-07-14 is a Tuesday.
+        with pytest.raises(ValueError, match="not a Monday"):
+            await get_timetable("test_student", "2026-07-14")
+
+    @pytest.mark.asyncio
+    async def test_explicit_monday_accepted(self):
+        timetable = [[FakePeriod("Math", "Smith", "101", "08:00", "08:45")]]
+        with _mock_execute(timetable):
+            result = await get_timetable("test_student", "2026-07-13")
+        assert isinstance(result, list)
 
 
 class TestGetAnnouncements:
@@ -387,7 +443,7 @@ class TestGetAnnouncements:
 
     @pytest.mark.asyncio
     async def test_empty_alias_raises(self):
-        with pytest.raises(AssertionError):
+        with pytest.raises(ValueError, match="student_alias"):
             await get_announcements("")
 
 
@@ -425,17 +481,22 @@ class TestGetCompletedLessons:
 
     @pytest.mark.asyncio
     async def test_empty_date_from_raises(self):
-        with pytest.raises(AssertionError, match="date_from"):
+        with pytest.raises(ValueError, match="date_from"):
             await get_completed_lessons("test_student", "", "2026-01-31")
 
     @pytest.mark.asyncio
     async def test_empty_date_to_raises(self):
-        with pytest.raises(AssertionError, match="date_to"):
+        with pytest.raises(ValueError, match="date_to"):
             await get_completed_lessons("test_student", "2026-01-01", "")
 
     @pytest.mark.asyncio
+    async def test_malformed_date_raises(self):
+        with pytest.raises(ValueError, match="YYYY-MM-DD"):
+            await get_completed_lessons("test_student", "31.01.2026", "2026-01-31")
+
+    @pytest.mark.asyncio
     async def test_empty_alias_raises(self):
-        with pytest.raises(AssertionError):
+        with pytest.raises(ValueError, match="student_alias"):
             await get_completed_lessons("", "2026-01-01", "2026-01-31")
 
 
@@ -451,7 +512,7 @@ class TestGetStudentInformation:
 
     @pytest.mark.asyncio
     async def test_empty_alias_raises(self):
-        with pytest.raises(AssertionError):
+        with pytest.raises(ValueError, match="student_alias"):
             await get_student_information("")
 
 
@@ -521,7 +582,7 @@ class TestFetchAssertions:
     async def test_message_content_rejects_none(self):
         with _mock_execute(None):
             with pytest.raises(AssertionError, match="returned None"):
-                await get_message_content("test_student", "/m/1")
+                await get_message_content("test_student", "123")
 
     @pytest.mark.asyncio
     async def test_student_info_rejects_none(self):

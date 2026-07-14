@@ -3,13 +3,22 @@ import os
 import sys
 from typing import List, Optional
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class AccountConfig(BaseModel):
     alias: str
     username: str
     password: str
+
+    @field_validator("alias", "username", "password")
+    @classmethod
+    def _non_blank(cls, value: str, info) -> str:
+        """A blank alias would make an account unaddressable; blank credentials
+        would fail only later, deep inside the login flow, with a worse error."""
+        if not value.strip():
+            raise ValueError(f"account {info.field_name} must not be blank")
+        return value
 
 
 class FeaturesConfig(BaseModel):
@@ -33,6 +42,20 @@ class AppConfig(BaseModel):
     features: FeaturesConfig = Field(default_factory=FeaturesConfig)
     state_dir: Optional[str] = None
     download_dir: Optional[str] = None
+
+    @field_validator("accounts")
+    @classmethod
+    def _unique_aliases(cls, accounts: List[AccountConfig]) -> List[AccountConfig]:
+        """Duplicate aliases would silently route every call to the first
+        matching account — a wrong-child data leak, not a cosmetic issue."""
+        if len(accounts) == 0:
+            raise ValueError("accounts must contain at least one account")
+        seen: set[str] = set()
+        for account in accounts:
+            if account.alias in seen:
+                raise ValueError(f"duplicate account alias: '{account.alias}'")
+            seen.add(account.alias)
+        return accounts
 
 
 def _load_from_env_accounts() -> AppConfig:

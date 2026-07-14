@@ -5,6 +5,7 @@ The MCP server is stateless between sessions, so seen IDs are stored as one
 JSON file per student alias under the state directory.
 """
 
+import hashlib
 import json
 import os
 import re
@@ -35,8 +36,15 @@ def _state_path(state_dir: Path, alias: str) -> Path:
     assert alias, "alias must not be empty"
     assert isinstance(alias, str), "alias must be a string"
     safe_alias = re.sub(r"[^A-Za-z0-9_-]", "_", alias)
-    assert safe_alias, f"alias '{alias}' sanitizes to an empty filename"
-    return state_dir / f"{safe_alias}.notifications.json"
+    if safe_alias == alias:
+        # Filename-safe aliases keep their pre-0.5 filename so existing
+        # seen-notification state survives the upgrade.
+        return state_dir / f"{alias}.notifications.json"
+    # Sanitization is lossy ('child/a' and 'child?a' both become 'child_a'),
+    # so distinct aliases could share a file and cross-report notifications.
+    # A digest of the original alias keeps sanitized names collision-free.
+    digest = hashlib.sha256(alias.encode("utf-8")).hexdigest()[:8]
+    return state_dir / f"{safe_alias}.{digest}.notifications.json"
 
 
 def load_notification_ids(state_dir: Path, alias: str) -> NotificationIds | None:

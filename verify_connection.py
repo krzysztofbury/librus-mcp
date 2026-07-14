@@ -1,56 +1,79 @@
+"""Credential-gated live smoke test: authenticates the first configured
+account and exercises one read tool per subsystem. Run manually with real
+credentials (secrets.json or LIBRUS_ACCOUNTS); never runs in CI.
+
+Usage:
+    uv run python verify_connection.py [--all-accounts]
+"""
+
 import asyncio
-from src.librus_client import LibrusManager
+import sys
+
 from src.config import load_config
-from src.patches import apply_patches
+from src.librus_client import LibrusManager
 
 
-async def main():
-    apply_patches()
+async def verify_account(alias: str) -> bool:
+    print(f"\nTesting connection for alias: '{alias}'...")
+    try:
+        await LibrusManager.get_client(alias)
+        print("  [ok] Authentication successful")
+    except Exception as error:
+        print(f"  [FAIL] Authentication failed: {error}")
+        return False
+
+    healthy = True
+
+    try:
+        grades = await LibrusManager.fetch_grades(alias)
+        semesters = len(grades["numeric"])
+        print(f"  [ok] Grades fetched ({semesters} semester groups)")
+    except Exception as error:
+        healthy = False
+        print(f"  [FAIL] Grades: {error}")
+
+    try:
+        messages = await LibrusManager.fetch_messages(alias)
+        count = len(messages["messages"])
+        max_page = messages["max_page"]
+        print(f"  [ok] Messages fetched (page 0: {count} messages, max_page: {max_page})")
+    except Exception as error:
+        healthy = False
+        print(f"  [FAIL] Messages: {error}")
+
+    try:
+        timetable = await LibrusManager.fetch_timetable(alias)
+        print(f"  [ok] Timetable fetched ({len(timetable)} weekday columns)")
+    except Exception as error:
+        healthy = False
+        print(f"  [FAIL] Timetable: {error}")
+
+    return healthy
+
+
+async def main() -> int:
     print("--- Verifying Librus Configuration ---")
     try:
         config = load_config()
-        if not config.accounts:
-            print("No accounts found in secrets.json")
-            return
+    except Exception as error:
+        print(f"[FAIL] Configuration error: {error}")
+        return 1
 
-        print(f"Found {len(config.accounts)} accounts: {[acc.alias for acc in config.accounts]}")
+    aliases = [account.alias for account in config.accounts]
+    print(f"Found {len(aliases)} accounts: {aliases}")
 
-        # Try the first account
-        alias = config.accounts[0].alias
-        print(f"\nTesting connection for alias: '{alias}'...")
+    if "--all-accounts" in sys.argv:
+        targets = aliases
+    else:
+        targets = aliases[:1]
 
-        # Check Token (Login)
-        try:
-            await LibrusManager.get_client(alias)
-            print("✅ Authentication successful!")
-        except Exception as e:
-            print(f"❌ Authentication failed: {e}")
-            return
-
-        # Check Grades
-        print("Fetching grades...")
-        try:
-            grades = await LibrusManager.fetch_grades(alias)
-            count = len(grades) if isinstance(grades, list) else len(grades.keys())
-            print(f"✅ Grades fetched successfully (found items for {count} subjects/categories).")
-        except Exception as e:
-            import traceback
-
-            traceback.print_exc()
-            print(f"❌ Failed to fetch grades: {e}")
-
-        # Check Messages
-        print("Fetching messages...")
-        try:
-            msgs = await LibrusManager.fetch_messages(alias)
-            received = msgs.get("received", [])
-            print(f"✅ Messages fetched successfully (found {len(received)} received messages).")
-        except Exception as e:
-            print(f"❌ Failed to fetch messages: {e}")
-
-    except Exception as e:
-        print(f"❌ Configuration Error: {e}")
+    results = [await verify_account(alias) for alias in targets]
+    if all(results):
+        print("\nAll checks passed.")
+        return 0
+    print("\nSome checks FAILED — see above.")
+    return 1
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    sys.exit(asyncio.run(main()))

@@ -36,6 +36,45 @@ class TestFeaturesConfig:
         assert config.download_dir is None
 
 
+class TestAccountValidation:
+    def test_duplicate_alias_raises(self):
+        from pydantic import ValidationError
+
+        with pytest.raises(ValidationError, match="duplicate"):
+            AppConfig(
+                accounts=[
+                    {
+                        "alias": "kid",
+                        "username": "u1",
+                        "password": "p1",  # pragma: allowlist secret
+                    },
+                    {
+                        "alias": "kid",
+                        "username": "u2",
+                        "password": "p2",  # pragma: allowlist secret
+                    },
+                ]
+            )
+
+    def test_blank_alias_raises(self):
+        from pydantic import ValidationError
+
+        with pytest.raises(ValidationError, match="alias"):
+            AppConfig(accounts=[{"alias": "   ", "username": "u", "password": "p"}])
+
+    def test_blank_password_raises(self):
+        from pydantic import ValidationError
+
+        with pytest.raises(ValidationError, match="password"):
+            AppConfig(accounts=[{"alias": "kid", "username": "u", "password": ""}])
+
+    def test_empty_accounts_raises(self):
+        from pydantic import ValidationError
+
+        with pytest.raises(ValidationError, match="at least one"):
+            AppConfig(accounts=[])
+
+
 class TestLoadConfigFeatures:
     def test_env_accounts_with_features_env(self, monkeypatch):
         monkeypatch.setenv(

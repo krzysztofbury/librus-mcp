@@ -3,15 +3,8 @@ revision = 3
 requires-python = ">=3.10"
 
 [options]
-exclude-newer = "2026-03-14T10:51:27.668474Z"
+exclude-newer = "2026-06-14T10:06:30.119117Z"
 exclude-newer-span = "P30D"
-
-[options.exclude-newer-package]
-desia-logging = false
-desia-gcp = false
-librus-apix = false
-desia-db = false
-librus-mcp = false
 
 [[package]]
 name = "aiohappyeyeballs"
@@ -757,11 +750,15 @@ wheels = [
 
 [[package]]
 name = "librus-mcp"
-version = "0.2.0"
+version = "0.5.0"
 source = { editable = "." }
 dependencies = [
+    { name = "beautifulsoup4" },
     { name = "librus-apix" },
+    { name = "lxml" },
     { name = "mcp" },
+    { name = "pydantic" },
+    { name = "requests" },
 ]
 
 [package.dev-dependencies]
@@ -774,8 +771,12 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "librus-apix", specifier = ">=1.5.1" },
-    { name = "mcp", specifier = ">=1.25.0" },
+    { name = "beautifulsoup4", specifier = ">=4.12,<5" },
+    { name = "librus-apix", specifier = ">=1.5.1,<2" },
+    { name = "lxml", specifier = ">=5.0,<7" },
+    { name = "mcp", specifier = ">=1.25.0,<2" },
+    { name = "pydantic", specifier = ">=2.7,<3" },
+    { name = "requests", specifier = ">=2.31,<3" },
 ]
 
 [package.metadata.requires-dev]
