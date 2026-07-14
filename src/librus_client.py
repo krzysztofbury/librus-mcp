@@ -1,9 +1,11 @@
 import asyncio
 import re
+import time
 from typing import Callable, Any
 from datetime import datetime, timedelta
 
 from requests.cookies import RequestsCookieJar
+from requests.exceptions import JSONDecodeError as RequestsJSONDecodeError
 
 from librus_apix.client import Client, Token, new_client
 from librus_apix.exceptions import (
@@ -61,6 +63,11 @@ DATE_FORMAT = "%Y-%m-%d"
 # TokenKeyError from the auth layer, TokenError when a page renders the
 # "Brak dostępu" (no access) message.
 AUTH_ERRORS = (AuthorizationError, TokenError, TokenKeyError)
+# After a failed login, further login attempts for that account are refused
+# for this long. Librus throttles the login endpoint per account; a caller
+# retrying a failing tool in a loop would otherwise deepen the throttle
+# (or, with bad credentials, risk a real lockout).
+AUTH_COOLDOWN_SECONDS = 60.0
 
 SCHEDULE_HREF_PATTERN = re.compile(r"^[A-Za-z0-9_-]+/[A-Za-z0-9_/-]+$")
 
@@ -113,6 +120,9 @@ class LibrusManager:
     _config_cache: AppConfig | None = None
     _notification_locks: dict[str, asyncio.Lock] = {}
     _client_locks: dict[str, asyncio.Lock] = {}
+    # alias -> (monotonic deadline, failure reason). Bounded: only configured
+    # aliases reach the code that writes here.
+    _auth_cooldowns: dict[str, tuple[float, str]] = {}
 
     @classmethod
     def _require_account(cls, alias: str) -> AccountConfig:
@@ -171,6 +181,8 @@ class LibrusManager:
         if alias in cls._instances:
             return cls._instances[alias]
 
+        cls._check_auth_cooldown(alias)
+
         client = new_client()
         # Upstream librus-apix creates every client with the same mutable
         # default cookie jar, so one child's session cookies would leak into
@@ -179,15 +191,52 @@ class LibrusManager:
         try:
             token = await asyncio.to_thread(client.get_token, account.username, account.password)
         except MaintananceError as error:
+            # No cooldown: maintenance is service-wide, not a per-account
+            # signal, and the check happens before the login POST.
             raise RuntimeError(f"Librus is under maintenance: {error}") from error
+        except RequestsJSONDecodeError as error:
+            # The login endpoint answers with HTML/empty instead of JSON when
+            # it throttles repeated logins for an account (observed live).
+            reason = (
+                f"Librus login endpoint returned a non-JSON response for '{alias}' — "
+                f"likely login throttling after repeated authentications; "
+                f"wait a few minutes before retrying."
+            )
+            cls._start_auth_cooldown(alias, reason)
+            raise ValueError(reason) from error
         except Exception as error:
-            raise ValueError(f"Failed to authenticate for '{alias}': {error}") from error
+            reason = f"Failed to authenticate for '{alias}': {error}"
+            cls._start_auth_cooldown(alias, reason)
+            raise ValueError(reason) from error
 
         assert token is not None, f"Authentication returned None token for '{alias}'"
+        cls._auth_cooldowns.pop(alias, None)
         cls._instances[alias] = client
         cls._tokens[alias] = token
 
         return client
+
+    @classmethod
+    def _check_auth_cooldown(cls, alias: str) -> None:
+        """Fail fast while an alias is cooling down after a failed login.
+        Bounds login pressure to at most one attempt per cooldown window no
+        matter how aggressively a caller retries a failing tool."""
+        entry = cls._auth_cooldowns.get(alias)
+        if entry is None:
+            return
+        deadline, reason = entry
+        remaining_seconds = deadline - time.monotonic()
+        if remaining_seconds <= 0:
+            del cls._auth_cooldowns[alias]
+            return
+        raise ValueError(
+            f"Authentication for '{alias}' is on cooldown for another "
+            f"{int(remaining_seconds) + 1}s after a failed login. Last error: {reason}"
+        )
+
+    @classmethod
+    def _start_auth_cooldown(cls, alias: str, reason: str) -> None:
+        cls._auth_cooldowns[alias] = (time.monotonic() + AUTH_COOLDOWN_SECONDS, reason)
 
     @classmethod
     def _evict_client(cls, alias: str) -> None:

@@ -103,6 +103,60 @@ class TestExecuteRetry:
                 await LibrusManager._execute("test_student", unparseable)
 
 
+class TestAuthCooldown:
+    @pytest.mark.asyncio
+    async def test_throttled_login_gets_actionable_error_and_cooldown(self):
+        """A non-JSON login response (Librus throttling) must produce a
+        throttle-specific error, and the very next attempt must fail fast
+        without touching the login endpoint again."""
+        from requests.exceptions import JSONDecodeError
+
+        with patch("src.librus_client.asyncio.to_thread", new_callable=AsyncMock) as to_thread:
+            to_thread.side_effect = JSONDecodeError("Expecting value", "", 0)
+            with pytest.raises(ValueError, match="login throttling"):
+                await LibrusManager.get_client("test_student")
+            with pytest.raises(ValueError, match="cooldown"):
+                await LibrusManager.get_client("test_student")
+            assert to_thread.await_count == 1
+
+    @pytest.mark.asyncio
+    async def test_any_auth_failure_starts_cooldown(self):
+        from librus_apix.exceptions import AuthorizationError
+
+        with patch("src.librus_client.asyncio.to_thread", new_callable=AsyncMock) as to_thread:
+            to_thread.side_effect = AuthorizationError("bad credentials")
+            with pytest.raises(ValueError, match="Failed to authenticate"):
+                await LibrusManager.get_client("test_student")
+            with pytest.raises(ValueError, match="cooldown"):
+                await LibrusManager.get_client("test_student")
+            assert to_thread.await_count == 1
+
+    @pytest.mark.asyncio
+    async def test_expired_cooldown_allows_retry_and_success_clears_it(self, monkeypatch):
+        from librus_apix.exceptions import AuthorizationError
+
+        monkeypatch.setattr(librus_client_module, "AUTH_COOLDOWN_SECONDS", 0.0)
+        with patch("src.librus_client.asyncio.to_thread", new_callable=AsyncMock) as to_thread:
+            to_thread.side_effect = [AuthorizationError("flaky"), object()]
+            with pytest.raises(ValueError, match="Failed to authenticate"):
+                await LibrusManager.get_client("test_student")
+            client = await LibrusManager.get_client("test_student")
+            assert client is not None
+            assert to_thread.await_count == 2
+        assert LibrusManager._auth_cooldowns == {}
+
+    @pytest.mark.asyncio
+    async def test_cooldown_error_repeats_original_reason(self):
+        from librus_apix.exceptions import AuthorizationError
+
+        with patch("src.librus_client.asyncio.to_thread", new_callable=AsyncMock) as to_thread:
+            to_thread.side_effect = AuthorizationError("bad credentials")
+            with pytest.raises(ValueError):
+                await LibrusManager.get_client("test_student")
+            with pytest.raises(ValueError, match="bad credentials"):
+                await LibrusManager.get_client("test_student")
+
+
 class TestAttendanceFrequency:
     @pytest.mark.asyncio
     async def test_custom_attendance_type_yields_actionable_error(self):
