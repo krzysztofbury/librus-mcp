@@ -25,11 +25,15 @@ def reset_librus_manager():
     LibrusManager._tokens.clear()
     LibrusManager._config_cache = None
     LibrusManager._notification_locks.clear()
+    LibrusManager._client_locks.clear()
+    LibrusManager._auth_cooldowns.clear()
     yield
     LibrusManager._instances.clear()
     LibrusManager._tokens.clear()
     LibrusManager._config_cache = None
     LibrusManager._notification_locks.clear()
+    LibrusManager._client_locks.clear()
+    LibrusManager._auth_cooldowns.clear()
 
 
 @pytest.fixture(autouse=True)

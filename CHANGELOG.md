@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.5.2] - 2026-07-14
+
+### Added
+- Per-alias login cooldown: after a failed authentication, further login attempts for that account are refused for 60 seconds and fail instantly with the original reason. Librus throttles the login endpoint per account; a caller retrying a failing tool in a loop would otherwise deepen the throttle (or, with bad credentials, risk a lockout). A successful login clears the cooldown
+
+### Fixed
+- A throttled Librus login (non-JSON response from the token endpoint) surfaced as raw JSON-parse noise (`Expecting value: line 1 column 1`); it now says login throttling is the likely cause and to wait a few minutes
+
 ## [0.5.1] - 2026-07-14
 
 ### Fixed
