@@ -103,6 +103,18 @@ class TestExecuteRetry:
                 await LibrusManager._execute("test_student", unparseable)
 
 
+class TestAttendanceFrequency:
+    @pytest.mark.asyncio
+    async def test_custom_attendance_type_yields_actionable_error(self):
+        """Schools can define attendance types missing from upstream's
+        hardcoded gateway map (seen live: ID 4766); the raw KeyError must
+        become an error that points at the working alternative."""
+        mock = AsyncMock(side_effect=KeyError("4766"))
+        with patch.object(LibrusManager, "_execute", mock):
+            with pytest.raises(RuntimeError, match="get_subject_frequency"):
+                await LibrusManager.fetch_attendance_frequency("test_student")
+
+
 class TestUnknownAlias:
     @pytest.mark.asyncio
     async def test_unknown_alias_raises_and_creates_no_locks(self):
