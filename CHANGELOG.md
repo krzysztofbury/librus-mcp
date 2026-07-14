@@ -31,6 +31,9 @@ Security- and safety-focused release based on a full code audit.
 - `verify_connection.py` rewritten as a credential-gated live smoke test (`--all-accounts` flag)
 
 ### Fixed
+- `send_message` success reporting: upstream librus-apix returns `success=False` on **every** send (its status check reads `status_code` off a BeautifulSoup object, which is always `None`, and its failure-text check misses the Polish diacritic). Success is now derived from the Librus result text; unrecognized text raises instead of guessing (the exact live strings still await verification with a real send)
+- Attachment filenames that sanitize to `..`/`.`/empty now fall back to the ID-based name; the redirect check also pins the port and rejects query strings; the sandbox download honors the client proxy
+- `get_completed_lessons` validates the date range (order, 370-day cap) and rejects implausible page counts with a clean error instead of an assert
 - GitHub URL typos in `pyproject.toml` and `README.md` (`krzysztoofbury` → `krzysztofbury`)
 
 ### Known limitations

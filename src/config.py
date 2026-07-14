@@ -65,8 +65,10 @@ def _load_from_env_accounts() -> AppConfig:
         accounts = json.loads(raw)
     except json.JSONDecodeError:
         raise ValueError("LIBRUS_ACCOUNTS contains invalid JSON")
-    assert isinstance(accounts, list), "LIBRUS_ACCOUNTS must be a JSON array"
-    assert len(accounts) > 0, "LIBRUS_ACCOUNTS must contain at least one account"
+    if not isinstance(accounts, list):
+        raise ValueError("LIBRUS_ACCOUNTS must be a JSON array")
+    if len(accounts) == 0:
+        raise ValueError("LIBRUS_ACCOUNTS must contain at least one account")
     return AppConfig(accounts=accounts)
 
 
@@ -79,7 +81,8 @@ def _apply_features_env(config: AppConfig) -> AppConfig:
         overrides = json.loads(raw)
     except json.JSONDecodeError:
         raise ValueError("LIBRUS_FEATURES contains invalid JSON")
-    assert isinstance(overrides, dict), "LIBRUS_FEATURES must be a JSON object"
+    if not isinstance(overrides, dict):
+        raise ValueError("LIBRUS_FEATURES must be a JSON object")
     unknown_keys = set(overrides) - set(FeaturesConfig.model_fields)
     if unknown_keys:
         raise ValueError(

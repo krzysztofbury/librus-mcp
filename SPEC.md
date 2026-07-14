@@ -43,7 +43,10 @@ src/
    openWorld hints). `send_message` is destructive and uses a **two-step
    confirmation**: the first call returns a preview plus a single-use
    `confirm_token` (5-minute TTL, bound to the exact payload); only the second
-   call with that token sends.
+   call with that token sends. Trust-model caveat: the gate is model-enforced —
+   the same agent holds the token and could confirm without showing the human
+   the preview. It pins the payload and forces a second deliberate call; it is
+   not a hard human-approval gate (MCP elicitation would be, where supported).
 8. **Optional tools are feature-gated.** Core tools use `@mcp.tool()`; optional tools are
    plain functions registered by `register_optional_tools()` in `main()` based on
    `config.features` (env override: `LIBRUS_FEATURES`). `send_message` defaults off.

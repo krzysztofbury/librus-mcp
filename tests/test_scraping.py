@@ -289,6 +289,49 @@ class TestDownloadAttachment:
             with pytest.raises(TokenError, match="unexpected attachment redirect"):
                 download_attachment(FakeClient(), "1", "2", tmp_path)
 
+    def test_redirect_with_odd_port_raises(self, tmp_path):
+        from librus_apix.exceptions import TokenError
+        from src.scraping import download_attachment
+
+        patcher, _ = _patch_http(
+            [FakeRedirectResponse(location="https://sandbox.librus.pl:8080/GetFile/abc123")]
+        )
+        with patcher:
+            with pytest.raises(TokenError, match="unexpected attachment redirect"):
+                download_attachment(FakeClient(), "1", "2", tmp_path)
+
+    def test_redirect_with_query_raises(self, tmp_path):
+        from librus_apix.exceptions import TokenError
+        from src.scraping import download_attachment
+
+        patcher, _ = _patch_http(
+            [FakeRedirectResponse(location="https://sandbox.librus.pl/GetFile/abc?key=1")]
+        )
+        with patcher:
+            with pytest.raises(TokenError, match="unexpected attachment redirect"):
+                download_attachment(FakeClient(), "1", "2", tmp_path)
+
+    def test_dot_dot_filename_falls_back_to_ids(self, tmp_path):
+        """A disposition of '..' survives an emptiness check but sanitizes to
+        ''; it must fall back to the ID-based name, not create ' (1)' files."""
+        from src.scraping import download_attachment
+
+        patcher, _ = _patch_http(self._responses(filename='attachment; filename=".."'))
+        with patcher:
+            info = download_attachment(FakeClient(), "11", "22", tmp_path)
+        assert info["filename"] == "attachment_11_22"
+
+    def test_download_uses_client_proxy(self, tmp_path):
+        from src.scraping import download_attachment
+
+        client = FakeClient()
+        client.proxy = {"https": "http://proxy.local:3128"}
+        patcher, mock = _patch_http(self._responses())
+        with patcher:
+            download_attachment(client, "1", "2", tmp_path)
+        for call in mock.call_args_list:
+            assert call.kwargs["proxies"] == client.proxy
+
     def test_empty_body_raises(self, tmp_path):
         from src.scraping import download_attachment
 

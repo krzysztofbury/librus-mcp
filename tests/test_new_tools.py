@@ -248,7 +248,9 @@ class TestSendMessageTools:
     @pytest.mark.asyncio
     async def test_confirmed_call_sends(self):
         preview = await send_message("test_student", "Temat", "Treść", ["12345"])
-        with _mock_execute((True, "Wiadomość została wysłana")):
+        # Upstream returns success=False even on success (dead status_code
+        # check); the page text alone must drive the reported outcome.
+        with _mock_execute((False, "Wiadomość została wysłana")):
             result = await send_message(
                 "test_student", "Temat", "Treść", ["12345"], preview["confirm_token"]
             )
@@ -257,9 +259,27 @@ class TestSendMessageTools:
         assert result["recipient_count"] == 1
 
     @pytest.mark.asyncio
+    async def test_failure_text_reports_failure(self):
+        preview = await send_message("test_student", "Temat", "Treść", ["12345"])
+        with _mock_execute((False, "Wiadomość nie została wysłana")):
+            result = await send_message(
+                "test_student", "Temat", "Treść", ["12345"], preview["confirm_token"]
+            )
+        assert result["success"] is False
+
+    @pytest.mark.asyncio
+    async def test_unrecognized_result_text_raises(self):
+        preview = await send_message("test_student", "Temat", "Treść", ["12345"])
+        with _mock_execute((False, "Coś poszło nie tak")):
+            with pytest.raises(RuntimeError, match="unrecognized send_message result"):
+                await send_message(
+                    "test_student", "Temat", "Treść", ["12345"], preview["confirm_token"]
+                )
+
+    @pytest.mark.asyncio
     async def test_confirm_token_is_single_use(self):
         preview = await send_message("test_student", "Temat", "Treść", ["12345"])
-        with _mock_execute((True, "ok")):
+        with _mock_execute((False, "Wiadomość została wysłana")):
             await send_message(
                 "test_student", "Temat", "Treść", ["12345"], preview["confirm_token"]
             )

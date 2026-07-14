@@ -25,7 +25,8 @@ SEND_MESSAGE = ToolAnnotations(
 )
 
 StudentAlias = Annotated[str, Field(min_length=1, description="Alias of the student account")]
-MessageId = Annotated[str, Field(pattern=r"^\d+$")]
+# Message and file identifiers are bare numeric path segments in Synergia.
+NumericId = Annotated[str, Field(pattern=r"^\d+$")]
 IsoDate = Annotated[str, Field(pattern=r"^\d{4}-\d{2}-\d{2}$")]
 SortBy = Literal["all", "week", "last_login"]
 
@@ -95,7 +96,7 @@ async def get_messages(
 
 
 @mcp.tool(annotations=READ_ONLY)
-async def get_message_content(student_alias: StudentAlias, message_id: MessageId) -> dict[str, str]:
+async def get_message_content(student_alias: StudentAlias, message_id: NumericId) -> dict[str, str]:
     """
     Fetches a specific message: author, title, date, and content.
     Args:
@@ -308,7 +309,7 @@ async def get_new_notifications(student_alias: StudentAlias) -> Any:
     return to_dict(result)
 
 
-async def get_message_attachments(student_alias: StudentAlias, message_id: MessageId) -> Any:
+async def get_message_attachments(student_alias: StudentAlias, message_id: NumericId) -> Any:
     """
     Lists attachments (filename, message_id, file_id) of a specific message.
     Args:
@@ -320,7 +321,7 @@ async def get_message_attachments(student_alias: StudentAlias, message_id: Messa
 
 
 async def download_attachment(
-    student_alias: StudentAlias, message_id: MessageId, file_id: MessageId
+    student_alias: StudentAlias, message_id: NumericId, file_id: NumericId
 ) -> Any:
     """
     Downloads a message attachment to the configured download directory

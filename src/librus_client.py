@@ -53,6 +53,8 @@ MAX_MESSAGE_PAGE = 1000
 # unbounded loop against a scraped endpoint.
 MAX_ALL_MESSAGE_PAGES = 40
 MAX_HOMEWORK_RANGE_DAYS = 370
+MAX_COMPLETED_LESSONS_RANGE_DAYS = 370
+MAX_COMPLETED_LESSONS_PAGES = 100
 MAX_DETAIL_URL_LENGTH = 300
 DATE_FORMAT = "%Y-%m-%d"
 # Upstream reports expired sessions in three ways: AuthorizationError and
@@ -159,6 +161,11 @@ class LibrusManager:
 
     @classmethod
     async def get_client(cls, alias: str) -> Client:
+        """Return the cached client for an alias, authenticating on first use.
+
+        Not safe to call concurrently for one alias outside _execute: the
+        per-alias client lock lives there, and this method mutates the shared
+        instance/token caches."""
         account = cls._require_account(alias)
 
         if alias in cls._instances:
@@ -313,6 +320,9 @@ class LibrusManager:
         for page in range(MAX_ALL_MESSAGE_PAGES):
             batch = await cls._execute(alias, get_sent, page)
             assert isinstance(batch, list), "message fetch must return a list"
+            # Upstream falls back to href="" when its parse heuristic fails;
+            # two distinct pages of all-empty hrefs would compare equal and
+            # stop early — acceptable, since such pages are already unusable.
             hrefs = [message.href for message in batch]
             if hrefs == previous_hrefs:
                 truncated = False
@@ -461,12 +471,20 @@ class LibrusManager:
     @classmethod
     async def fetch_completed_lessons(cls, alias: str, date_from: str, date_to: str) -> list[Any]:
         """Fetch completed lessons for a date range, iterating all pages."""
-        _parse_date(date_from, "date_from")
-        _parse_date(date_to, "date_to")
+        start = _parse_date(date_from, "date_from")
+        end = _parse_date(date_to, "date_to")
+        if start > end:
+            raise ValueError(f"date_from {date_from} is after date_to {date_to}")
+        if (end - start).days > MAX_COMPLETED_LESSONS_RANGE_DAYS:
+            raise ValueError(f"date range exceeds {MAX_COMPLETED_LESSONS_RANGE_DAYS} days")
 
         max_page = await cls._execute(alias, get_max_page_number, date_from, date_to)
         assert isinstance(max_page, int), "get_max_page_number must return an int"
-        assert max_page <= 100, f"Unexpectedly high page count: {max_page}"
+        if max_page > MAX_COMPLETED_LESSONS_PAGES:
+            raise ValueError(
+                f"range spans {max_page + 1} pages of lessons "
+                f"(limit {MAX_COMPLETED_LESSONS_PAGES + 1}); narrow the date range"
+            )
 
         all_lessons: list[Any] = []
         for page in range(max_page + 1):
@@ -554,8 +572,19 @@ class LibrusManager:
         result = await cls._execute(alias, send_message, title, content, recipient_ids)
         assert isinstance(result, tuple), "send_message must return a tuple"
         assert len(result) == 2, "send_message must return (success, message)"
-        success, status_message = result
-        return {"success": bool(success), "result": status_message}
+        _, status_message = result
+        # Upstream's success bool is structurally always False: it compares
+        # soup.status_code (a bs4 tag lookup, always None) to 200. The page
+        # text is the source of truth. The negative check must run first —
+        # "nie została wysłana" contains "została wysłana" as a substring.
+        if "nie została" in status_message:
+            return {"success": False, "result": status_message}
+        if "została wysłana" in status_message:
+            return {"success": True, "result": status_message}
+        raise RuntimeError(
+            f"unrecognized send_message result (message may or may not have been "
+            f"delivered — check the sent folder): '{status_message}'"
+        )
 
     @classmethod
     async def fetch_message_attachments(cls, alias: str, message_id: str) -> list[Any]:

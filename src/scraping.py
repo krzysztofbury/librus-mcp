@@ -89,7 +89,8 @@ def parse_attachments(html: str) -> list[Attachment]:
         attachments.append(
             Attachment(_attachment_filename(img, message_id, file_id), message_id, file_id)
         )
-    assert len(attachments) <= MAX_ATTACHMENTS_PER_MESSAGE, "implausible attachment count"
+    if len(attachments) > MAX_ATTACHMENTS_PER_MESSAGE:
+        raise ValueError(f"implausible attachment count: {len(attachments)}")
     return attachments
 
 
@@ -120,13 +121,14 @@ def download_attachment(client: Client, message_id: str, file_id: str, download_
 
     url = f"{client.BASE_URL}/wiadomosci/pobierz_zalacznik/{message_id}/{file_id}"
     download_url = _resolve_download_url(client, url)
-    content, content_type, disposition = _fetch_attachment_bytes(download_url)
+    content, content_type, disposition = _fetch_attachment_bytes(download_url, client.proxy)
 
-    filename = _filename_from_disposition(disposition)
-    if not filename:
+    # Sanitize BEFORE the validity check. Path(...).name strips directories
+    # but passes ".." through unchanged, and ".." as a filename is a live
+    # path component — dot names must fall back like empty ones.
+    filename = Path(_filename_from_disposition(disposition)).name.strip()
+    if filename in ("", ".", ".."):
         filename = f"attachment_{message_id}_{file_id}"
-    # Strip any path components so the server-supplied name cannot escape download_dir.
-    filename = Path(filename).name
 
     target_path = _write_unique_file(download_dir, filename, content)
     return {
@@ -167,14 +169,17 @@ def _resolve_download_url(client: Client, url: str) -> str:
     is_sandbox = (
         parsed.scheme == "https"
         and parsed.hostname == DOWNLOAD_HOST
+        and parsed.port in (None, 443)
         and parsed.path.startswith(DOWNLOAD_PATH_PREFIX)
+        and not parsed.query
+        and not parsed.fragment
     )
     if not is_sandbox:
         raise TokenError(f"unexpected attachment redirect target: '{location}'")
     return location
 
 
-def _fetch_attachment_bytes(download_url: str) -> tuple[bytes, str, str]:
+def _fetch_attachment_bytes(download_url: str, proxy: dict) -> tuple[bytes, str, str]:
     """Stream the file from the signed sandbox URL with a byte cap and a
     deadline. Sent with no cookies: the URL key alone authorizes the download,
     and Synergia session cookies must never reach the sandbox host."""
@@ -187,6 +192,7 @@ def _fetch_attachment_bytes(download_url: str) -> tuple[bytes, str, str]:
         stream=True,
         allow_redirects=False,
         timeout=REQUEST_TIMEOUT_SECONDS,
+        proxies=proxy,
     ) as response:
         if response.status_code != 200:
             raise ValueError(f"attachment download failed: HTTP {response.status_code}")
@@ -208,6 +214,7 @@ def _fetch_attachment_bytes(download_url: str) -> tuple[bytes, str, str]:
 def _write_unique_file(download_dir: Path, filename: str, content: bytes) -> Path:
     """Create the file exclusively (never overwrite, never follow a symlink);
     on a name collision append ' (n)' before the extension."""
+    assert filename not in ("", ".", ".."), "filename must not be empty or a dot component"
     assert filename == Path(filename).name, "filename must be bare, with no path components"
     download_dir.mkdir(parents=True, exist_ok=True)
     stem = Path(filename).stem

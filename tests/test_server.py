@@ -495,6 +495,24 @@ class TestGetCompletedLessons:
             await get_completed_lessons("test_student", "31.01.2026", "2026-01-31")
 
     @pytest.mark.asyncio
+    async def test_reversed_range_raises(self):
+        with pytest.raises(ValueError, match="after"):
+            await get_completed_lessons("test_student", "2026-01-31", "2026-01-01")
+
+    @pytest.mark.asyncio
+    async def test_oversized_range_raises(self):
+        with pytest.raises(ValueError, match="range exceeds"):
+            await get_completed_lessons("test_student", "2024-01-01", "2026-01-31")
+
+    @pytest.mark.asyncio
+    async def test_implausible_page_count_raises(self):
+        mock = AsyncMock()
+        mock.side_effect = [500]  # remote-controlled max_page
+        with patch("src.librus_client.LibrusManager._execute", mock):
+            with pytest.raises(ValueError, match="narrow the date range"):
+                await get_completed_lessons("test_student", "2026-01-01", "2026-01-31")
+
+    @pytest.mark.asyncio
     async def test_empty_alias_raises(self):
         with pytest.raises(ValueError, match="student_alias"):
             await get_completed_lessons("", "2026-01-01", "2026-01-31")
