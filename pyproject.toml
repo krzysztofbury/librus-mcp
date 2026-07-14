@@ -1,6 +1,6 @@
 [project]
 name = "librus-mcp"
-version = "0.5.2"
+version = "0.6.0"
 description = "MCP server for Librus Synergia — access grades, messages, attendance, homework, timetables, and announcements from AI assistants"
 authors = [{name = "Krzysztof Bury", email = "contact@datacraze.io"}]
 license = {text = "MIT"}
@@ -17,11 +17,11 @@ classifiers = [
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
 ]
-# Upper bounds: uvx users always resolve the newest allowed versions, so an
-# unreviewed upstream major release must not reach them silently.
+# librus-apix exposes no public timeout/session hook; pin the release whose
+# private Client._session behavior is covered by this server's tests.
 dependencies = [
     "mcp>=1.25.0,<2",
-    "librus-apix>=1.5.1,<2",
+    "librus-apix==1.5.1",
     "pydantic>=2.7,<3",
     "beautifulsoup4>=4.12,<5",
     "lxml>=5.0,<7",

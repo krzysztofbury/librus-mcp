@@ -1,5 +1,10 @@
 """Tests for per-alias NotificationIds persistence."""
 
+import multiprocessing
+import threading
+import time
+from pathlib import Path
+
 import pytest
 from librus_apix.notifications import NotificationIds
 
@@ -8,6 +13,34 @@ from src.notification_state import (
     resolve_state_dir,
     save_notification_ids,
 )
+
+
+def _hold_notification_lock(
+    state_dir: str,
+    alias: str,
+    locked,
+    release,
+) -> None:
+    """Keep a process-level state lock until the parent releases this worker."""
+    from src.notification_state import release_notification_state_lock
+
+    descriptor = _wait_for_notification_lock(Path(state_dir), alias)
+    try:
+        locked.set()
+        release.wait(timeout=5)
+    finally:
+        release_notification_state_lock(descriptor)
+
+
+def _wait_for_notification_lock(state_dir: Path, alias: str) -> int:
+    from src.notification_state import try_acquire_notification_state_lock
+
+    for _ in range(500):
+        descriptor = try_acquire_notification_state_lock(state_dir, alias)
+        if descriptor is not None:
+            return descriptor
+        time.sleep(0.01)
+    raise TimeoutError("notification lock was not acquired during the test")
 
 
 def _sample_ids() -> NotificationIds:
@@ -102,6 +135,42 @@ class TestResolveStateDir:
         result = resolve_state_dir("~/custom_state")
         assert "~" not in str(result)
         assert str(result).startswith("/")
+
+
+class TestProcessStateLock:
+    def test_second_process_waits_for_notification_transaction(self, tmp_path):
+        from src.notification_state import release_notification_state_lock
+
+        context = multiprocessing.get_context("spawn")
+        first_locked = context.Event()
+        release_first = context.Event()
+        second_locked = threading.Event()
+        first_process = context.Process(
+            target=_hold_notification_lock,
+            args=(str(tmp_path), "primary", first_locked, release_first),
+        )
+        first_process.start()
+        # A cold Python interpreter can take several seconds to spawn and
+        # import the test module in CI; this is process startup, not lock work.
+        assert first_locked.wait(timeout=30)
+
+        def acquire_second_lock() -> None:
+            descriptor = _wait_for_notification_lock(tmp_path, "primary")
+            try:
+                second_locked.set()
+            finally:
+                release_notification_state_lock(descriptor)
+
+        second_thread = threading.Thread(target=acquire_second_lock)
+        second_thread.start()
+        try:
+            assert not second_locked.wait(timeout=0.1)
+        finally:
+            release_first.set()
+            first_process.join(timeout=5)
+            second_thread.join(timeout=5)
+        assert first_process.exitcode == 0
+        assert second_locked.is_set()
 
 
 class TestPruning:

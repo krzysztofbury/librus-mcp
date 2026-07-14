@@ -5,6 +5,7 @@ The MCP server is stateless between sessions, so seen IDs are stored as one
 JSON file per student alias under the state directory.
 """
 
+import errno
 import hashlib
 import json
 import os
@@ -14,6 +15,16 @@ from pathlib import Path
 from uuid import uuid4
 
 from librus_apix.notifications import NotificationIds
+
+try:
+    import fcntl
+except ImportError:
+    fcntl = None
+
+try:
+    import msvcrt
+except ImportError:
+    msvcrt = None
 
 CATEGORY_KEYS = ("grades", "attendance", "messages", "announcements", "schedule", "homework")
 MAX_IDS_PER_CATEGORY = 10_000
@@ -45,6 +56,62 @@ def _state_path(state_dir: Path, alias: str) -> Path:
     # A digest of the original alias keeps sanitized names collision-free.
     digest = hashlib.sha256(alias.encode("utf-8")).hexdigest()[:8]
     return state_dir / f"{safe_alias}.{digest}.notifications.json"
+
+
+def try_acquire_notification_state_lock(state_dir: Path, alias: str) -> int | None:
+    """Try to acquire the advisory lock shared by local MCP processes.
+
+    Returns None while another process owns the lock. The async manager polls
+    this non-blocking function, so task cancellation cannot orphan a lock.
+    """
+    state_path = _state_path(Path(state_dir), alias)
+    state_path.parent.mkdir(parents=True, exist_ok=True)
+    lock_path = state_path.with_name(f"{state_path.name}.lock")
+    flags = os.O_CREAT | os.O_RDWR | getattr(os, "O_NOFOLLOW", 0)
+    descriptor = os.open(lock_path, flags, 0o600)
+    try:
+        if _try_lock_descriptor(descriptor):
+            return descriptor
+    except Exception:
+        os.close(descriptor)
+        raise
+    os.close(descriptor)
+    return None
+
+
+def release_notification_state_lock(descriptor: int) -> None:
+    """Release a descriptor returned by try_acquire_notification_state_lock."""
+    try:
+        if fcntl is not None:
+            fcntl.flock(descriptor, fcntl.LOCK_UN)
+        elif msvcrt is not None:
+            os.lseek(descriptor, 0, os.SEEK_SET)
+            msvcrt.locking(descriptor, msvcrt.LK_UNLCK, 1)
+        else:
+            raise RuntimeError("notification state locks are unsupported on this platform")
+    finally:
+        os.close(descriptor)
+
+
+def _try_lock_descriptor(descriptor: int) -> bool:
+    if fcntl is not None:
+        try:
+            fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except OSError as error:
+            if error.errno in (errno.EACCES, errno.EAGAIN):
+                return False
+            raise
+        return True
+    if msvcrt is not None:
+        if os.fstat(descriptor).st_size == 0:
+            os.write(descriptor, b"0")
+        os.lseek(descriptor, 0, os.SEEK_SET)
+        try:
+            msvcrt.locking(descriptor, msvcrt.LK_NBLCK, 1)
+        except OSError:
+            return False
+        return True
+    raise RuntimeError("notification state locks are unsupported on this platform")
 
 
 def load_notification_ids(state_dir: Path, alias: str) -> NotificationIds | None:

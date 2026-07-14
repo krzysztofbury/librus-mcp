@@ -120,12 +120,12 @@ async def get_attendance(student_alias: StudentAlias, sort_by: SortBy = "all") -
 
 
 @mcp.tool(annotations=READ_ONLY)
-async def get_attendance_detail(student_alias: StudentAlias, detail_url: str) -> Any:
+async def get_attendance_detail(student_alias: StudentAlias, detail_url: NumericId) -> Any:
     """
     Fetches details of one attendance entry (lesson, teacher, trip type, etc.).
     Args:
         student_alias: The alias of the student.
-        detail_url: The 'href' field of an attendance record from get_attendance.
+        detail_url: The numeric 'href' identifier from an attendance record.
     """
     detail = await LibrusManager.fetch_attendance_detail(student_alias, detail_url)
     return to_dict(detail)
@@ -178,12 +178,12 @@ async def get_homework(
 
 
 @mcp.tool(annotations=READ_ONLY)
-async def get_homework_detail(student_alias: StudentAlias, detail_url: str) -> Any:
+async def get_homework_detail(student_alias: StudentAlias, detail_url: NumericId) -> Any:
     """
     Fetches full details of a specific homework assignment.
     Args:
         student_alias: The alias of the student.
-        detail_url: The detail URL from the homework list (the 'href' field).
+        detail_url: The numeric detail identifier from the homework list.
     """
     detail = await LibrusManager.fetch_homework_detail(student_alias, detail_url)
     return to_dict(detail)
@@ -458,7 +458,7 @@ async def send_message(
     _redeem_confirmation(confirm_token, digest)
     result = await LibrusManager.send_message_to(student_alias, title, content, recipient_ids)
     return {
-        "status": "sent",
+        "status": "sent" if result["success"] else "failed",
         "success": result["success"],
         "result": result["result"],
         "title": title,

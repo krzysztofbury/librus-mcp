@@ -159,11 +159,11 @@ Then use the full path in your MCP config:
 | `get_messages(student_alias, page?, folder?, all_pages?)` | Get one page of messages from the `received` or `sent` folder, or the whole folder (bounded at 2000 messages) |
 | `get_message_content(student_alias, message_id)` | Get a message: author, title, date, and content |
 | `get_attendance(student_alias, sort_by?)` | Get attendance records (`all`, `week`, or `last_login`) |
-| `get_attendance_detail(student_alias, detail_url)` | Get details of one attendance entry |
+| `get_attendance_detail(student_alias, detail_url)` | Get details of one attendance entry by its numeric Librus ID |
 | `get_attendance_frequency(student_alias)` | Get attendance frequency per semester and overall |
 | `get_subject_frequency(student_alias, start?, end?)` | Get per-subject attendance percentage, optionally filtered by date range |
 | `get_homework(student_alias, date_from?, date_to?)` | Get homework for a date range (default: next 2 weeks) |
-| `get_homework_detail(student_alias, detail_url)` | Get full details of a specific homework assignment |
+| `get_homework_detail(student_alias, detail_url)` | Get full details of a homework assignment by its numeric Librus ID |
 | `get_schedule(student_alias, year, month)` | Get calendar events/exams for a month |
 | `get_schedule_detail(student_alias, href)` | Get details of one schedule event (test scope, room, teacher) |
 | `get_recent_schedule_events(student_alias)` | Get schedule events added since the last Librus login |
