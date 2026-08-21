@@ -31,16 +31,15 @@ from librus_apix.attendance import (
     get_attendance,
     get_attendance_frequency,
     get_detail as get_attendance_detail,
-    get_subject_frequency,
 )
 from librus_apix.homework import get_homework, homework_detail
 from librus_apix.timetable import get_timetable
 from librus_apix.announcements import get_announcements
-from librus_apix.notifications import NotificationIds, get_new_notification_data
+from librus_apix.notifications import NotificationIds
 from librus_apix.schedule import get_recently_added_schedule, get_schedule, schedule_detail
-from librus_apix.completed_lessons import get_completed, get_max_page_number
+from librus_apix.completed_lessons import get_completed
 from librus_apix.student_information import get_student_information
-from src import scraping
+from src import librus_optimizations, scraping
 from src.config import load_config, AccountConfig, AppConfig
 from src.notification_state import (
     load_notification_ids,
@@ -71,6 +70,7 @@ AUTH_ERRORS = (AuthorizationError, TokenError, TokenKeyError)
 # retrying a failing tool in a loop would otherwise deepen the throttle
 # (or, with bad credentials, risk a real lockout).
 AUTH_COOLDOWN_SECONDS = 60.0
+LOGIN_AUTHORIZATION_URL_SUFFIX = "/OAuth/Authorization?client_id=46"
 # Upstream librus-apix does not pass a timeout to requests.Session. Replace
 # each client session so login and every synchronous upstream call have one.
 UPSTREAM_REQUEST_TIMEOUT_SECONDS = 30.0
@@ -119,11 +119,25 @@ def _parse_date(value: Any, name: str) -> datetime:
 
 
 class LibrusTimeoutSession(Session):
-    """A requests session that supplies the timeout librus-apix omits."""
+    """A persistent requests session that supplies the timeout librus-apix omits."""
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        super().__init__(*args, **kwargs)
+        self._login_throttle_confirmed = False
 
     def request(self, method: str, url: str, **kwargs: Any) -> Any:
         kwargs.setdefault("timeout", UPSTREAM_REQUEST_TIMEOUT_SECONDS)
-        return super().request(method, url, **kwargs)
+        response = super().request(method, url, **kwargs)
+        if method.upper() == "POST" and url.endswith(LOGIN_AUTHORIZATION_URL_SUFFIX):
+            self._login_throttle_confirmed = (
+                response.status_code == 429 or "Retry-After" in response.headers
+            )
+        return response
+
+    def __exit__(self, *args: Any) -> None:
+        # librus-apix wraps every request in `with client._session`, which
+        # otherwise closes the adapters and discards the TCP/TLS pool.
+        return None
 
 
 class LibrusManager:
@@ -167,9 +181,9 @@ class LibrusManager:
 
     @classmethod
     def _client_lock(cls, alias: str) -> asyncio.Lock:
-        """One lock per alias serializes all upstream requests for that
-        account. The underlying requests.Session and cookie jar are not
-        thread-safe, and Librus itself ties state to the session."""
+        """One lock per alias serializes upstream operations for that account.
+        An operation may use isolated internal workers, but other operations
+        cannot overlap the shared requests session or cookie jar."""
         assert alias in {acc.alias for acc in cls._get_config().accounts}, (
             "callers must validate the alias before acquiring its lock"
         )
@@ -208,32 +222,46 @@ class LibrusManager:
         client.cookies = RequestsCookieJar()
         try:
             token = await cls._run_upstream_call(
-                alias, client.get_token, account.username, account.password
+                alias, client, client.get_token, account.username, account.password
             )
         except MaintananceError as error:
             # No cooldown: maintenance is service-wide, not a per-account
             # signal, and the check happens before the login POST.
+            cls._close_client(client)
             raise RuntimeError(f"Librus is under maintenance: {error}") from error
         except RequestsJSONDecodeError as error:
-            # The login endpoint answers with HTML/empty instead of JSON when
-            # it throttles repeated logins for an account (observed live).
-            reason = (
-                f"Librus login endpoint returned a non-JSON response for '{alias}' — "
-                f"likely login throttling after repeated authentications; "
-                f"wait a few minutes before retrying."
-            )
-            cls._start_auth_cooldown(alias, reason)
+            confirmed_throttle = client._session._login_throttle_confirmed
+            if confirmed_throttle:
+                reason = (
+                    f"Librus confirmed login throttling for '{alias}' and returned "
+                    "a non-JSON response; wait a few minutes before retrying."
+                )
+            else:
+                reason = (
+                    f"Librus returned a non-JSON response while authenticating '{alias}'; "
+                    "this may be a transient upstream or network error."
+                )
+            cls._close_client(client)
+            if confirmed_throttle:
+                cls._start_auth_cooldown(alias, reason)
             raise ValueError(reason) from error
         except (asyncio.TimeoutError, TimeoutError) as error:
             raise TimeoutError(
                 f"Librus authentication timed out after {UPSTREAM_OPERATION_TIMEOUT_SECONDS:.0f}s"
             ) from error
-        except Exception as error:
+        except AUTH_ERRORS as error:
             reason = f"Failed to authenticate for '{alias}': {error}"
+            cls._close_client(client)
             cls._start_auth_cooldown(alias, reason)
             raise ValueError(reason) from error
+        except Exception as error:
+            reason = f"Failed to authenticate for '{alias}': {error}"
+            cls._close_client(client)
+            raise ValueError(reason) from error
 
-        assert token is not None, f"Authentication returned None token for '{alias}'"
+        if token is None:
+            cls._close_client(client)
+            raise AssertionError(f"Authentication returned None token for '{alias}'")
         cls._auth_cooldowns.pop(alias, None)
         cls._instances[alias] = client
         cls._tokens[alias] = token
@@ -265,8 +293,14 @@ class LibrusManager:
     @classmethod
     def _evict_client(cls, alias: str) -> None:
         """Remove cached client and token so the next call re-authenticates."""
-        cls._instances.pop(alias, None)
+        client = cls._instances.pop(alias, None)
         cls._tokens.pop(alias, None)
+        if client is not None:
+            cls._close_client(client)
+
+    @staticmethod
+    def _close_client(client: Client) -> None:
+        client._session.close()
 
     @classmethod
     def _raise_if_worker_is_running(cls, alias: str) -> None:
@@ -282,10 +316,15 @@ class LibrusManager:
         )
 
     @classmethod
-    def _quarantine_timed_out_worker(cls, alias: str, worker: asyncio.Task[Any]) -> None:
+    def _quarantine_timed_out_worker(
+        cls, alias: str, worker: asyncio.Task[Any], client: Client
+    ) -> None:
         """Retain a timed-out worker until it finishes, then make the alias available."""
         cls._timed_out_workers[alias] = worker
-        cls._evict_client(alias)
+        cached_client = cls._instances.pop(alias, None)
+        cls._tokens.pop(alias, None)
+        if cached_client is not None:
+            assert cached_client is client, "timed-out worker must own the cached client"
 
         def clear_worker(completed_worker: asyncio.Task[Any]) -> None:
             if cls._timed_out_workers.get(alias) is completed_worker:
@@ -294,11 +333,15 @@ class LibrusManager:
                 completed_worker.exception()
             except asyncio.CancelledError:
                 pass
+            finally:
+                cls._close_client(client)
 
         worker.add_done_callback(clear_worker)
 
     @classmethod
-    async def _run_upstream_call(cls, alias: str, func: Callable[..., Any], *args, **kwargs) -> Any:
+    async def _run_upstream_call(
+        cls, alias: str, client: Client, func: Callable[..., Any], *args, **kwargs
+    ) -> Any:
         """Run one blocking upstream call with a deadline.
 
         asyncio cannot terminate a worker thread. Retiring the timed-out client
@@ -309,12 +352,20 @@ class LibrusManager:
         try:
             done, _ = await asyncio.wait({worker}, timeout=UPSTREAM_OPERATION_TIMEOUT_SECONDS)
         except asyncio.CancelledError:
-            if not worker.done():
-                cls._quarantine_timed_out_worker(alias, worker)
+            if worker.done():
+                try:
+                    worker.exception()
+                finally:
+                    if cls._instances.get(alias) is client:
+                        cls._evict_client(alias)
+                    else:
+                        cls._close_client(client)
+            else:
+                cls._quarantine_timed_out_worker(alias, worker, client)
             raise
         if worker in done:
             return worker.result()
-        cls._quarantine_timed_out_worker(alias, worker)
+        cls._quarantine_timed_out_worker(alias, worker, client)
         raise TimeoutError(
             f"Librus operation timed out after {UPSTREAM_OPERATION_TIMEOUT_SECONDS:.0f}s"
         )
@@ -335,7 +386,7 @@ class LibrusManager:
         AuthorizationError, TokenError ("Brak dostępu" page), or TokenKeyError.
         We evict the cached client and re-authenticate once. If the second
         attempt also fails, we let it propagate. The per-alias lock serializes
-        requests for one account; different accounts still run concurrently.
+        operations for one account; different accounts still run concurrently.
         """
         cls._require_account(alias)
         async with cls._client_lock(alias):
@@ -343,14 +394,18 @@ class LibrusManager:
             try:
                 try:
                     client = await cls.get_client(alias)
-                    return await cls._run_upstream_call(alias, func, client, *args, **kwargs)
+                    return await cls._run_upstream_call(
+                        alias, client, func, client, *args, **kwargs
+                    )
                 except AUTH_ERRORS:
                     if not retry_auth_on_failure:
                         raise
                     # Token likely expired. Clear cache and re-authenticate once.
                     cls._evict_client(alias)
                     client = await cls.get_client(alias)
-                    return await cls._run_upstream_call(alias, func, client, *args, **kwargs)
+                    return await cls._run_upstream_call(
+                        alias, client, func, client, *args, **kwargs
+                    )
             except MaintananceError as error:
                 raise RuntimeError(
                     f"Librus is under maintenance, try again later: {error}"
@@ -390,11 +445,17 @@ class LibrusManager:
         """
         cls._validate_message_page(page)
         if folder == "received":
-            max_page = await cls._execute(alias, get_message_max_page)
-            assert isinstance(max_page, int), "get_max_page_number must return an int"
-            if page > max_page:
-                raise ValueError(f"page {page} exceeds max_page {max_page}")
-            messages = await cls._execute(alias, get_received, page)
+            if page == 0:
+                first_page_result = await cls._execute(
+                    alias, librus_optimizations.get_received_first_page
+                )
+                max_page, messages = cls._validate_first_page_result(first_page_result)
+            else:
+                max_page = await cls._execute(alias, get_message_max_page)
+                assert isinstance(max_page, int), "get_max_page_number must return an int"
+                if page > max_page:
+                    raise ValueError(f"page {page} exceeds max_page {max_page}")
+                messages = await cls._execute(alias, get_received, page)
         elif folder == "sent":
             # Librus exposes no page counter for the sent folder.
             max_page = None
@@ -410,6 +471,15 @@ class LibrusManager:
             raise ValueError(f"page must be an integer, got: {type(page).__name__}")
         if not 0 <= page <= MAX_MESSAGE_PAGE:
             raise ValueError(f"page must be between 0 and {MAX_MESSAGE_PAGE}, got: {page}")
+
+    @staticmethod
+    def _validate_first_page_result(result: Any) -> tuple[int, list[Any]]:
+        assert isinstance(result, tuple), "first-page fetch must return a tuple"
+        assert len(result) == 2, "first-page fetch must return (max_page, items)"
+        max_page, items = result
+        assert isinstance(max_page, int), "first-page max_page must be an int"
+        assert isinstance(items, list), "first-page fetch must return a list of items"
+        return max_page, items
 
     @classmethod
     async def fetch_all_messages(cls, alias: str, folder: str = "received") -> dict[str, Any]:
@@ -431,12 +501,12 @@ class LibrusManager:
 
     @classmethod
     async def _fetch_all_received(cls, alias: str) -> tuple[list[Any], int, bool]:
-        max_page = await cls._execute(alias, get_message_max_page)
-        assert isinstance(max_page, int), "get_max_page_number must return an int"
+        first_page_result = await cls._execute(alias, librus_optimizations.get_received_first_page)
+        max_page, first_page = cls._validate_first_page_result(first_page_result)
         last_page = min(max_page, MAX_ALL_MESSAGE_PAGES - 1)
         truncated = max_page > last_page
-        messages: list[Any] = []
-        for page in range(last_page + 1):
+        messages = list(first_page)
+        for page in range(1, last_page + 1):
             batch = await cls._execute(alias, get_received, page)
             assert isinstance(batch, list), "message fetch must return a list"
             messages.extend(batch)
@@ -532,7 +602,7 @@ class LibrusManager:
             kwargs["start"] = _parse_date(start, "start")
         if end:
             kwargs["end"] = _parse_date(end, "end")
-        frequency = await cls._execute(alias, get_subject_frequency, **kwargs)
+        frequency = await cls._execute(alias, librus_optimizations.get_subject_frequency, **kwargs)
         assert isinstance(frequency, dict), "get_subject_frequency must return a dict"
         return dict(frequency)
 
@@ -623,16 +693,21 @@ class LibrusManager:
         if (end - start).days > MAX_COMPLETED_LESSONS_RANGE_DAYS:
             raise ValueError(f"date range exceeds {MAX_COMPLETED_LESSONS_RANGE_DAYS} days")
 
-        max_page = await cls._execute(alias, get_max_page_number, date_from, date_to)
-        assert isinstance(max_page, int), "get_max_page_number must return an int"
+        first_page_result = await cls._execute(
+            alias,
+            librus_optimizations.get_completed_first_page,
+            date_from,
+            date_to,
+        )
+        max_page, first_page = cls._validate_first_page_result(first_page_result)
         if max_page > MAX_COMPLETED_LESSONS_PAGES:
             raise ValueError(
                 f"range spans {max_page + 1} pages of lessons "
                 f"(limit {MAX_COMPLETED_LESSONS_PAGES + 1}); narrow the date range"
             )
 
-        all_lessons: list[Any] = []
-        for page in range(max_page + 1):
+        all_lessons = list(first_page)
+        for page in range(1, max_page + 1):
             lessons = await cls._execute(alias, get_completed, date_from, date_to, page)
             assert isinstance(lessons, list), "get_completed must return a list"
             all_lessons.extend(lessons)
@@ -671,7 +746,12 @@ class LibrusManager:
                 first_run = seen_ids is None
                 if seen_ids is None:
                     seen_ids = NotificationIds([], [], [], [], [], [])
-                result = await cls._execute(alias, get_new_notification_data, seen_ids)
+                result = await cls._execute(
+                    alias,
+                    librus_optimizations.get_new_notifications,
+                    seen_ids,
+                    LibrusTimeoutSession,
+                )
                 assert isinstance(result, tuple), "notification fetch must return a tuple"
                 assert len(result) == 2, "notification fetch must return (data, ids)"
                 data, updated_ids = result

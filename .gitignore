@@ -31,9 +31,6 @@ coverage.xml
 dmypy.json
 .pyre/
 
-# pyenv
-.python-version
-
 # Secrets
 secrets.json
 

@@ -216,6 +216,10 @@ Example with all options:
 | `state_dir` | `LIBRUS_STATE_DIR` | `~/.librus-mcp/state` | Per-student seen-notification state |
 | `download_dir` | `LIBRUS_DOWNLOAD_DIR` | `~/.librus-mcp/downloads` | Attachment download target |
 
+Attachment files are streamed to an exclusive temporary file and published
+atomically without overwriting existing files. The download directory must be
+on a filesystem that supports hard links.
+
 ## Project Structure
 
 ```

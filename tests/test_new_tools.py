@@ -45,14 +45,14 @@ def _empty_notification_ids() -> NotificationIds:
 class TestGetMessagesPagination:
     @pytest.mark.asyncio
     async def test_received_returns_messages_and_max_page(self):
-        mock = AsyncMock()
-        mock.side_effect = [3, []]  # max_page, then messages
+        mock = AsyncMock(return_value=(3, []))
         with patch("src.librus_client.LibrusManager._execute", mock):
             result = await get_messages("test_student")
         assert result["folder"] == "received"
         assert result["page"] == 0  # 0-based: page 0 is the newest
         assert result["max_page"] == 3
         assert result["messages"] == []
+        assert mock.call_count == 1
 
     @pytest.mark.asyncio
     async def test_page_beyond_max_raises(self):
@@ -120,7 +120,7 @@ class TestGetNewNotifications:
             result = await get_new_notifications("test_student")
 
         assert result["first_run"] is True
-        assert captured["function"] == "get_new_notification_data"
+        assert captured["function"] == "get_new_notifications"
         assert captured["args"][0].grades == []
         assert captured["args"][0].messages == []
         assert load_notification_ids(tmp_path, "test_student") is not None
@@ -144,7 +144,7 @@ class TestGetNewNotifications:
             result = await get_new_notifications("test_student")
 
         assert result["first_run"] is False
-        assert captured["function"] == "get_new_notification_data"
+        assert captured["function"] == "get_new_notifications"
         assert captured["args"][0].grades == ["/g/1"]
         # Updated ids must be persisted for the next call.
         assert load_notification_ids(tmp_path, "test_student").grades == ["/g/1", "/g/2"]

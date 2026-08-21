@@ -2,6 +2,24 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.0] - 2026-08-21
+
+### Changed
+- **BREAKING**: require Python 3.14 or newer and test the package on Python
+  3.14 in CI. Python 3.10 through 3.13 are no longer supported
+- Keep per-account HTTP connection pools alive across Librus requests, stream
+  attachments to atomically published temporary files, and avoid duplicate
+  HTML parsing
+- Deduplicate and bound gateway requests for per-subject attendance, fetch
+  notification categories through isolated clients with at most three workers,
+  and reuse the first response when paginating messages and completed lessons
+
+### Fixed
+- Apply login cooldowns only after authentication failures or confirmed login
+  throttling, so transient network failures can be retried immediately
+- Use full SHA-256 digests for sanitized notification-state filenames and
+  migrate existing short-digest files without losing seen-notification history
+
 ## [0.6.0] - 2026-07-14
 
 ### Security

@@ -4,6 +4,8 @@ serialization, auth retry, error normalization, and bounded all-pages fetch."""
 import asyncio
 import dataclasses
 import json
+import threading
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -20,6 +22,32 @@ class FakeMessage:
 
 def _messages(page: int, count: int) -> list[FakeMessage]:
     return [FakeMessage(href=f"p{page}m{index}") for index in range(count)]
+
+
+class _KeepAliveHandler(BaseHTTPRequestHandler):
+    protocol_version = "HTTP/1.1"
+
+    def do_GET(self):
+        self.send_response(200)
+        self.send_header("Content-Length", "2")
+        self.end_headers()
+        self.wfile.write(b"ok")
+
+    def log_message(self, *args):
+        pass
+
+
+class _ConnectionCountingServer(ThreadingHTTPServer):
+    daemon_threads = True
+
+    def __init__(self, *args, **kwargs):
+        self.connection_count = 0
+        super().__init__(*args, **kwargs)
+
+    def get_request(self):
+        request, address = super().get_request()
+        self.connection_count += 1
+        return request, address
 
 
 class TestCookieIsolation:
@@ -152,6 +180,32 @@ class TestExecuteRetry:
 
 
 class TestUpstreamTimeouts:
+    def test_session_context_keeps_connection_pool_open(self):
+        session = librus_client_module.LibrusTimeoutSession()
+        with patch("requests.Session.close") as close:
+            with session:
+                pass
+            close.assert_not_called()
+            session.close()
+        close.assert_called_once()
+
+    def test_consecutive_requests_reuse_one_http_connection(self):
+        server = _ConnectionCountingServer(("127.0.0.1", 0), _KeepAliveHandler)
+        server_thread = threading.Thread(target=server.serve_forever)
+        server_thread.start()
+        session = librus_client_module.LibrusTimeoutSession()
+        try:
+            url = f"http://127.0.0.1:{server.server_port}/"
+            for _ in range(2):
+                with session as persistent_session:
+                    assert persistent_session.get(url).content == b"ok"
+            assert server.connection_count == 1
+        finally:
+            session.close()
+            server.shutdown()
+            server.server_close()
+            server_thread.join(timeout=5)
+
     def test_session_applies_default_request_timeout(self):
         session = librus_client_module.LibrusTimeoutSession()
         with patch("requests.Session.request", return_value=MagicMock()) as request:
@@ -162,17 +216,24 @@ class TestUpstreamTimeouts:
             == librus_client_module.UPSTREAM_REQUEST_TIMEOUT_SECONDS
         )
 
+    def test_session_records_confirmed_login_throttling(self):
+        response = MagicMock(status_code=429, headers={"Retry-After": "60"})
+        session = librus_client_module.LibrusTimeoutSession()
+        with patch("requests.Session.request", return_value=response):
+            session.post("https://api.librus.pl/OAuth/Authorization?client_id=46")
+        session.close()
+        assert session._login_throttle_confirmed is True
+
     @pytest.mark.asyncio
     async def test_operation_timeout_evicts_the_client(self, monkeypatch):
         monkeypatch.setattr(librus_client_module, "UPSTREAM_OPERATION_TIMEOUT_SECONDS", 0.01)
-        client = object()
+        client = MagicMock()
         LibrusManager._instances["test_student"] = client
+        release_worker = threading.Event()
 
         def slow_call(received_client):
             assert received_client is client
-            import time
-
-            time.sleep(0.1)
+            assert release_worker.wait(timeout=5)
 
         with patch.object(LibrusManager, "get_client", new_callable=AsyncMock) as get_client:
             get_client.return_value = client
@@ -180,9 +241,23 @@ class TestUpstreamTimeouts:
                 await LibrusManager._execute("test_student", slow_call)
             with pytest.raises(RuntimeError, match="still completing"):
                 await LibrusManager._execute("test_student", lambda _: "unexpected")
-            await asyncio.sleep(0.15)
+            client._session.close.assert_not_called()
+            release_worker.set()
+            for _ in range(100):
+                if client._session.close.call_count == 1:
+                    break
+                await asyncio.sleep(0.01)
             assert await LibrusManager._execute("test_student", lambda _: "ok") == "ok"
         assert "test_student" not in LibrusManager._instances
+        client._session.close.assert_called_once()
+
+    def test_evict_client_closes_its_session(self):
+        client = MagicMock()
+        LibrusManager._instances["test_student"] = client
+
+        LibrusManager._evict_client("test_student")
+
+        client._session.close.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_login_timeout_does_not_start_an_auth_cooldown(self, monkeypatch):
@@ -199,6 +274,7 @@ class TestUpstreamTimeouts:
     @pytest.mark.asyncio
     async def test_login_timeout_quarantines_the_alias(self, monkeypatch):
         monkeypatch.setattr(librus_client_module, "UPSTREAM_OPERATION_TIMEOUT_SECONDS", 0.01)
+        release_login = threading.Event()
 
         class SlowClient:
             def __init__(self):
@@ -206,35 +282,68 @@ class TestUpstreamTimeouts:
                 self.cookies = None
 
             def get_token(self, username, password):
-                import time
-
-                time.sleep(0.1)
+                assert release_login.wait(timeout=5)
                 return object()
 
-        with patch("src.librus_client.new_client", return_value=SlowClient()):
+        client = SlowClient()
+        with patch("src.librus_client.new_client", return_value=client):
             with pytest.raises(TimeoutError, match="authentication timed out"):
                 await LibrusManager.get_client("test_student")
             with pytest.raises(RuntimeError, match="still completing"):
                 await LibrusManager.get_client("test_student")
-            await asyncio.sleep(0.15)
+            release_login.set()
+            for _ in range(100):
+                if LibrusManager._timed_out_workers == {}:
+                    break
+                await asyncio.sleep(0.01)
         assert LibrusManager._timed_out_workers == {}
+
+    @pytest.mark.asyncio
+    async def test_cancel_after_worker_completion_retires_client(self):
+        client = MagicMock()
+        LibrusManager._instances["test_student"] = client
+
+        async def cancel_after_completion(workers, timeout):
+            await next(iter(workers))
+            raise asyncio.CancelledError
+
+        with patch("src.librus_client.asyncio.wait", side_effect=cancel_after_completion):
+            with pytest.raises(asyncio.CancelledError):
+                await LibrusManager._run_upstream_call("test_student", client, lambda: "completed")
+        assert "test_student" not in LibrusManager._instances
+        client._session.close.assert_called_once()
 
 
 class TestAuthCooldown:
     @pytest.mark.asyncio
-    async def test_throttled_login_gets_actionable_error_and_cooldown(self):
-        """A non-JSON login response (Librus throttling) must produce a
-        throttle-specific error, and the very next attempt must fail fast
-        without touching the login endpoint again."""
+    async def test_confirmed_throttled_login_gets_actionable_error_and_cooldown(self):
         from requests.exceptions import JSONDecodeError
 
-        with patch("src.librus_client.asyncio.to_thread", new_callable=AsyncMock) as to_thread:
+        session = MagicMock(_login_throttle_confirmed=True)
+        with (
+            patch("src.librus_client.LibrusTimeoutSession", return_value=session),
+            patch("src.librus_client.asyncio.to_thread", new_callable=AsyncMock) as to_thread,
+        ):
             to_thread.side_effect = JSONDecodeError("Expecting value", "", 0)
-            with pytest.raises(ValueError, match="login throttling"):
+            with pytest.raises(ValueError, match="confirmed login throttling"):
                 await LibrusManager.get_client("test_student")
             with pytest.raises(ValueError, match="cooldown"):
                 await LibrusManager.get_client("test_student")
             assert to_thread.await_count == 1
+
+    @pytest.mark.asyncio
+    async def test_unconfirmed_non_json_login_does_not_start_cooldown(self):
+        from requests.exceptions import JSONDecodeError
+
+        with patch("src.librus_client.asyncio.to_thread", new_callable=AsyncMock) as to_thread:
+            to_thread.side_effect = [JSONDecodeError("Expecting value", "", 0), object()]
+            with pytest.raises(ValueError, match="transient"):
+                await LibrusManager.get_client("test_student")
+            client = await LibrusManager.get_client("test_student")
+
+        assert client is not None
+        assert to_thread.await_count == 2
+        assert LibrusManager._auth_cooldowns == {}
 
     @pytest.mark.asyncio
     async def test_any_auth_failure_starts_cooldown(self):
@@ -247,6 +356,20 @@ class TestAuthCooldown:
             with pytest.raises(ValueError, match="cooldown"):
                 await LibrusManager.get_client("test_student")
             assert to_thread.await_count == 1
+
+    @pytest.mark.asyncio
+    async def test_transient_login_failure_does_not_start_cooldown(self):
+        from requests.exceptions import ConnectionError
+
+        with patch("src.librus_client.asyncio.to_thread", new_callable=AsyncMock) as to_thread:
+            to_thread.side_effect = [ConnectionError("temporary network failure"), object()]
+            with pytest.raises(ValueError, match="temporary network failure"):
+                await LibrusManager.get_client("test_student")
+            client = await LibrusManager.get_client("test_student")
+
+        assert client is not None
+        assert to_thread.await_count == 2
+        assert LibrusManager._auth_cooldowns == {}
 
     @pytest.mark.asyncio
     async def test_expired_cooldown_allows_retry_and_success_clears_it(self, monkeypatch):
@@ -325,6 +448,42 @@ class TestPerAliasSerialization:
             )
         assert active["max"] == 1
 
+    @pytest.mark.asyncio
+    async def test_different_alias_requests_run_concurrently(self, monkeypatch):
+        monkeypatch.setenv(
+            "LIBRUS_ACCOUNTS",
+            json.dumps(
+                [
+                    {
+                        "alias": "first",
+                        "username": "u1",
+                        "password": "p1",  # pragma: allowlist secret
+                    },
+                    {
+                        "alias": "second",
+                        "username": "u2",
+                        "password": "p2",  # pragma: allowlist secret
+                    },
+                ]
+            ),
+        )
+        active = {"count": 0, "max": 0}
+        both_started = threading.Barrier(2, timeout=2)
+
+        def tracked(client):
+            active["count"] += 1
+            active["max"] = max(active["max"], active["count"])
+            both_started.wait()
+            active["count"] -= 1
+
+        with patch.object(LibrusManager, "get_client", new_callable=AsyncMock) as get_client:
+            get_client.return_value = object()
+            await asyncio.gather(
+                LibrusManager._execute("first", tracked),
+                LibrusManager._execute("second", tracked),
+            )
+        assert active["max"] == 2
+
 
 class TestNotificationStateLock:
     @pytest.mark.asyncio
@@ -346,7 +505,7 @@ class TestFetchAllMessages:
     @pytest.mark.asyncio
     async def test_received_fetches_every_page(self):
         mock = AsyncMock()
-        mock.side_effect = [1, _messages(0, 50), _messages(1, 7)]
+        mock.side_effect = [(1, _messages(0, 50)), _messages(1, 7)]
         with patch.object(LibrusManager, "_execute", mock):
             result = await LibrusManager.fetch_all_messages("test_student", "received")
         assert len(result["messages"]) == 57
@@ -358,7 +517,7 @@ class TestFetchAllMessages:
         monkeypatch.setattr(librus_client_module.LibrusManager, "_execute", AsyncMock())
         monkeypatch.setattr(librus_client_module, "MAX_ALL_MESSAGE_PAGES", 2)
         mock = librus_client_module.LibrusManager._execute
-        mock.side_effect = [5, _messages(0, 50), _messages(1, 50)]
+        mock.side_effect = [(5, _messages(0, 50)), _messages(1, 50)]
         result = await LibrusManager.fetch_all_messages("test_student", "received")
         assert result["pages_fetched"] == 2
         assert result["truncated"] is True

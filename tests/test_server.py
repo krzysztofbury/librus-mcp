@@ -247,8 +247,7 @@ class TestGetMessages:
     @pytest.mark.asyncio
     async def test_returns_received(self):
         messages = [FakeMessage("Teacher", "Test title", "2026-01-01", "/m/1")]
-        mock = AsyncMock()
-        mock.side_effect = [0, messages]  # max_page, then messages
+        mock = AsyncMock(return_value=(0, messages))
         with patch("src.librus_client.LibrusManager._execute", mock):
             result = await get_messages("test_student")
         assert result["folder"] == "received"
@@ -460,10 +459,8 @@ class TestGetCompletedLessons:
         page_1 = [FakeLesson("English", "Jones", "Grammar", "2026-01-16")]
 
         mock = AsyncMock()
-        # First call: get_max_page_number returns 1 (2 pages: 0 and 1)
-        # Second call: get_completed page 0
-        # Third call: get_completed page 1
-        mock.side_effect = [1, page_0, page_1]
+        # First call returns both max_page and page 0; second fetches page 1.
+        mock.side_effect = [(1, page_0), page_1]
 
         with patch("src.librus_client.LibrusManager._execute", mock):
             result = await get_completed_lessons("test_student", "2026-01-01", "2026-01-31")
@@ -478,7 +475,7 @@ class TestGetCompletedLessons:
         page_0 = [FakeLesson("Math", "Smith", "Lesson 1", "2026-01-15")]
 
         mock = AsyncMock()
-        mock.side_effect = [0, page_0]
+        mock.side_effect = [(0, page_0)]
 
         with patch("src.librus_client.LibrusManager._execute", mock):
             result = await get_completed_lessons("test_student", "2026-01-01", "2026-01-31")
@@ -512,7 +509,7 @@ class TestGetCompletedLessons:
     @pytest.mark.asyncio
     async def test_implausible_page_count_raises(self):
         mock = AsyncMock()
-        mock.side_effect = [500]  # remote-controlled max_page
+        mock.side_effect = [(500, [])]  # remote-controlled max_page
         with patch("src.librus_client.LibrusManager._execute", mock):
             with pytest.raises(ValueError, match="narrow the date range"):
                 await get_completed_lessons("test_student", "2026-01-01", "2026-01-31")
@@ -559,8 +556,7 @@ class TestFetchAssertions:
 
     @pytest.mark.asyncio
     async def test_messages_rejects_non_list(self):
-        mock = AsyncMock()
-        mock.side_effect = [0, "not a list"]  # valid max_page, malformed messages
+        mock = AsyncMock(return_value=(0, "not a list"))
         with patch("src.librus_client.LibrusManager._execute", mock):
             with pytest.raises(AssertionError, match="must return a list"):
                 await get_messages("test_student")

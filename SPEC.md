@@ -6,9 +6,9 @@ This document describes how AI agents and bots should interact with this codebas
 
 **librus-mcp** is an MCP (Model Context Protocol) server that wraps the [librus-apix](https://github.com/RustySnek/librus-apix) library to expose Librus Synergia gradebook data as tools for AI assistants.
 
-- **Language:** Python 3.10+
+- **Language:** Python 3.14+
 - **Package manager:** [uv](https://github.com/astral-sh/uv) (preferred) or pip
-- **Formatter/Linter:** [ruff](https://github.com/astral-sh/ruff) (line-length: 100, target: py310)
+- **Formatter/Linter:** [ruff](https://github.com/astral-sh/ruff) (line-length: 100, target: py314)
 - **Build system:** hatchling
 - **License:** MIT (note: upstream librus-apix ships GPL-3.0 in its repository
   but MIT in its PyPI metadata — an open upstream question tracked before releases)
@@ -31,8 +31,14 @@ src/
    Each client gets a **fresh cookie jar**: upstream `new_client()` shares one
    mutable default jar across all clients, which would leak one child's session
    cookies into another child's requests.
-3. **Requests are serialized per alias** by `_client_locks`: `requests.Session`
+3. **Operations are serialized per alias** by `_client_locks`: `requests.Session`
    and the cookie jar are not thread-safe. Different aliases run concurrently.
+   The session context is kept persistent despite librus-apix wrapping every
+   request in `with client._session`, preserving TCP/TLS connection pooling.
+   The notification operation is the sole internal exception: five read-only
+   categories use independent cloned clients and at most three worker threads;
+   schedule stays on the original client. Clones never share a mutable session
+   or cookie jar, and the outer alias lock still excludes other operations.
 4. **Token expiry is handled** by `_execute()`, which retries once on
    `AuthorizationError`, `TokenError` ("Brak dostępu" page), or `TokenKeyError`.
    `MaintananceError` and `ParseError` are normalized into actionable `RuntimeError`s.
@@ -52,16 +58,24 @@ src/
    `config.features` (env override: `LIBRUS_FEATURES`). `send_message` defaults off.
 9. **Notification state is persisted** per alias as JSON under `state_dir`
    (`LIBRUS_STATE_DIR` > config > `~/.librus-mcp/state`), written atomically.
-   Aliases that need filename sanitization get a digest suffix so distinct
-   aliases can never share a state file. First run diffs against empty IDs —
+   Aliases that need filename sanitization get a full SHA-256 suffix so distinct
+   aliases cannot share a state file. During compatibility migration, the
+   8-character state mirror and lock are retained so old and new MCP processes
+   cannot lose each other's updates. First run diffs against empty IDs —
    never use `get_initial_notification_data`, it 403s on `/uczen/index` for
    parent (rodzic) accounts.
 10. **Own scraping lives in `src/scraping.py`** for gaps in librus-apix
     (attachments, uwagi, final grades). Attachment download flow:
     `/wiadomosci/pobierz_zalacznik/{msg}/{file}` → 302 (not followed
     automatically) → Location validated as exactly `https://sandbox.librus.pl/GetFile/…`
-    → GET `<key>/get` **without cookies**, streamed with a 50 MiB cap and a
-    deadline, written with `O_EXCL|O_NOFOLLOW` (never overwrites).
+     → GET `<key>/get` **without cookies**, streamed with a 50 MiB cap and a
+     deadline, then atomically hard-linked from an exclusive temporary file
+     (never overwrites; the download filesystem must support hard links).
+11. **Expensive upstream wrappers are bounded and deduplicated.** Subject
+    frequency resolves each unique lesson and subject once, with five gateway
+    requests in flight, host-scoped cookies, disabled redirects, two attempts
+    per request, and a 50-second resolution deadline. Received messages and
+    completed lessons reuse the first response for both data and page count.
 
 ## How to Work With This Codebase
 
