@@ -18,10 +18,12 @@ tables and column tables) and may need adjustment against a real note.
 
 import os
 import re
+import sys
 import time
 from dataclasses import dataclass
 from pathlib import Path
 from urllib.parse import urlparse
+from uuid import uuid4
 
 import requests
 from bs4 import BeautifulSoup, Tag
@@ -78,7 +80,10 @@ def resolve_download_dir(config_download_dir: str | None) -> Path:
 def parse_attachments(html: str) -> list[Attachment]:
     """Extract attachment entries from a message detail page."""
     assert html, "html must not be empty"
-    soup = BeautifulSoup(html, "lxml")
+    return _parse_attachments_soup(BeautifulSoup(html, "lxml"))
+
+
+def _parse_attachments_soup(soup: BeautifulSoup) -> list[Attachment]:
     attachments: list[Attachment] = []
     for img in soup.find_all("img", onclick=True):
         match = ATTACHMENT_PATTERN.search(img.get("onclick", ""))
@@ -110,8 +115,9 @@ def get_attachments(client: Client, message_id: str) -> list[Attachment]:
     """Fetch the message detail page and list its attachments."""
     _require_bare_id(message_id, "message_id")
     response = client.get(client.MESSAGE_URL + "/" + message_id)
-    no_access_check(BeautifulSoup(response.text, "lxml"))
-    return parse_attachments(response.text)
+    soup = BeautifulSoup(response.text, "lxml")
+    no_access_check(soup)
+    return _parse_attachments_soup(soup)
 
 
 def download_attachment(client: Client, message_id: str, file_id: str, download_dir: Path) -> dict:
@@ -121,22 +127,8 @@ def download_attachment(client: Client, message_id: str, file_id: str, download_
 
     url = f"{client.BASE_URL}/wiadomosci/pobierz_zalacznik/{message_id}/{file_id}"
     download_url = _resolve_download_url(client, url)
-    content, content_type, disposition = _fetch_attachment_bytes(download_url, client.proxy)
-
-    # Sanitize BEFORE the validity check. Path(...).name strips directories
-    # but passes ".." through unchanged, and ".." as a filename is a live
-    # path component — dot names must fall back like empty ones.
-    filename = Path(_filename_from_disposition(disposition)).name.strip()
-    if filename in ("", ".", ".."):
-        filename = f"attachment_{message_id}_{file_id}"
-
-    target_path = _write_unique_file(download_dir, filename, content)
-    return {
-        "path": str(target_path),
-        "filename": target_path.name,
-        "size": len(content),
-        "content_type": content_type,
-    }
+    fallback_filename = f"attachment_{message_id}_{file_id}"
+    return _stream_attachment(download_url, client.proxy, download_dir, fallback_filename)
 
 
 def _require_bare_id(value: str, name: str) -> None:
@@ -179,56 +171,112 @@ def _resolve_download_url(client: Client, url: str) -> str:
     return location
 
 
-def _fetch_attachment_bytes(download_url: str, proxy: dict) -> tuple[bytes, str, str]:
-    """Stream the file from the signed sandbox URL with a byte cap and a
-    deadline. Sent with no cookies: the URL key alone authorizes the download,
-    and Synergia session cookies must never reach the sandbox host."""
+def _stream_attachment(
+    download_url: str, proxy: dict, download_dir: Path, fallback_filename: str
+) -> dict:
+    """Stream a signed sandbox download directly to an exclusive local file."""
     deadline = time.monotonic() + DOWNLOAD_DEADLINE_SECONDS
-    chunks: list[bytes] = []
     received_bytes = 0
-    with requests.get(
-        download_url + "/get",
-        headers=librus_urls.HEADERS,
-        stream=True,
-        allow_redirects=False,
-        timeout=REQUEST_TIMEOUT_SECONDS,
-        proxies=proxy,
-    ) as response:
-        if response.status_code != 200:
-            raise ValueError(f"attachment download failed: HTTP {response.status_code}")
-        content_type = response.headers.get("Content-Type", "")
-        disposition = response.headers.get("Content-Disposition", "")
-        for chunk in response.iter_content(DOWNLOAD_CHUNK_BYTES):
-            received_bytes += len(chunk)
-            if received_bytes > MAX_ATTACHMENT_BYTES:
+    temporary_path: Path | None = None
+    try:
+        with requests.get(
+            download_url + "/get",
+            headers=librus_urls.HEADERS,
+            stream=True,
+            allow_redirects=False,
+            timeout=REQUEST_TIMEOUT_SECONDS,
+            proxies=proxy,
+        ) as response:
+            if response.status_code != 200:
+                raise ValueError(f"attachment download failed: HTTP {response.status_code}")
+            content_type = response.headers.get("Content-Type", "")
+            disposition = response.headers.get("Content-Disposition", "")
+            content_length = response.headers.get("Content-Length", "")
+            if content_length.isdigit() and int(content_length) > MAX_ATTACHMENT_BYTES:
                 raise ValueError(f"attachment exceeds the {MAX_ATTACHMENT_BYTES} byte limit")
-            if time.monotonic() > deadline:
-                raise ValueError("attachment download exceeded its deadline")
-            chunks.append(chunk)
-    content = b"".join(chunks)
-    if len(content) == 0:
-        raise ValueError("attachment download returned an empty body")
-    return content, content_type, disposition
+            filename = _safe_attachment_filename(disposition, fallback_filename)
+            temporary_path, descriptor = _create_temporary_file(download_dir)
+            try:
+                handle = os.fdopen(descriptor, "wb")
+            except BaseException:
+                try:
+                    os.close(descriptor)
+                except OSError:
+                    pass
+                raise
+            with handle:
+                received_bytes = _write_attachment_chunks(response, handle, deadline)
+            if received_bytes == 0:
+                raise ValueError("attachment download returned an empty body")
+        target_path = _publish_unique_file(temporary_path, filename)
+    except BaseException:
+        if temporary_path is not None:
+            temporary_path.unlink(missing_ok=True)
+        raise
+    return {
+        "path": str(target_path),
+        "filename": target_path.name,
+        "size": received_bytes,
+        "content_type": content_type,
+    }
 
 
-def _write_unique_file(download_dir: Path, filename: str, content: bytes) -> Path:
-    """Create the file exclusively (never overwrite, never follow a symlink);
-    on a name collision append ' (n)' before the extension."""
+def _safe_attachment_filename(disposition: str, fallback_filename: str) -> str:
+    # Path(...).name strips directories but passes dot components through.
+    filename = Path(_filename_from_disposition(disposition)).name.strip()
+    return fallback_filename if filename in ("", ".", "..") else filename
+
+
+def _create_temporary_file(download_dir: Path) -> tuple[Path, int]:
+    """Open an exclusive temporary file in the destination filesystem."""
+    download_dir.mkdir(parents=True, exist_ok=True)
+    temporary_path = download_dir / f".librus-mcp-{os.getpid()}-{uuid4().hex}.tmp"
+    open_flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0)
+    descriptor = os.open(temporary_path, open_flags, 0o600)
+    return temporary_path, descriptor
+
+
+def _write_attachment_chunks(response, handle, deadline: float) -> int:
+    received_bytes = 0
+    for chunk in response.iter_content(DOWNLOAD_CHUNK_BYTES):
+        if not chunk:
+            continue
+        received_bytes += len(chunk)
+        if received_bytes > MAX_ATTACHMENT_BYTES:
+            raise ValueError(f"attachment exceeds the {MAX_ATTACHMENT_BYTES} byte limit")
+        if time.monotonic() > deadline:
+            raise ValueError("attachment download exceeded its deadline")
+        handle.write(chunk)
+    return received_bytes
+
+
+def _publish_unique_file(temporary_path: Path, filename: str) -> Path:
+    """Atomically publish a complete file without overwriting an existing path."""
     assert filename not in ("", ".", ".."), "filename must not be empty or a dot component"
     assert filename == Path(filename).name, "filename must be bare, with no path components"
-    download_dir.mkdir(parents=True, exist_ok=True)
+    download_dir = temporary_path.parent
     stem = Path(filename).stem
     suffix = Path(filename).suffix
-    open_flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0)
     for attempt in range(MAX_FILENAME_ATTEMPTS):
         candidate = filename if attempt == 0 else f"{stem} ({attempt}){suffix}"
         target_path = download_dir / candidate
         try:
-            descriptor = os.open(target_path, open_flags, 0o600)
+            os.link(temporary_path, target_path, follow_symlinks=False)
         except FileExistsError:
             continue
-        with os.fdopen(descriptor, "wb") as handle:
-            handle.write(content)
+        except OSError as error:
+            raise ValueError(
+                f"attachment cannot be published atomically in '{download_dir}'; "
+                "the filesystem must support hard links"
+            ) from error
+        try:
+            temporary_path.unlink()
+        except OSError as error:
+            print(
+                f"librus-mcp: attachment saved at {target_path}, but temporary "
+                f"file cleanup failed: {error}",
+                file=sys.stderr,
+            )
         return target_path
     raise ValueError(f"no unique filename for '{filename}' after {MAX_FILENAME_ATTEMPTS} attempts")
 
@@ -248,7 +296,10 @@ def parse_behaviour_notes(html: str) -> list[BehaviourNote]:
     failing loudly beats a false "no behaviour notes" for a parent.
     """
     assert html, "html must not be empty"
-    soup = BeautifulSoup(html, "lxml")
+    return _parse_behaviour_notes_soup(BeautifulSoup(html, "lxml"))
+
+
+def _parse_behaviour_notes_soup(soup: BeautifulSoup) -> list[BehaviourNote]:
     empty_marker = soup.select_one("p.msgEmptyTable")
     if empty_marker is not None and "Brak uwag" in empty_marker.get_text():
         return []
@@ -262,8 +313,9 @@ def parse_behaviour_notes(html: str) -> list[BehaviourNote]:
 def get_behaviour_notes(client: Client) -> list[BehaviourNote]:
     """Fetch and parse the behaviour notes (uwagi) page."""
     response = client.get(client.BASE_URL + "/uwagi")
-    no_access_check(BeautifulSoup(response.text, "lxml"))
-    return parse_behaviour_notes(response.text)
+    soup = BeautifulSoup(response.text, "lxml")
+    no_access_check(soup)
+    return _parse_behaviour_notes_soup(soup)
 
 
 def _field_for_label(label: str) -> str | None:
@@ -356,7 +408,10 @@ def parse_final_grades(html: str) -> list[FinalGrade]:
     wrong page, not an account variant seen so far.
     """
     assert html, "html must not be empty"
-    soup = BeautifulSoup(html, "lxml")
+    return _parse_final_grades_soup(BeautifulSoup(html, "lxml"))
+
+
+def _parse_final_grades_soup(soup: BeautifulSoup) -> list[FinalGrade]:
     located = _locate_final_grades_table(soup)
     assert located is not None, "grades page header not recognized (no annual grade column)"
     table, column_map = located
@@ -438,5 +493,6 @@ def _locate_final_grades_table(soup: BeautifulSoup) -> tuple[Tag, dict[str, int]
 def get_final_grades(client: Client) -> list[FinalGrade]:
     """Fetch and parse end-of-year grade columns from the grades page."""
     response = client.get(client.GRADES_URL)
-    no_access_check(BeautifulSoup(response.text, "lxml"))
-    return parse_final_grades(response.text)
+    soup = BeautifulSoup(response.text, "lxml")
+    no_access_check(soup)
+    return _parse_final_grades_soup(soup)

@@ -1,5 +1,7 @@
 """Tests for per-alias NotificationIds persistence."""
 
+import hashlib
+import json
 import multiprocessing
 import threading
 import time
@@ -9,6 +11,7 @@ import pytest
 from librus_apix.notifications import NotificationIds
 
 from src.notification_state import (
+    _state_path,
     load_notification_ids,
     resolve_state_dir,
     save_notification_ids,
@@ -82,6 +85,84 @@ class TestSaveLoadRoundtrip:
         loaded = load_notification_ids(tmp_path, "Parent A/../x")
         assert loaded is not None
 
+    def test_sanitized_alias_uses_full_sha256_digest(self, tmp_path):
+        alias = "child/a"
+        expected_digest = hashlib.sha256(alias.encode("utf-8")).hexdigest()
+
+        save_notification_ids(tmp_path, alias, _sample_ids())
+
+        assert _state_path(tmp_path, alias).name == (
+            f"child_a.{expected_digest}.notifications.json"
+        )
+        assert len(expected_digest) == 64
+
+    def test_legacy_short_digest_state_is_migrated_on_load(self, tmp_path):
+        alias = "child/a"
+        short_digest = hashlib.sha256(alias.encode("utf-8")).hexdigest()[:8]
+        legacy_path = tmp_path / f"child_a.{short_digest}.notifications.json"
+        ids = _sample_ids()
+        legacy_path.write_text(
+            json.dumps(
+                {
+                    key: getattr(ids, key)
+                    for key in (
+                        "grades",
+                        "attendance",
+                        "messages",
+                        "announcements",
+                        "schedule",
+                        "homework",
+                    )
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        loaded = load_notification_ids(tmp_path, alias)
+
+        assert loaded is not None
+        assert loaded.grades == ids.grades
+        assert _state_path(tmp_path, alias).exists()
+        assert legacy_path.exists()
+        assert legacy_path.read_bytes() == _state_path(tmp_path, alias).read_bytes()
+
+    def test_new_version_imports_updates_written_by_old_version(self, tmp_path):
+        alias = "child/a"
+        save_notification_ids(tmp_path, alias, _sample_ids())
+        short_digest = hashlib.sha256(alias.encode("utf-8")).hexdigest()[:8]
+        legacy_path = tmp_path / f"child_a.{short_digest}.notifications.json"
+        old_process_ids = NotificationIds([], [], ["new-message"], [], [], [])
+        legacy_path.write_text(
+            json.dumps(
+                {
+                    key: getattr(old_process_ids, key)
+                    for key in (
+                        "grades",
+                        "attendance",
+                        "messages",
+                        "announcements",
+                        "schedule",
+                        "homework",
+                    )
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        loaded = load_notification_ids(tmp_path, alias)
+
+        assert loaded is not None
+        assert loaded.messages == ["new-message"]
+        assert legacy_path.read_bytes() == _state_path(tmp_path, alias).read_bytes()
+
+    def test_long_sanitized_alias_stays_within_filename_limit(self, tmp_path):
+        alias = f"{'a' * 200}/child"
+
+        save_notification_ids(tmp_path, alias, _sample_ids())
+
+        assert len(_state_path(tmp_path, alias).name.encode("utf-8")) < 200
+        assert load_notification_ids(tmp_path, alias).grades == ["/g/1", "/g/2"]
+
     def test_aliases_do_not_collide(self, tmp_path):
         ids_a = _sample_ids()
         ids_b = NotificationIds([], [], [], [], [], [])
@@ -138,6 +219,21 @@ class TestResolveStateDir:
 
 
 class TestProcessStateLock:
+    def test_sanitized_alias_uses_legacy_lock_name_during_migration(self, tmp_path):
+        from src.notification_state import (
+            release_notification_state_lock,
+            try_acquire_notification_state_lock,
+        )
+
+        alias = "child/a"
+        short_digest = hashlib.sha256(alias.encode("utf-8")).hexdigest()[:8]
+        descriptor = try_acquire_notification_state_lock(tmp_path, alias)
+        assert descriptor is not None
+        try:
+            assert (tmp_path / f"child_a.{short_digest}.notifications.json.lock").exists()
+        finally:
+            release_notification_state_lock(descriptor)
+
     def test_second_process_waits_for_notification_transaction(self, tmp_path):
         from src.notification_state import release_notification_state_lock
 

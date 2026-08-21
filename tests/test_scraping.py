@@ -4,6 +4,8 @@ Fixture HTML mirrors real Synergia markup captured on 2026-06-11 (personal data
 replaced with synthetic values).
 """
 
+from unittest.mock import patch
+
 import pytest
 
 from src.scraping import (
@@ -184,6 +186,7 @@ class FakeStreamResponse:
         self.status_code = status_code
         self._content = content
         self.headers = headers if headers is not None else {}
+        self.iterated = False
 
     def __enter__(self):
         return self
@@ -192,6 +195,7 @@ class FakeStreamResponse:
         return False
 
     def iter_content(self, chunk_size):
+        self.iterated = True
         for offset in range(0, len(self._content), chunk_size):
             yield self._content[offset : offset + chunk_size]
 
@@ -208,7 +212,7 @@ class FakeClient:
 
 
 def _patch_http(responses):
-    from unittest.mock import patch, MagicMock
+    from unittest.mock import MagicMock
 
     mock = MagicMock(side_effect=list(responses))
     return patch("src.scraping.requests.get", mock), mock
@@ -237,6 +241,48 @@ class TestDownloadAttachment:
         second_call = mock.call_args_list[1]
         assert second_call.args[0] == "https://sandbox.librus.pl/GetFile/abc123/get"
         assert "cookies" not in second_call.kwargs
+
+    def test_final_name_appears_only_after_complete_download(self, tmp_path):
+        from src.scraping import download_attachment
+
+        class InspectingResponse(FakeStreamResponse):
+            def iter_content(self, chunk_size):
+                yield b"first"
+                assert not (tmp_path / "atomic.bin").exists()
+                yield b"second"
+
+        response = InspectingResponse(headers={"Content-Disposition": 'filename="atomic.bin"'})
+        patcher, _ = _patch_http([FakeRedirectResponse(), response])
+        with patcher:
+            info = download_attachment(FakeClient(), "1", "2", tmp_path)
+        assert info["size"] == 11
+        assert (tmp_path / "atomic.bin").read_bytes() == b"firstsecond"
+        assert list(tmp_path.glob("*.tmp")) == []
+
+    def test_response_close_failure_does_not_publish_file(self, tmp_path):
+        from src.scraping import download_attachment
+
+        class FailingCloseResponse(FakeStreamResponse):
+            def __exit__(self, *args):
+                raise OSError("response close failed")
+
+        response = FailingCloseResponse(
+            headers={"Content-Disposition": 'filename="not-published.bin"'}
+        )
+        patcher, _ = _patch_http([FakeRedirectResponse(), response])
+        with patcher:
+            with pytest.raises(OSError, match="response close failed"):
+                download_attachment(FakeClient(), "1", "2", tmp_path)
+        assert list(tmp_path.iterdir()) == []
+
+    def test_unsupported_hard_links_raise_actionable_error(self, tmp_path):
+        from src.scraping import download_attachment
+
+        patcher, _ = _patch_http(self._responses())
+        with patcher, patch("src.scraping.os.link", side_effect=OSError("not supported")):
+            with pytest.raises(ValueError, match="filesystem must support hard links"):
+                download_attachment(FakeClient(), "1", "2", tmp_path)
+        assert list(tmp_path.iterdir()) == []
 
     def test_path_traversal_in_filename_is_stripped(self, tmp_path):
         from src.scraping import download_attachment
@@ -350,6 +396,21 @@ class TestDownloadAttachment:
                 scraping.download_attachment(FakeClient(), "1", "2", tmp_path)
         assert list(tmp_path.iterdir()) == []
 
+    def test_oversized_content_length_fails_before_streaming(self, tmp_path, monkeypatch):
+        from src import scraping
+
+        monkeypatch.setattr(scraping, "MAX_ATTACHMENT_BYTES", 8)
+        response = FakeStreamResponse(
+            content=b"0123456789",
+            headers={"Content-Length": "10", "Content-Disposition": 'filename="large.bin"'},
+        )
+        patcher, _ = _patch_http([FakeRedirectResponse(), response])
+        with patcher:
+            with pytest.raises(ValueError, match="byte limit"):
+                scraping.download_attachment(FakeClient(), "1", "2", tmp_path)
+        assert response.iterated is False
+        assert list(tmp_path.iterdir()) == []
+
     def test_slash_in_file_id_raises(self, tmp_path):
         from src.scraping import download_attachment
 
@@ -395,6 +456,29 @@ class TestResolveDownloadDir:
 
         monkeypatch.setenv("LIBRUS_DOWNLOAD_DIR", str(tmp_path / "env_dl"))
         assert resolve_download_dir("/other") == tmp_path / "env_dl"
+
+
+class TestSingleHtmlParse:
+    def test_attachment_page_is_parsed_once(self, monkeypatch):
+        from src import scraping
+
+        class PageClient:
+            MESSAGE_URL = "https://synergia.librus.pl/wiadomosci"
+
+            @staticmethod
+            def get(url):
+                return type("Response", (), {"text": NO_ATTACHMENT_HTML})()
+
+        original = scraping.BeautifulSoup
+        calls = {"count": 0}
+
+        def counting_soup(*args, **kwargs):
+            calls["count"] += 1
+            return original(*args, **kwargs)
+
+        monkeypatch.setattr(scraping, "BeautifulSoup", counting_soup)
+        assert scraping.get_attachments(PageClient(), "1") == []
+        assert calls["count"] == 1
 
 
 UWAGI_UNRECOGNIZED_HTML = """
