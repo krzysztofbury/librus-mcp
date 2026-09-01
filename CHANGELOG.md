@@ -2,28 +2,63 @@
 
 All notable changes to this project will be documented in this file.
 
-## [1.0.1] - 2026-09-01
+## [1.1.0] - 2026-09-01
+
+### Changed
+- **Requires the 2.x line of the MCP Python SDK** (`mcp>=2.1.1,<3`, up from
+  `mcp>=1.25.0,<2`). The 1.x entry point this server was built on, `FastMCP`
+  from `mcp.server.fastmcp`, was renamed to `MCPServer` in
+  `mcp.server.mcpserver`, so the two SDK majors are not interchangeable: on
+  mcp 2.x the previous release fails at import, and this release fails at
+  import on mcp 1.x.
+
+  **This is not a change to the tool surface.** All 22 tools, their argument
+  schemas, their `ToolAnnotations`, and the protocol handshake are unchanged,
+  so MCP hosts need no configuration change and `uvx librus-mcp` users need
+  take no action. Only a caller that pins the SDK itself in a shared
+  environment is affected.
+
+  Verified on mcp 2.1.1: the `@mcp.tool()` decorator and its `annotations`
+  argument are unchanged, and `run()` still defaults to the stdio transport.
+  `ToolAnnotations` field names moved to snake_case upstream, so the tool
+  annotation constants and the tests that assert on them now use the canonical
+  snake_case spellings; the values still serialize to camelCase on the wire, as
+  the protocol requires, which was confirmed by reading a real `tools/list`
+  response over stdio rather than inferred.
+
+- Refresh the lockfile and move the supply-chain quarantine cutoff from
+  2026-06-14 to 2026-09-01. The locked set now matches what a current `uvx`
+  launch resolves, so CI stops validating versions that no deployment runs
+- Pin the ruff rule selection explicitly. ruff 0.16 widened its implicit
+  default rule set, which turned a dev-dependency upgrade into 71 lint errors
+  in unchanged code. `[tool.ruff.lint] select` now states the selection that
+  was in effect through 0.15.x, so the enforced rules no longer depend on the
+  installed tool version
+
+### Fixed
+- The `initialize` handshake advertised the MCP SDK's own version as this
+  server's version, so hosts displayed the SDK version (for example 1.29.1)
+  instead of the librus-mcp version. The server now passes its own version,
+  read from installed package metadata, so there is a single source of truth
+  and no value to keep in sync by hand
 
 ### Security
 - Raise dependency floors to the first patched release for each published
-  advisory affecting the previously locked versions: `mcp` 1.28.1 (unverified
-  authenticated principal on HTTP transports, cross-client task access,
-  missing WebSocket Host/Origin validation), `lxml` 6.1.0 (XXE through the
-  default `iterparse()` and `ETCompatXMLParser()` configuration), `requests`
-  2.33.0 (insecure temporary file reuse in `extract_zipped_paths()`), and
-  `aiohttp` 3.14.2 (multipart CRLF injection, unbounded request pipelining,
-  unbounded trailer headers, request smuggling on WebSocket upgrade).
+  advisory affecting the previously locked versions: `lxml` 6.1.0 (XXE through
+  the default `iterparse()` and `ETCompatXMLParser()` configuration),
+  `requests` 2.33.0 (insecure temporary file reuse in
+  `extract_zipped_paths()`), and `aiohttp` 3.14.2 (multipart CRLF injection,
+  unbounded request pipelining, unbounded trailer headers, request smuggling
+  on WebSocket upgrade). The move to mcp 2.x likewise clears three advisories
+  that affected the previously locked 1.25.0 (unverified authenticated
+  principal on HTTP transports, cross-client task access, missing WebSocket
+  Host/Origin validation).
 
   None of these are reachable from this server: it runs the stdio transport
   only, and it uses `aiohttp` purely as a client with an in-memory cookie jar
   that is never persisted. The floors matter because the entry point is
   normally launched with `uvx`, which resolves from PyPI at launch, so an
   installed copy could otherwise be served an affected version.
-
-### Changed
-- Refresh the lockfile and move the supply-chain quarantine cutoff from
-  2026-06-14 to 2026-09-01. The locked set now matches what a current `uvx`
-  launch resolves, so CI stops validating versions that no deployment runs
 
 ### Added
 - Scheduled `Dependency drift` workflow that resolves the newest permitted

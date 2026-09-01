@@ -51,7 +51,7 @@ def reset_pending_confirmations():
 @pytest.fixture(autouse=True)
 def reset_optional_tools():
     """Unregister optional tools between tests so each test sees a clean
-    FastMCP registry and gating tests prove the real registration path."""
+    MCPServer registry and gating tests prove the real registration path."""
     from src import server
 
     def _clear():

@@ -1,6 +1,6 @@
 [project]
 name = "librus-mcp"
-version = "1.0.1"
+version = "1.1.0"
 description = "MCP server for Librus Synergia — access grades, messages, attendance, homework, timetables, and announcements from AI assistants"
 authors = [{name = "Krzysztof Bury", email = "contact@datacraze.io"}]
 license = {text = "MIT"}
@@ -17,13 +17,17 @@ classifiers = [
 # librus-apix exposes no public timeout/session hook; pin the release whose
 # private Client._session behavior is covered by this server's tests.
 #
-# Lower bounds on mcp, lxml, requests, and aiohttp are the first patched
-# releases for published advisories. This server is stdio-only and uses aiohttp
-# purely as a client, so none of those advisories are reachable here, but the
-# floors keep a resolver from selecting an affected version for an installed
-# copy of this package.
+# mcp 2.x is required: the 1.x FastMCP entry point this server was built on was
+# renamed to MCPServer in mcp.server.mcpserver, so 1.x and 2.x are not
+# interchangeable here.
+#
+# Lower bounds on lxml, requests, and aiohttp are the first patched releases for
+# published advisories. This server is stdio-only and uses aiohttp purely as a
+# client, so none of those advisories are reachable here, but the floors keep a
+# resolver from selecting an affected version for an installed copy of this
+# package.
 dependencies = [
-    "mcp>=1.28.1,<2",
+    "mcp>=2.1.1,<3",
     "librus-apix==1.5.1",
     "pydantic>=2.7,<3",
     "beautifulsoup4>=4.12,<5",
