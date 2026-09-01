@@ -2,6 +2,34 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.1] - 2026-09-01
+
+### Security
+- Raise dependency floors to the first patched release for each published
+  advisory affecting the previously locked versions: `mcp` 1.28.1 (unverified
+  authenticated principal on HTTP transports, cross-client task access,
+  missing WebSocket Host/Origin validation), `lxml` 6.1.0 (XXE through the
+  default `iterparse()` and `ETCompatXMLParser()` configuration), `requests`
+  2.33.0 (insecure temporary file reuse in `extract_zipped_paths()`), and
+  `aiohttp` 3.14.2 (multipart CRLF injection, unbounded request pipelining,
+  unbounded trailer headers, request smuggling on WebSocket upgrade).
+
+  None of these are reachable from this server: it runs the stdio transport
+  only, and it uses `aiohttp` purely as a client with an in-memory cookie jar
+  that is never persisted. The floors matter because the entry point is
+  normally launched with `uvx`, which resolves from PyPI at launch, so an
+  installed copy could otherwise be served an affected version.
+
+### Changed
+- Refresh the lockfile and move the supply-chain quarantine cutoff from
+  2026-06-14 to 2026-09-01. The locked set now matches what a current `uvx`
+  launch resolves, so CI stops validating versions that no deployment runs
+
+### Added
+- Scheduled `Dependency drift` workflow that resolves the newest permitted
+  dependency versions past the project cutoff and runs the suite against them,
+  so an upstream break surfaces in CI rather than at a user's launch
+
 ## [1.0.0] - 2026-08-21
 
 ### Changed

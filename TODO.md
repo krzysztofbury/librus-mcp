@@ -22,6 +22,14 @@
 - [x] Document that the send confirmation token is an interlock, while human
   approval is enforced by MCP hosts through destructive-tool annotations.
 
+## Tooling
+
+- [ ] Triage the 71 findings ruff 0.16 reports under its widened default rule
+  set (SIM117, RUF012, I001, TRY004, DTZ005, DTZ007, UP006/UP035/UP041/UP045,
+  PYI036, BLE001) and decide which to adopt in `[tool.ruff.lint] select`.
+  DTZ005/DTZ007 (naive datetimes) and BLE001 (blind except) are the ones worth
+  reading first.
+
 ## MCP Contract
 
 - [ ] Add typed output schemas for collection tools that still return `Any`.
