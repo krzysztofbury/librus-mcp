@@ -5,23 +5,26 @@ import secrets
 import time
 from typing import Annotated, Any, Literal
 
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 from mcp.types import ToolAnnotations
 from pydantic import Field
 
+from src import __version__
 from src.librus_client import LibrusManager
 
-mcp = FastMCP("librus-mcp")
+# Passing version explicitly: an unversioned server advertises an empty version
+# in the initialize handshake, so hosts would show no version for this server.
+mcp = MCPServer("librus-mcp", version=__version__)
 
-# Every tool talks to the external Librus service, hence openWorldHint on all.
-READ_ONLY = ToolAnnotations(readOnlyHint=True, openWorldHint=True)
+# Every tool talks to the external Librus service, hence open_world_hint on all.
+READ_ONLY = ToolAnnotations(read_only_hint=True, open_world_hint=True)
 # Mutates local state only (seen-notification IDs / downloaded files), nothing
 # at the school; not idempotent because repeated calls yield different results.
 LOCAL_STATE_WRITE = ToolAnnotations(
-    readOnlyHint=False, destructiveHint=False, idempotentHint=False, openWorldHint=True
+    read_only_hint=False, destructive_hint=False, idempotent_hint=False, open_world_hint=True
 )
 SEND_MESSAGE = ToolAnnotations(
-    readOnlyHint=False, destructiveHint=True, idempotentHint=False, openWorldHint=True
+    read_only_hint=False, destructive_hint=True, idempotent_hint=False, open_world_hint=True
 )
 
 StudentAlias = Annotated[str, Field(min_length=1, description="Alias of the student account")]

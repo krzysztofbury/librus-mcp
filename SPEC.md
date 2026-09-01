@@ -17,7 +17,7 @@ This document describes how AI agents and bots should interact with this codebas
 
 ```
 src/
-  server.py              - FastMCP server. Defines all MCP tools. Entry point.
+  server.py              - MCPServer (mcp 2.x) server. Defines all MCP tools. Entry point.
   librus_client.py       - LibrusManager class. Handles auth, caching, retry, and data fetching.
   config.py              - Reads secrets.json via Pydantic models (accounts, features, dirs).
   notification_state.py  - Per-alias persistence of seen-notification IDs (JSON files).

@@ -6,6 +6,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
+from src import __version__
 from src.server import (
     get_announcements,
     get_attendance,
@@ -22,6 +23,32 @@ from src.server import (
     list_students,
     to_dict,
 )
+
+
+class TestServerInfo:
+    """The initialize handshake must identify this server, not the SDK."""
+
+    def test_advertises_package_version(self):
+        from src.server import mcp
+
+        assert mcp.name == "librus-mcp"
+        assert mcp.version == __version__
+
+    def test_handshake_reports_a_version(self):
+        from importlib.metadata import version
+
+        from src.server import mcp
+
+        # The value the initialize handshake actually puts on the wire. An
+        # unversioned MCPServer advertises "", and mcp 1.x used to fall back to
+        # the SDK's own version; guard against either reappearing.
+        options = mcp._lowlevel_server.create_initialization_options()
+
+        assert options.server_version == __version__
+        assert options.server_version not in ("", version("mcp"))
+
+    def test_package_version_is_resolvable(self):
+        assert __version__ != "0+unknown"
 
 
 # --- Fake dataclasses mirroring librus-apix shapes ---

@@ -5,6 +5,15 @@
 
 An [MCP (Model Context Protocol)](https://modelcontextprotocol.io/) server that provides AI assistants with access to the **Librus Synergia** electronic gradebook. It supports multiple student accounts simultaneously and exposes tools for grades (numeric, GPA, and descriptive), messages, attendance, homework, schedules, timetables, announcements, completed lessons, and student information.
 
+## Requirements
+
+- **Python 3.14** or newer
+- **MCP Python SDK 2.x** (`mcp>=2.1.1,<3`), installed automatically as a dependency
+
+Since **v1.1.0** this server runs on the 2.x line of the MCP Python SDK. The 1.x entry point it was previously built on (`FastMCP`) was renamed to `MCPServer` upstream, so the two SDK majors are not interchangeable: v1.1.0 requires mcp 2.x, and v1.0.0 requires mcp 1.x.
+
+This is not a change to the tool surface. Every tool, argument, and annotation is unchanged, so **no configuration change is needed** and `uvx librus-mcp` resolves the right SDK on its own. It only matters if you pin the MCP SDK yourself in a shared environment, where `mcp<2` will no longer work. Hosts now also display this server's own version in the connection handshake rather than the SDK's.
+
 ## Acknowledgments
 
 This project is built on top of the excellent [**librus-apix**](https://github.com/RustySnek/librus-apix) library by [**RustySnek**](https://github.com/RustySnek). Their work on reverse-engineering and maintaining a Python client for the Librus Synergia platform made this MCP server possible. If you find this project useful, please consider starring their repository as well.

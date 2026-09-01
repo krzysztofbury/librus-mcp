@@ -1,0 +1,44 @@
+name: Dependency drift
+
+# The published entry point is normally launched with `uvx librus-mcp`, which
+# resolves dependencies from PyPI at launch and ignores the committed lockfile.
+# CI's `uv sync --locked` job therefore tests a set of versions that nobody
+# actually runs. This job closes that gap: it resolves the newest versions the
+# constraints in pyproject.toml permit and runs the suite against those, so a
+# breaking upstream release is reported here instead of at a user's launch.
+
+on:
+  schedule:
+    # Mondays, 06:00 UTC.
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+
+jobs:
+  latest-deps:
+    name: Test against latest permitted dependencies
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+
+      - name: Set up Python
+        run: uv python install 3.14
+
+      # `--exclude-newer` overrides the project-level supply-chain cutoff, which
+      # would otherwise cap this resolution at the date of the last dependency
+      # bump and hide every release published since.
+      - name: Resolve newest permitted dependencies
+        run: uv lock --upgrade --exclude-newer "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+
+      - name: Report drift from the committed lockfile
+        run: git --no-pager diff --stat -- uv.lock
+
+      # `--frozen` consumes the lockfile written above as-is. `--locked` would
+      # re-resolve against the project cutoff and fail on the override.
+      - name: Install resolved dependencies
+        run: uv sync --frozen --python 3.14
+
+      - name: Run tests
+        run: uv run pytest -q

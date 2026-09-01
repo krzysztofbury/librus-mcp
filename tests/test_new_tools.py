@@ -351,21 +351,21 @@ class TestToolAnnotations:
         register_optional_tools()
         tools = {tool.name: tool for tool in await mcp.list_tools()}
         annotations = tools["send_message"].annotations
-        assert annotations.destructiveHint is True
-        assert annotations.readOnlyHint is False
-        assert annotations.idempotentHint is False
+        assert annotations.destructive_hint is True
+        assert annotations.read_only_hint is False
+        assert annotations.idempotent_hint is False
 
     @pytest.mark.asyncio
     async def test_read_tools_are_marked_read_only(self, monkeypatch):
         monkeypatch.delenv("LIBRUS_FEATURES", raising=False)
         register_optional_tools()
         tools = {tool.name: tool for tool in await mcp.list_tools()}
-        assert tools["get_grades"].annotations.readOnlyHint is True
-        assert tools["get_message_attachments"].annotations.readOnlyHint is True
+        assert tools["get_grades"].annotations.read_only_hint is True
+        assert tools["get_message_attachments"].annotations.read_only_hint is True
         # Notification/download tools write local state, never school data.
-        assert tools["get_new_notifications"].annotations.readOnlyHint is False
-        assert tools["get_new_notifications"].annotations.destructiveHint is False
-        assert tools["download_attachment"].annotations.destructiveHint is False
+        assert tools["get_new_notifications"].annotations.read_only_hint is False
+        assert tools["get_new_notifications"].annotations.destructive_hint is False
+        assert tools["download_attachment"].annotations.destructive_hint is False
 
 
 # --- final grades tool ---
