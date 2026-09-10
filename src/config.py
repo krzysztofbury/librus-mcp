@@ -1,9 +1,8 @@
 import json
 import os
 import sys
-from typing import List, Optional
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 
 
 class AccountConfig(BaseModel):
@@ -38,14 +37,14 @@ class FeaturesConfig(BaseModel):
 class AppConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    accounts: List[AccountConfig]
+    accounts: list[AccountConfig]
     features: FeaturesConfig = Field(default_factory=FeaturesConfig)
-    state_dir: Optional[str] = None
-    download_dir: Optional[str] = None
+    state_dir: str | None = None
+    download_dir: str | None = None
 
     @field_validator("accounts")
     @classmethod
-    def _unique_aliases(cls, accounts: List[AccountConfig]) -> List[AccountConfig]:
+    def _unique_aliases(cls, accounts: list[AccountConfig]) -> list[AccountConfig]:
         """Duplicate aliases would silently route every call to the first
         matching account — a wrong-child data leak, not a cosmetic issue."""
         if len(accounts) == 0:
@@ -66,7 +65,7 @@ def _load_from_env_accounts() -> AppConfig:
     except json.JSONDecodeError:
         raise ValueError("LIBRUS_ACCOUNTS contains invalid JSON")
     if not isinstance(accounts, list):
-        raise ValueError("LIBRUS_ACCOUNTS must be a JSON array")
+        raise TypeError("LIBRUS_ACCOUNTS must be a JSON array")
     if len(accounts) == 0:
         raise ValueError("LIBRUS_ACCOUNTS must contain at least one account")
     return AppConfig(accounts=accounts)
@@ -82,7 +81,7 @@ def _apply_features_env(config: AppConfig) -> AppConfig:
     except json.JSONDecodeError:
         raise ValueError("LIBRUS_FEATURES contains invalid JSON")
     if not isinstance(overrides, dict):
-        raise ValueError("LIBRUS_FEATURES must be a JSON object")
+        raise TypeError("LIBRUS_FEATURES must be a JSON object")
     unknown_keys = set(overrides) - set(FeaturesConfig.model_fields)
     if unknown_keys:
         raise ValueError(
@@ -127,10 +126,12 @@ def _load_from_file(path: str) -> AppConfig:
     with open(path, "r", encoding="utf-8") as f:
         try:
             data = json.load(f)
+            if not isinstance(data, dict):
+                raise TypeError(f"Config in {path} must be a JSON object")
             return AppConfig(**data)
         except json.JSONDecodeError:
             raise ValueError(f"Invalid JSON in {path}")
-        except Exception as e:
+        except ValidationError as e:
             raise ValueError(f"Error loading config from {path}: {e}")
 
 

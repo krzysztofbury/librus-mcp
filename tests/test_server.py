@@ -2,7 +2,8 @@
 
 import dataclasses
 from collections import defaultdict
-from unittest.mock import AsyncMock, patch
+from datetime import date
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -265,9 +266,11 @@ class TestGetGrades:
 
     @pytest.mark.asyncio
     async def test_non_tuple_result_raises(self):
-        with _mock_execute(["not", "a", "tuple"]):
-            with pytest.raises(AssertionError, match="must return a tuple"):
-                await get_grades("test_student")
+        with (
+            _mock_execute(["not", "a", "tuple"]),
+            pytest.raises(AssertionError, match="must return a tuple"),
+        ):
+            await get_grades("test_student")
 
 
 class TestGetMessages:
@@ -365,6 +368,20 @@ class TestGetHomework:
             result = await get_homework("test_student")
         assert isinstance(result, list)
         assert len(result) == 1
+
+    @pytest.mark.asyncio
+    async def test_default_range_uses_school_timezone(self):
+        from src import librus_client
+
+        fixed_now = MagicMock()
+        fixed_now.date.return_value = date(2026, 9, 9)
+        clock = MagicMock()
+        clock.now.return_value = fixed_now
+        with patch.object(librus_client, "datetime", clock), _mock_execute([]) as execute:
+            await get_homework("test_student")
+
+        clock.now.assert_called_once_with(librus_client.SCHOOL_TIME_ZONE)
+        assert execute.await_args.args[-2:] == ("2026-09-09", "2026-09-23")
 
     @pytest.mark.asyncio
     async def test_empty_alias_raises(self):
@@ -524,6 +541,11 @@ class TestGetCompletedLessons:
             await get_completed_lessons("test_student", "31.01.2026", "2026-01-31")
 
     @pytest.mark.asyncio
+    async def test_compact_iso_date_raises(self):
+        with pytest.raises(ValueError, match="YYYY-MM-DD"):
+            await get_completed_lessons("test_student", "20260101", "2026-01-31")
+
+    @pytest.mark.asyncio
     async def test_reversed_range_raises(self):
         with pytest.raises(ValueError, match="after"):
             await get_completed_lessons("test_student", "2026-01-31", "2026-01-01")
@@ -537,9 +559,11 @@ class TestGetCompletedLessons:
     async def test_implausible_page_count_raises(self):
         mock = AsyncMock()
         mock.side_effect = [(500, [])]  # remote-controlled max_page
-        with patch("src.librus_client.LibrusManager._execute", mock):
-            with pytest.raises(ValueError, match="narrow the date range"):
-                await get_completed_lessons("test_student", "2026-01-01", "2026-01-31")
+        with (
+            patch("src.librus_client.LibrusManager._execute", mock),
+            pytest.raises(ValueError, match="narrow the date range"),
+        ):
+            await get_completed_lessons("test_student", "2026-01-01", "2026-01-31")
 
     @pytest.mark.asyncio
     async def test_empty_alias_raises(self):
@@ -571,73 +595,73 @@ class TestFetchAssertions:
 
     @pytest.mark.asyncio
     async def test_grades_rejects_non_tuple(self):
-        with _mock_execute(["not", "a", "tuple"]):
-            with pytest.raises(AssertionError, match="must return a tuple"):
-                await get_grades("test_student")
+        with (
+            _mock_execute(["not", "a", "tuple"]),
+            pytest.raises(AssertionError, match="must return a tuple"),
+        ):
+            await get_grades("test_student")
 
     @pytest.mark.asyncio
     async def test_grades_rejects_wrong_length_tuple(self):
-        with _mock_execute(([], [])):
-            with pytest.raises(AssertionError, match="must return.*grades, gpa, descriptive"):
-                await get_grades("test_student")
+        with (
+            _mock_execute(([], [])),
+            pytest.raises(AssertionError, match="must return.*grades, gpa, descriptive"),
+        ):
+            await get_grades("test_student")
 
     @pytest.mark.asyncio
     async def test_messages_rejects_non_list(self):
         mock = AsyncMock(return_value=(0, "not a list"))
-        with patch("src.librus_client.LibrusManager._execute", mock):
-            with pytest.raises(AssertionError, match="must return a list"):
-                await get_messages("test_student")
+        with (
+            patch("src.librus_client.LibrusManager._execute", mock),
+            pytest.raises(AssertionError, match="must return a list"),
+        ):
+            await get_messages("test_student")
 
     @pytest.mark.asyncio
     async def test_attendance_rejects_non_list(self):
-        with _mock_execute({"wrong": "type"}):
-            with pytest.raises(AssertionError, match="must return a list"):
-                await get_attendance("test_student")
+        with (
+            _mock_execute({"wrong": "type"}),
+            pytest.raises(AssertionError, match="must return a list"),
+        ):
+            await get_attendance("test_student")
 
     @pytest.mark.asyncio
     async def test_homework_rejects_non_list(self):
-        with _mock_execute(42):
-            with pytest.raises(AssertionError, match="must return a list"):
-                await get_homework("test_student")
+        with _mock_execute(42), pytest.raises(AssertionError, match="must return a list"):
+            await get_homework("test_student")
 
     @pytest.mark.asyncio
     async def test_announcements_rejects_non_list(self):
-        with _mock_execute("string"):
-            with pytest.raises(AssertionError, match="must return a list"):
-                await get_announcements("test_student")
+        with _mock_execute("string"), pytest.raises(AssertionError, match="must return a list"):
+            await get_announcements("test_student")
 
     @pytest.mark.asyncio
     async def test_subject_frequency_rejects_non_dict(self):
-        with _mock_execute([1, 2, 3]):
-            with pytest.raises(AssertionError, match="must return a dict"):
-                await get_subject_frequency("test_student")
+        with _mock_execute([1, 2, 3]), pytest.raises(AssertionError, match="must return a dict"):
+            await get_subject_frequency("test_student")
 
     @pytest.mark.asyncio
     async def test_timetable_rejects_non_list(self):
-        with _mock_execute("not a list"):
-            with pytest.raises(AssertionError, match="must return a list"):
-                await get_timetable("test_student")
+        with _mock_execute("not a list"), pytest.raises(AssertionError, match="must return a list"):
+            await get_timetable("test_student")
 
     @pytest.mark.asyncio
     async def test_schedule_rejects_non_dict(self):
-        with _mock_execute([1, 2]):
-            with pytest.raises(AssertionError, match="must return a dict"):
-                await get_schedule("test_student", "2026", "1")
+        with _mock_execute([1, 2]), pytest.raises(AssertionError, match="must return a dict"):
+            await get_schedule("test_student", "2026", "1")
 
     @pytest.mark.asyncio
     async def test_message_content_rejects_none(self):
-        with _mock_execute(None):
-            with pytest.raises(AssertionError, match="returned None"):
-                await get_message_content("test_student", "123")
+        with _mock_execute(None), pytest.raises(AssertionError, match="returned None"):
+            await get_message_content("test_student", "123")
 
     @pytest.mark.asyncio
     async def test_student_info_rejects_none(self):
-        with _mock_execute(None):
-            with pytest.raises(AssertionError, match="returned None"):
-                await get_student_information("test_student")
+        with _mock_execute(None), pytest.raises(AssertionError, match="returned None"):
+            await get_student_information("test_student")
 
     @pytest.mark.asyncio
     async def test_homework_detail_rejects_none(self):
-        with _mock_execute(None):
-            with pytest.raises(AssertionError, match="returned None"):
-                await get_homework_detail("test_student", "1")
+        with _mock_execute(None), pytest.raises(AssertionError, match="returned None"):
+            await get_homework_detail("test_student", "1")

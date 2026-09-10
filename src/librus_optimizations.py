@@ -4,9 +4,11 @@ import asyncio
 import copy
 import re
 from collections import defaultdict
+from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime, timedelta
-from typing import Any, Callable
+from datetime import date, datetime, timedelta
+from typing import Any
+from zoneinfo import ZoneInfo
 
 from aiohttp import ClientError, ClientResponseError, ClientSession, ClientTimeout, CookieJar
 from bs4 import BeautifulSoup
@@ -18,7 +20,8 @@ from librus_apix.exceptions import AuthorizationError, ParseError
 from librus_apix.grades import get_grades
 from librus_apix.helpers import no_access_check
 from librus_apix.homework import get_homework
-from librus_apix.messages import get_received, parse as parse_messages
+from librus_apix.messages import get_received
+from librus_apix.messages import parse as parse_messages
 from librus_apix.notifications import (
     NotificationData,
     NotificationIds,
@@ -38,6 +41,7 @@ GATEWAY_RETRIES = 2
 GATEWAY_REQUEST_TIMEOUT_SECONDS = 15.0
 GATEWAY_RESOLUTION_TIMEOUT_SECONDS = 50.0
 NOTIFICATION_CONCURRENCY = 3
+SCHOOL_TIME_ZONE = ZoneInfo("Europe/Warsaw")
 
 ATTENDANCE_TYPES = {
     "1": "nb",
@@ -52,7 +56,7 @@ ATTENDANCE_TYPES = {
 
 
 def get_subject_frequency(
-    client: Client, start: datetime | None = None, end: datetime | None = None
+    client: Client, start: date | None = None, end: date | None = None
 ) -> dict[str, float]:
     """Resolve each unique lesson and subject once, with bounded concurrency."""
     client.refresh_oauth()
@@ -77,13 +81,13 @@ def get_subject_frequency(
 
 
 def _filter_attendances(
-    attendances: list[dict[str, Any]], start: datetime | None, end: datetime | None
+    attendances: list[dict[str, Any]], start: date | None, end: date | None
 ) -> list[dict[str, Any]]:
     if start is None and end is None:
         return attendances
     filtered: list[dict[str, Any]] = []
     for attendance in attendances:
-        attendance_date = datetime.strptime(attendance["Date"], "%Y-%m-%d")
+        attendance_date = date.fromisoformat(attendance["Date"])
         if start is not None and attendance_date < start:
             continue
         if end is not None and attendance_date > end:
@@ -156,20 +160,19 @@ async def _request_json(
 ) -> dict[str, Any]:
     for attempt in range(GATEWAY_RETRIES):
         try:
-            async with semaphore:
-                async with session.get(url, proxy=proxy, allow_redirects=False) as response:
-                    if response.status in (401, 403):
-                        raise AuthorizationError(
-                            f"gateway authorization failed: HTTP {response.status}"
-                        )
-                    if 300 <= response.status < 400:
-                        raise AuthorizationError(
-                            f"gateway authentication redirect: HTTP {response.status}"
-                        )
-                    response.raise_for_status()
-                    payload = await response.json()
-                    assert isinstance(payload, dict), "gateway response must be an object"
-                    return payload
+            async with semaphore, session.get(url, proxy=proxy, allow_redirects=False) as response:
+                if response.status in (401, 403):
+                    raise AuthorizationError(
+                        f"gateway authorization failed: HTTP {response.status}"
+                    )
+                if 300 <= response.status < 400:
+                    raise AuthorizationError(
+                        f"gateway authentication redirect: HTTP {response.status}"
+                    )
+                response.raise_for_status()
+                payload = await response.json()
+                assert isinstance(payload, dict), "gateway response must be an object"
+                return payload
         except AuthorizationError:
             raise
         except ClientResponseError as error:
@@ -191,7 +194,7 @@ def get_new_notifications(
     session_factory: Callable[[], Any],
 ) -> tuple[NotificationData, NotificationIds]:
     """Fetch safe notification categories in parallel, then recent schedule last."""
-    today = datetime.now()
+    today = datetime.now(SCHOOL_TIME_ZONE).date()
     calls = {
         "grades": (get_grades, ("last_login",)),
         "attendance": (get_attendance, ("last_login",)),

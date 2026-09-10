@@ -1,6 +1,8 @@
 import asyncio
 import threading
+from datetime import date
 from types import SimpleNamespace
+from typing import ClassVar
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -36,10 +38,10 @@ class FakeJsonResponse:
 
 
 class FakeClientSession:
-    responses = {}
-    requested_urls = []
-    activity = {"active": 0, "max": 0}
-    init_kwargs = None
+    responses: ClassVar[dict] = {}
+    requested_urls: ClassVar[list[str]] = []
+    activity: ClassVar[dict[str, int]] = {"active": 0, "max": 0}
+    init_kwargs: ClassVar[dict | None] = None
 
     def __init__(self, **kwargs):
         self.init_kwargs = kwargs
@@ -266,8 +268,13 @@ class TestParallelNotifications:
         seen = NotificationIds([], [], [], [], [], [])
         sessions = [MagicMock() for _ in range(5)]
         session_factory = MagicMock(side_effect=sessions)
+        fixed_now = MagicMock()
+        fixed_now.date.return_value = date(2026, 9, 9)
+        clock = MagicMock()
+        clock.now.return_value = fixed_now
 
         with (
+            patch.object(librus_optimizations, "datetime", clock),
             patch.object(librus_optimizations, "get_grades", tracked_result(([], {}, []))),
             patch.object(librus_optimizations, "get_attendance", tracked_result([])),
             patch.object(librus_optimizations, "get_received", tracked_result([])),
@@ -280,6 +287,7 @@ class TestParallelNotifications:
             )
 
         assert active["max"] == librus_optimizations.NOTIFICATION_CONCURRENCY
+        clock.now.assert_called_once_with(librus_optimizations.SCHOOL_TIME_ZONE)
         assert session_factory.call_count == 5
         assert len({id(session) for session in sessions}) == 5
         for session in sessions:

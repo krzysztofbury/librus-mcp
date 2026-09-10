@@ -1,15 +1,22 @@
 import asyncio
 import re
 import time
-from datetime import datetime, timedelta
+from collections.abc import Callable
+from datetime import date, datetime, timedelta
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any, ClassVar
+from zoneinfo import ZoneInfo
 
-from requests import Session
-from requests.cookies import RequestsCookieJar
-from requests.exceptions import JSONDecodeError as RequestsJSONDecodeError
-
+from librus_apix.announcements import get_announcements
+from librus_apix.attendance import (
+    get_attendance,
+    get_attendance_frequency,
+)
+from librus_apix.attendance import (
+    get_detail as get_attendance_detail,
+)
 from librus_apix.client import Client, Token, new_client
+from librus_apix.completed_lessons import get_completed
 from librus_apix.exceptions import (
     AuthorizationError,
     MaintananceError,
@@ -18,8 +25,11 @@ from librus_apix.exceptions import (
     TokenKeyError,
 )
 from librus_apix.grades import get_grades
+from librus_apix.homework import get_homework, homework_detail
 from librus_apix.messages import (
     get_max_page_number as get_message_max_page,
+)
+from librus_apix.messages import (
     get_received,
     get_recipients,
     get_sent,
@@ -27,20 +37,16 @@ from librus_apix.messages import (
     recipient_groups,
     send_message,
 )
-from librus_apix.attendance import (
-    get_attendance,
-    get_attendance_frequency,
-    get_detail as get_attendance_detail,
-)
-from librus_apix.homework import get_homework, homework_detail
-from librus_apix.timetable import get_timetable
-from librus_apix.announcements import get_announcements
 from librus_apix.notifications import NotificationIds
 from librus_apix.schedule import get_recently_added_schedule, get_schedule, schedule_detail
-from librus_apix.completed_lessons import get_completed
 from librus_apix.student_information import get_student_information
+from librus_apix.timetable import get_timetable
+from requests import Session
+from requests.cookies import RequestsCookieJar
+from requests.exceptions import JSONDecodeError as RequestsJSONDecodeError
+
 from src import librus_optimizations, scraping
-from src.config import load_config, AccountConfig, AppConfig
+from src.config import AccountConfig, AppConfig, load_config
 from src.notification_state import (
     load_notification_ids,
     release_notification_state_lock,
@@ -61,6 +67,7 @@ MAX_HOMEWORK_RANGE_DAYS = 370
 MAX_COMPLETED_LESSONS_RANGE_DAYS = 370
 MAX_COMPLETED_LESSONS_PAGES = 100
 DATE_FORMAT = "%Y-%m-%d"
+SCHOOL_TIME_ZONE = ZoneInfo("Europe/Warsaw")
 # Upstream reports expired sessions in three ways: AuthorizationError and
 # TokenKeyError from the auth layer, TokenError when a page renders the
 # "Brak dostępu" (no access) message.
@@ -110,10 +117,13 @@ def _require_sort_by(value: Any) -> str:
     return value
 
 
-def _parse_date(value: Any, name: str) -> datetime:
+def _parse_date(value: Any, name: str) -> date:
     _require_non_empty(value, name)
     try:
-        return datetime.strptime(value, DATE_FORMAT)
+        parsed = date.fromisoformat(value)
+        if parsed.isoformat() != value:
+            raise ValueError
+        return parsed
     except ValueError:
         raise ValueError(f"{name} must be a YYYY-MM-DD date, got: '{value}'")
 
@@ -134,24 +144,24 @@ class LibrusTimeoutSession(Session):
             )
         return response
 
-    def __exit__(self, *args: Any) -> None:
+    def __exit__(self, *args: object) -> None:
         # librus-apix wraps every request in `with client._session`, which
         # otherwise closes the adapters and discards the TCP/TLS pool.
         return None
 
 
 class LibrusManager:
-    _instances: dict[str, Client] = {}
-    _tokens: dict[str, Token] = {}
-    _config_cache: AppConfig | None = None
-    _notification_locks: dict[str, asyncio.Lock] = {}
-    _client_locks: dict[str, asyncio.Lock] = {}
+    _instances: ClassVar[dict[str, Client]] = {}
+    _tokens: ClassVar[dict[str, Token]] = {}
+    _config_cache: ClassVar[AppConfig | None] = None
+    _notification_locks: ClassVar[dict[str, asyncio.Lock]] = {}
+    _client_locks: ClassVar[dict[str, asyncio.Lock]] = {}
     # alias -> (monotonic deadline, failure reason). Bounded: only configured
     # aliases reach the code that writes here.
-    _auth_cooldowns: dict[str, tuple[float, str]] = {}
+    _auth_cooldowns: ClassVar[dict[str, tuple[float, str]]] = {}
     # A Python thread cannot be stopped. Timed-out workers keep the alias
     # unavailable until they finish, preventing concurrent reuse of its session.
-    _timed_out_workers: dict[str, asyncio.Task[Any]] = {}
+    _timed_out_workers: ClassVar[dict[str, asyncio.Task[Any]]] = {}
 
     @classmethod
     def _require_account(cls, alias: str) -> AccountConfig:
@@ -245,7 +255,7 @@ class LibrusManager:
             if confirmed_throttle:
                 cls._start_auth_cooldown(alias, reason)
             raise ValueError(reason) from error
-        except (asyncio.TimeoutError, TimeoutError) as error:
+        except TimeoutError as error:
             raise TimeoutError(
                 f"Librus authentication timed out after {UPSTREAM_OPERATION_TIMEOUT_SECONDS:.0f}s"
             ) from error
@@ -468,7 +478,7 @@ class LibrusManager:
     @classmethod
     def _validate_message_page(cls, page: Any) -> None:
         if not isinstance(page, int) or isinstance(page, bool):
-            raise ValueError(f"page must be an integer, got: {type(page).__name__}")
+            raise TypeError(f"page must be an integer, got: {type(page).__name__}")
         if not 0 <= page <= MAX_MESSAGE_PAGE:
             raise ValueError(f"page must be between 0 and {MAX_MESSAGE_PAGE}, got: {page}")
 
@@ -612,7 +622,7 @@ class LibrusManager:
     ) -> list[Any]:
         """Fetch homework for a date range; defaults to today through +14 days."""
         if date_from is None and date_to is None:
-            today = datetime.now()
+            today = datetime.now(SCHOOL_TIME_ZONE).date()
             date_from = today.strftime(DATE_FORMAT)
             date_to = (today + timedelta(days=14)).strftime(DATE_FORMAT)
         if date_from is None or date_to is None:
@@ -667,7 +677,7 @@ class LibrusManager:
         """Fetch the timetable for the week starting at `monday`
         (YYYY-MM-DD, must be a Monday); defaults to the current week."""
         if monday is None:
-            today = datetime.now()
+            today = datetime.now(SCHOOL_TIME_ZONE).date()
             monday_date = today - timedelta(days=today.weekday())
         else:
             monday_date = _parse_date(monday, "monday")
@@ -826,7 +836,7 @@ class LibrusManager:
                 raise RuntimeError("librus-apix returned an invalid send_message result")
             _, status_message = result
             if not isinstance(status_message, str):
-                raise RuntimeError("librus-apix returned a non-string send_message status")
+                raise TypeError("librus-apix returned a non-string send_message status")
             # The negative check must run first: "nie została wysłana"
             # contains "została wysłana" as a substring.
             if "nie została" in status_message:
