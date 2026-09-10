@@ -58,9 +58,11 @@ class TestGetMessagesPagination:
     async def test_page_beyond_max_raises(self):
         mock = AsyncMock()
         mock.side_effect = [1]  # max_page only; messages never fetched
-        with patch("src.librus_client.LibrusManager._execute", mock):
-            with pytest.raises(ValueError, match="max_page"):
-                await get_messages("test_student", page=5)
+        with (
+            patch("src.librus_client.LibrusManager._execute", mock),
+            pytest.raises(ValueError, match="max_page"),
+        ):
+            await get_messages("test_student", page=5)
 
     @pytest.mark.asyncio
     async def test_sent_folder_skips_max_page(self):
@@ -271,11 +273,13 @@ class TestSendMessageTools:
     @pytest.mark.asyncio
     async def test_unrecognized_result_text_raises(self):
         preview = await send_message("test_student", "Temat", "Treść", ["12345"])
-        with _mock_execute((False, "Coś poszło nie tak")):
-            with pytest.raises(RuntimeError, match="unrecognized send_message result"):
-                await send_message(
-                    "test_student", "Temat", "Treść", ["12345"], preview["confirm_token"]
-                )
+        with (
+            _mock_execute((False, "Coś poszło nie tak")),
+            pytest.raises(RuntimeError, match="unrecognized send_message result"),
+        ):
+            await send_message(
+                "test_student", "Temat", "Treść", ["12345"], preview["confirm_token"]
+            )
 
     @pytest.mark.asyncio
     async def test_confirm_token_is_single_use(self):
@@ -366,6 +370,22 @@ class TestToolAnnotations:
         assert tools["get_new_notifications"].annotations.read_only_hint is False
         assert tools["get_new_notifications"].annotations.destructive_hint is False
         assert tools["download_attachment"].annotations.destructive_hint is False
+
+
+class TestToolOutputSchemas:
+    @pytest.mark.asyncio
+    async def test_recipient_tools_advertise_typed_outputs(self, monkeypatch):
+        monkeypatch.setenv("LIBRUS_FEATURES", '{"send_message": true}')
+        register_optional_tools()
+        tools = {tool.name: tool for tool in await mcp.list_tools()}
+
+        groups_schema = tools["get_recipient_groups"].output_schema
+        assert groups_schema["properties"]["result"]["items"] == {"type": "string"}
+        assert groups_schema["required"] == ["result"]
+
+        recipients_schema = tools["get_recipients"].output_schema
+        assert recipients_schema["type"] == "object"
+        assert recipients_schema["additionalProperties"] == {"type": "string"}
 
 
 # --- final grades tool ---

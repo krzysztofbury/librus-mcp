@@ -1,6 +1,6 @@
 [project]
 name = "librus-mcp"
-version = "1.1.0"
+version = "1.2.0"
 description = "MCP server for Librus Synergia — access grades, messages, attendance, homework, timetables, and announcements from AI assistants"
 authors = [{name = "Krzysztof Bury", email = "contact@datacraze.io"}]
 license = {text = "MIT"}
@@ -66,11 +66,32 @@ line-length = 100
 target-version = "py314"
 
 [tool.ruff.lint]
-# ruff 0.16 widened its implicit default rule set (adding I, SIM, RUF, TRY, DTZ,
-# UP, PYI, and BLE), so an unpinned upgrade silently changes what CI enforces.
-# State the set explicitly: this is the selection that was in effect through
-# 0.15.x. Adopting the wider set is a separate change, tracked in TODO.md.
-select = ["E4", "E7", "E9", "F"]
+# Keep the selection explicit so upgrading ruff cannot silently change CI. The
+# focused rules below are the useful subset adopted from ruff 0.16's expanded
+# defaults; broad family selection would also enable high-churn style rules.
+select = [
+    "E4",
+    "E7",
+    "E9",
+    "F",
+    "I",
+    "SIM117",
+    "RUF012",
+    "TRY004",
+    "DTZ005",
+    "DTZ007",
+    "UP006",
+    "UP035",
+    "UP041",
+    "UP045",
+    "PYI036",
+    "BLE001",
+]
+
+[tool.ruff.lint.per-file-ignores]
+# The manual smoke test reports each subsystem failure and continues so one
+# upstream exception does not hide the health of all remaining subsystems.
+"verify_connection.py" = ["BLE001"]
 
 [tool.ruff.format]
 quote-style = "double"

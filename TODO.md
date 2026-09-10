@@ -24,15 +24,16 @@
 
 ## Tooling
 
-- [ ] Triage the 71 findings ruff 0.16 reports under its widened default rule
-  set (SIM117, RUF012, I001, TRY004, DTZ005, DTZ007, UP006/UP035/UP041/UP045,
-  PYI036, BLE001) and decide which to adopt in `[tool.ruff.lint] select`.
-  DTZ005/DTZ007 (naive datetimes) and BLE001 (blind except) are the ones worth
-  reading first.
+- [x] Triage the findings ruff 0.16 reports under its widened default rule set.
+  Adopt the useful checks explicitly (SIM117, RUF012, I001, TRY004, DTZ005,
+  DTZ007, UP006/UP035/UP041/UP045, PYI036, BLE001) without enabling their
+  broader, high-churn rule families.
 
 ## MCP Contract
 
-- [ ] Add typed output schemas for collection tools that still return `Any`.
+- [x] Add typed output schemas for messaging recipient groups and recipients.
+- [ ] Add typed output schemas for the remaining collection tools that still
+  return `Any`.
 - [ ] Add an integration fixture for a populated behaviour-notes page.
 - [x] Add populated multi-page fixtures for received messages and completed
   lessons, covering first-page reuse and the final page.

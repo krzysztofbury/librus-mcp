@@ -76,6 +76,11 @@ class TestAccountValidation:
 
 
 class TestLoadConfigFeatures:
+    def test_env_accounts_wrong_type_raises_type_error(self, monkeypatch):
+        monkeypatch.setenv("LIBRUS_ACCOUNTS", "{}")
+        with pytest.raises(TypeError, match="JSON array"):
+            load_config()
+
     def test_env_accounts_with_features_env(self, monkeypatch):
         monkeypatch.setenv(
             "LIBRUS_ACCOUNTS",
@@ -95,6 +100,15 @@ class TestLoadConfigFeatures:
         with pytest.raises(ValueError, match="LIBRUS_FEATURES"):
             load_config()
 
+    def test_features_env_wrong_type_raises_type_error(self, monkeypatch):
+        monkeypatch.setenv(
+            "LIBRUS_ACCOUNTS",
+            json.dumps([{"alias": "a", "username": "u", "password": "p"}]),
+        )
+        monkeypatch.setenv("LIBRUS_FEATURES", "[]")
+        with pytest.raises(TypeError, match="JSON object"):
+            load_config()
+
     def test_file_config_with_features(self, tmp_path, monkeypatch):
         monkeypatch.delenv("LIBRUS_ACCOUNTS", raising=False)
         secrets = tmp_path / "secrets.json"
@@ -111,6 +125,15 @@ class TestLoadConfigFeatures:
         config = load_config()
         assert config.features.send_message is True
         assert config.state_dir == str(tmp_path / "state")
+
+    def test_file_config_wrong_type_raises_type_error(self, tmp_path, monkeypatch):
+        monkeypatch.delenv("LIBRUS_ACCOUNTS", raising=False)
+        secrets = tmp_path / "secrets.json"
+        secrets.write_text("[]")
+        monkeypatch.setenv("LIBRUS_CONFIG", str(secrets))
+
+        with pytest.raises(TypeError, match="JSON object"):
+            load_config()
 
 
 class TestUnknownFeatureKeys:

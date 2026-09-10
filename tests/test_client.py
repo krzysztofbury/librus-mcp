@@ -129,34 +129,40 @@ class TestExecuteRetry:
 
     @pytest.mark.asyncio
     async def test_send_disables_auth_retry(self):
-        with patch.object(
-            LibrusManager,
-            "_execute",
-            new_callable=AsyncMock,
-            side_effect=TokenError("Brak dostępu"),
-        ) as execute:
-            with pytest.raises(RuntimeError, match="not retried"):
-                await LibrusManager.send_message_to("test_student", "Subject", "Body", ["1"])
+        with (
+            patch.object(
+                LibrusManager,
+                "_execute",
+                new_callable=AsyncMock,
+                side_effect=TokenError("Brak dostępu"),
+            ) as execute,
+            pytest.raises(RuntimeError, match="not retried"),
+        ):
+            await LibrusManager.send_message_to("test_student", "Subject", "Body", ["1"])
         assert execute.await_args.kwargs["retry_auth_on_failure"] is False
 
     @pytest.mark.asyncio
     async def test_send_timeout_reports_an_uncertain_delivery(self):
-        with patch.object(
-            LibrusManager, "_execute", new_callable=AsyncMock, side_effect=TimeoutError()
+        with (
+            patch.object(
+                LibrusManager, "_execute", new_callable=AsyncMock, side_effect=TimeoutError()
+            ),
+            pytest.raises(RuntimeError, match="delivery is uncertain"),
         ):
-            with pytest.raises(RuntimeError, match="delivery is uncertain"):
-                await LibrusManager.send_message_to("test_student", "Subject", "Body", ["1"])
+            await LibrusManager.send_message_to("test_student", "Subject", "Body", ["1"])
 
     @pytest.mark.asyncio
     async def test_send_cancellation_reports_an_uncertain_delivery(self):
-        with patch.object(
-            LibrusManager,
-            "_execute",
-            new_callable=AsyncMock,
-            side_effect=asyncio.CancelledError(),
+        with (
+            patch.object(
+                LibrusManager,
+                "_execute",
+                new_callable=AsyncMock,
+                side_effect=asyncio.CancelledError(),
+            ),
+            pytest.raises(RuntimeError, match="delivery is uncertain"),
         ):
-            with pytest.raises(RuntimeError, match="delivery is uncertain"):
-                await LibrusManager.send_message_to("test_student", "Subject", "Body", ["1"])
+            await LibrusManager.send_message_to("test_student", "Subject", "Body", ["1"])
 
     @pytest.mark.asyncio
     async def test_maintenance_error_is_actionable(self):
@@ -266,9 +272,11 @@ class TestUpstreamTimeouts:
         async def slow_login(*args, **kwargs):
             await asyncio.sleep(0.1)
 
-        with patch("src.librus_client.asyncio.to_thread", side_effect=slow_login):
-            with pytest.raises(TimeoutError, match="authentication timed out"):
-                await LibrusManager.get_client("test_student")
+        with (
+            patch("src.librus_client.asyncio.to_thread", side_effect=slow_login),
+            pytest.raises(TimeoutError, match="authentication timed out"),
+        ):
+            await LibrusManager.get_client("test_student")
         assert LibrusManager._auth_cooldowns == {}
 
     @pytest.mark.asyncio
@@ -307,9 +315,11 @@ class TestUpstreamTimeouts:
             await next(iter(workers))
             raise asyncio.CancelledError
 
-        with patch("src.librus_client.asyncio.wait", side_effect=cancel_after_completion):
-            with pytest.raises(asyncio.CancelledError):
-                await LibrusManager._run_upstream_call("test_student", client, lambda: "completed")
+        with (
+            patch("src.librus_client.asyncio.wait", side_effect=cancel_after_completion),
+            pytest.raises(asyncio.CancelledError),
+        ):
+            await LibrusManager._run_upstream_call("test_student", client, lambda: "completed")
         assert "test_student" not in LibrusManager._instances
         client._session.close.assert_called_once()
 
@@ -404,9 +414,11 @@ class TestAttendanceFrequency:
         hardcoded gateway map (seen live: ID 4766); the raw KeyError must
         become an error that points at the working alternative."""
         mock = AsyncMock(side_effect=KeyError("4766"))
-        with patch.object(LibrusManager, "_execute", mock):
-            with pytest.raises(RuntimeError, match="get_subject_frequency"):
-                await LibrusManager.fetch_attendance_frequency("test_student")
+        with (
+            patch.object(LibrusManager, "_execute", mock),
+            pytest.raises(RuntimeError, match="get_subject_frequency"),
+        ):
+            await LibrusManager.fetch_attendance_frequency("test_student")
 
 
 class TestUnknownAlias:

@@ -2,6 +2,22 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.2.0] - 2026-09-09
+
+### Added
+- Typed MCP output schemas for `get_recipient_groups` and `get_recipients`, so
+  clients can validate recipient discovery results before constructing a send
+  request
+
+### Changed
+- Adopt the focused, useful subset of ruff 0.16's expanded default checks:
+  import ordering, modern type syntax, class-variable annotations, nested
+  context-manager simplification, accurate exception types, timezone-aware
+  date defaults, and removal of a blind configuration exception handler
+- Interpret default homework, timetable, and notification ranges in the
+  `Europe/Warsaw` school timezone. Date-only Librus inputs are represented as
+  civil dates rather than naive datetimes
+
 ## [1.1.0] - 2026-09-01
 
 ### Changed

@@ -351,7 +351,7 @@ async def get_behaviour_notes(student_alias: StudentAlias) -> Any:
     return to_dict(notes)
 
 
-async def get_recipient_groups(student_alias: StudentAlias) -> Any:
+async def get_recipient_groups(student_alias: StudentAlias) -> list[str]:
     """
     Lists recipient group identifiers available for sending messages.
     Args:
@@ -361,7 +361,7 @@ async def get_recipient_groups(student_alias: StudentAlias) -> Any:
     return to_dict(groups)
 
 
-async def get_recipients(student_alias: StudentAlias, group: str) -> Any:
+async def get_recipients(student_alias: StudentAlias, group: str) -> dict[str, str]:
     """
     Lists recipients (name -> recipient ID) in a recipient group.
     Args:

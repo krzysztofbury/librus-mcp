@@ -270,18 +270,20 @@ class TestDownloadAttachment:
             headers={"Content-Disposition": 'filename="not-published.bin"'}
         )
         patcher, _ = _patch_http([FakeRedirectResponse(), response])
-        with patcher:
-            with pytest.raises(OSError, match="response close failed"):
-                download_attachment(FakeClient(), "1", "2", tmp_path)
+        with patcher, pytest.raises(OSError, match="response close failed"):
+            download_attachment(FakeClient(), "1", "2", tmp_path)
         assert list(tmp_path.iterdir()) == []
 
     def test_unsupported_hard_links_raise_actionable_error(self, tmp_path):
         from src.scraping import download_attachment
 
         patcher, _ = _patch_http(self._responses())
-        with patcher, patch("src.scraping.os.link", side_effect=OSError("not supported")):
-            with pytest.raises(ValueError, match="filesystem must support hard links"):
-                download_attachment(FakeClient(), "1", "2", tmp_path)
+        with (
+            patcher,
+            patch("src.scraping.os.link", side_effect=OSError("not supported")),
+            pytest.raises(ValueError, match="filesystem must support hard links"),
+        ):
+            download_attachment(FakeClient(), "1", "2", tmp_path)
         assert list(tmp_path.iterdir()) == []
 
     def test_path_traversal_in_filename_is_stripped(self, tmp_path):
@@ -304,58 +306,58 @@ class TestDownloadAttachment:
 
     def test_no_redirect_raises_token_error(self, tmp_path):
         from librus_apix.exceptions import TokenError
+
         from src.scraping import download_attachment
 
         patcher, _ = _patch_http([FakeRedirectResponse(status_code=200, location=None)])
-        with patcher:
-            with pytest.raises(TokenError, match="did not redirect"):
-                download_attachment(FakeClient(), "1", "2", tmp_path)
+        with patcher, pytest.raises(TokenError, match="did not redirect"):
+            download_attachment(FakeClient(), "1", "2", tmp_path)
 
     def test_redirect_to_foreign_host_raises(self, tmp_path):
         from librus_apix.exceptions import TokenError
+
         from src.scraping import download_attachment
 
         patcher, mock = _patch_http(
             [FakeRedirectResponse(location="https://evil.example/GetFile/abc123")]
         )
-        with patcher:
-            with pytest.raises(TokenError, match="unexpected attachment redirect"):
-                download_attachment(FakeClient(), "1", "2", tmp_path)
+        with patcher, pytest.raises(TokenError, match="unexpected attachment redirect"):
+            download_attachment(FakeClient(), "1", "2", tmp_path)
         # The forged Location must never be requested.
         assert mock.call_count == 1
 
     def test_redirect_to_plain_http_raises(self, tmp_path):
         from librus_apix.exceptions import TokenError
+
         from src.scraping import download_attachment
 
         patcher, _ = _patch_http(
             [FakeRedirectResponse(location="http://sandbox.librus.pl/GetFile/abc123")]
         )
-        with patcher:
-            with pytest.raises(TokenError, match="unexpected attachment redirect"):
-                download_attachment(FakeClient(), "1", "2", tmp_path)
+        with patcher, pytest.raises(TokenError, match="unexpected attachment redirect"):
+            download_attachment(FakeClient(), "1", "2", tmp_path)
 
     def test_redirect_with_odd_port_raises(self, tmp_path):
         from librus_apix.exceptions import TokenError
+
         from src.scraping import download_attachment
 
         patcher, _ = _patch_http(
             [FakeRedirectResponse(location="https://sandbox.librus.pl:8080/GetFile/abc123")]
         )
-        with patcher:
-            with pytest.raises(TokenError, match="unexpected attachment redirect"):
-                download_attachment(FakeClient(), "1", "2", tmp_path)
+        with patcher, pytest.raises(TokenError, match="unexpected attachment redirect"):
+            download_attachment(FakeClient(), "1", "2", tmp_path)
 
     def test_redirect_with_query_raises(self, tmp_path):
         from librus_apix.exceptions import TokenError
+
         from src.scraping import download_attachment
 
         patcher, _ = _patch_http(
             [FakeRedirectResponse(location="https://sandbox.librus.pl/GetFile/abc?key=1")]
         )
-        with patcher:
-            with pytest.raises(TokenError, match="unexpected attachment redirect"):
-                download_attachment(FakeClient(), "1", "2", tmp_path)
+        with patcher, pytest.raises(TokenError, match="unexpected attachment redirect"):
+            download_attachment(FakeClient(), "1", "2", tmp_path)
 
     def test_dot_dot_filename_falls_back_to_ids(self, tmp_path):
         """A disposition of '..' survives an emptiness check but sanitizes to
@@ -382,18 +384,16 @@ class TestDownloadAttachment:
         from src.scraping import download_attachment
 
         patcher, _ = _patch_http(self._responses(content=b""))
-        with patcher:
-            with pytest.raises(ValueError, match="empty"):
-                download_attachment(FakeClient(), "1", "2", tmp_path)
+        with patcher, pytest.raises(ValueError, match="empty"):
+            download_attachment(FakeClient(), "1", "2", tmp_path)
 
     def test_oversized_body_raises(self, tmp_path, monkeypatch):
         from src import scraping
 
         monkeypatch.setattr(scraping, "MAX_ATTACHMENT_BYTES", 8)
         patcher, _ = _patch_http(self._responses(content=b"0123456789"))
-        with patcher:
-            with pytest.raises(ValueError, match="byte limit"):
-                scraping.download_attachment(FakeClient(), "1", "2", tmp_path)
+        with patcher, pytest.raises(ValueError, match="byte limit"):
+            scraping.download_attachment(FakeClient(), "1", "2", tmp_path)
         assert list(tmp_path.iterdir()) == []
 
     def test_oversized_content_length_fails_before_streaming(self, tmp_path, monkeypatch):
@@ -405,9 +405,8 @@ class TestDownloadAttachment:
             headers={"Content-Length": "10", "Content-Disposition": 'filename="large.bin"'},
         )
         patcher, _ = _patch_http([FakeRedirectResponse(), response])
-        with patcher:
-            with pytest.raises(ValueError, match="byte limit"):
-                scraping.download_attachment(FakeClient(), "1", "2", tmp_path)
+        with patcher, pytest.raises(ValueError, match="byte limit"):
+            scraping.download_attachment(FakeClient(), "1", "2", tmp_path)
         assert response.iterated is False
         assert list(tmp_path.iterdir()) == []
 
