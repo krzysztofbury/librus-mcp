@@ -2,6 +2,31 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.2.1] - 2026-09-15
+
+### Fixed
+
+- Checkpoint read-once schedule events to independent,
+  content-addressed local spool files before notification processing continues.
+  After a successful local checkpoint, cancellation or a later seen-state write
+  failure preserves those events for the next call instead of silently losing them.
+- Run the standalone `get_recent_schedule_events` tool through the same
+  in-process and cross-process state transaction as aggregate notifications.
+- Replace schedule-event identities based only on MD5 of event text with
+  canonical SHA-256 identities covering the added date, event type, and text.
+  Existing MD5-only state migrates conservatively with a one-time replay rather
+  than risking the loss of a later event that reuses the same text.
+
+### Changed
+
+- Mark `get_recent_schedule_events` as state-mutating and non-idempotent because
+  Librus consumes this upstream view when it is read.
+- Document interrupted schedule recovery as at-least-once delivery: a recovered
+  event may be replayed rather than lost.
+- Rewrite Quick Start for non-technical users around a private credentials file,
+  copyable client commands, connection verification, and common setup failures.
+- Add Cosmic Ray to the development dependencies for the next security work group.
+
 ## [1.2.0] - 2026-09-09
 
 ### Added

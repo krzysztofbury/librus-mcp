@@ -11,10 +11,12 @@ import json
 import os
 import re
 import sys
+from itertools import islice
 from pathlib import Path
 from uuid import uuid4
 
 from librus_apix.notifications import NotificationIds
+from librus_apix.schedule import RecentEvent
 
 try:
     import fcntl
@@ -34,6 +36,8 @@ MAX_IDS_PER_CATEGORY = 10_000
 MAX_SAVED_IDS_PER_CATEGORY = 500
 MAX_STATE_ALIAS_PREFIX_LENGTH = 80
 MAX_LEGACY_FILENAME_LENGTH = 190
+MAX_PENDING_SCHEDULE_EVENTS = 500
+SCHEDULE_EVENT_FIELDS = ("date_added", "type", "data")
 
 
 def resolve_state_dir(config_state_dir: str | None) -> Path:
@@ -74,10 +78,104 @@ def _legacy_state_path(state_dir: Path, alias: str) -> Path | None:
 def _atomic_publish(path: Path, payload: bytes) -> None:
     tmp_path = path.with_name(f"{path.name}.{os.getpid()}.{uuid4().hex}.tmp")
     try:
-        tmp_path.write_bytes(payload)
-        tmp_path.replace(path)
+        with tmp_path.open("wb") as temporary_file:
+            temporary_file.write(payload)
+            temporary_file.flush()
+            os.fsync(temporary_file.fileno())
+        os.replace(tmp_path, path)
+        _fsync_directory(path.parent)
     finally:
         tmp_path.unlink(missing_ok=True)
+
+
+def _fsync_directory(path: Path) -> None:
+    """Persist directory entry changes where the platform exposes directory fsync."""
+    if os.name == "nt":
+        return
+    descriptor = os.open(path, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0))
+    try:
+        os.fsync(descriptor)
+    finally:
+        os.close(descriptor)
+
+
+def _schedule_event_payload(event: RecentEvent) -> dict[str, str]:
+    payload = {field: getattr(event, field) for field in SCHEDULE_EVENT_FIELDS}
+    for field, value in payload.items():
+        if not isinstance(value, str):
+            raise TypeError(f"schedule event {field} must be a string")
+    return payload
+
+
+def schedule_event_id(event: RecentEvent) -> str:
+    """Return a stable identity covering every user-visible event field."""
+    canonical = json.dumps(
+        _schedule_event_payload(event), ensure_ascii=False, sort_keys=True, separators=(",", ":")
+    )
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+def _pending_schedule_path(state_dir: Path, alias: str, event: RecentEvent) -> Path:
+    state_name = _state_path(Path(state_dir), alias).name.removesuffix(".notifications.json")
+    return Path(state_dir) / f"{state_name}.pending-schedule.{schedule_event_id(event)}.json"
+
+
+def save_pending_schedule_events(state_dir: Path, alias: str, events: list[RecentEvent]) -> None:
+    """Checkpoint read-once schedule events as independent atomic spool files."""
+    state_dir = Path(state_dir)
+    state_dir.mkdir(parents=True, exist_ok=True)
+    for event in events:
+        payload = json.dumps(
+            _schedule_event_payload(event), ensure_ascii=False, sort_keys=True
+        ).encode("utf-8")
+        _atomic_publish(_pending_schedule_path(state_dir, alias, event), payload)
+
+
+def load_pending_schedule_events(state_dir: Path, alias: str) -> list[RecentEvent]:
+    """Load one bounded batch preserved after an interrupted transaction."""
+    state_dir = Path(state_dir)
+    state_name = _state_path(state_dir, alias).name.removesuffix(".notifications.json")
+    paths = islice(
+        state_dir.glob(f"{state_name}.pending-schedule.*.json"), MAX_PENDING_SCHEDULE_EVENTS
+    )
+    events: list[RecentEvent] = []
+    for path in paths:
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError as error:
+            raise ValueError(f"corrupt pending schedule event at {path}") from error
+        if not isinstance(payload, dict) or set(payload) != set(SCHEDULE_EVENT_FIELDS):
+            raise ValueError(f"unexpected pending schedule event schema at {path}")
+        if not all(isinstance(payload[field], str) for field in SCHEDULE_EVENT_FIELDS):
+            raise ValueError(f"unexpected pending schedule event schema at {path}")
+        event = RecentEvent(**payload)
+        if path != _pending_schedule_path(state_dir, alias, event):
+            raise ValueError(f"pending schedule event digest mismatch at {path}")
+        events.append(event)
+    return events
+
+
+def clear_pending_schedule_events(state_dir: Path, alias: str, events: list[RecentEvent]) -> None:
+    """Delete only events handled by a successful state transaction."""
+    state_dir = Path(state_dir)
+    for event in events:
+        try:
+            _pending_schedule_path(state_dir, alias, event).unlink(missing_ok=True)
+        except OSError as error:
+            # The response remains successful; retaining a spool entry can cause
+            # a duplicate later, while failing here could hide already saved data.
+            print(
+                f"librus-mcp: could not clear pending schedule event for '{alias}': {error}",
+                file=sys.stderr,
+            )
+    if events:
+        try:
+            _fsync_directory(state_dir)
+        except OSError as error:
+            print(
+                f"librus-mcp: could not persist pending schedule cleanup for '{alias}': {error}",
+                file=sys.stderr,
+            )
 
 
 def _migrate_legacy_state_path(state_dir: Path, alias: str) -> Path:

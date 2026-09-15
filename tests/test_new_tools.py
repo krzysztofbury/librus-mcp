@@ -1,12 +1,22 @@
 """Tests for tools added in 0.3.0+: final grades, notifications, recent events, sent messages,
 send_message, attachments, behaviour notes, and feature gating."""
 
+import asyncio
+import threading
 from unittest.mock import AsyncMock, patch
 
 import pytest
 from librus_apix.notifications import NotificationData, NotificationIds
+from librus_apix.schedule import RecentEvent
 
-from src.notification_state import load_notification_ids
+from src import librus_optimizations
+from src.librus_client import LibrusManager
+from src.notification_state import (
+    load_notification_ids,
+    load_pending_schedule_events,
+    save_pending_schedule_events,
+    schedule_event_id,
+)
 from src.scraping import Attachment, BehaviourNote
 from src.server import (
     download_attachment,
@@ -90,10 +100,23 @@ class TestGetMessagesPagination:
 
 class TestGetRecentScheduleEvents:
     @pytest.mark.asyncio
-    async def test_returns_list(self):
-        with _mock_execute([]):
+    async def test_returns_list_and_commits_schedule_state(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("LIBRUS_STATE_DIR", str(tmp_path))
+        event = RecentEvent("2026-09-15 08:00", "Sprawdzian", "Matematyka")
+
+        async def fake_execute(alias, func, *args, **kwargs):
+            assert func.__name__ == "get_recent_schedule_events"
+            args[2]([event])
+            return [event], [schedule_event_id(event)]
+
+        with patch("src.librus_client.LibrusManager._execute", side_effect=fake_execute):
             result = await get_recent_schedule_events("test_student")
-        assert result == []
+
+        assert result[0]["data"] == "Matematyka"
+        assert load_notification_ids(tmp_path, "test_student").schedule == [
+            schedule_event_id(event)
+        ]
+        assert load_pending_schedule_events(tmp_path, "test_student") == []
 
     @pytest.mark.asyncio
     async def test_empty_alias_raises(self):
@@ -158,6 +181,104 @@ class TestGetNewNotifications:
             result = await get_new_notifications("test_student")
         for key in ("grades", "attendance", "messages", "announcements", "schedule", "homework"):
             assert key in result["new"]
+
+    @pytest.mark.asyncio
+    async def test_cancellation_after_checkpoint_preserves_schedule(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("LIBRUS_STATE_DIR", str(tmp_path))
+        event = RecentEvent("2026-09-15 08:00", "Sprawdzian", "Matematyka")
+        checkpointed = asyncio.Event()
+
+        async def fake_execute(alias, func, *args, **kwargs):
+            args[3]([event])
+            checkpointed.set()
+            await asyncio.Event().wait()
+
+        with patch("src.librus_client.LibrusManager._execute", side_effect=fake_execute):
+            task = asyncio.create_task(get_new_notifications("test_student"))
+            await checkpointed.wait()
+            task.cancel()
+            with pytest.raises(asyncio.CancelledError):
+                await task
+
+        assert load_pending_schedule_events(tmp_path, "test_student") == [event]
+
+    @pytest.mark.asyncio
+    async def test_cancelled_real_worker_can_checkpoint_after_lock_release(
+        self, tmp_path, monkeypatch
+    ):
+        monkeypatch.setenv("LIBRUS_STATE_DIR", str(tmp_path))
+        event = RecentEvent("2026-09-15 08:00", "Sprawdzian", "Matematyka")
+        worker_started = threading.Event()
+        release_worker = threading.Event()
+
+        def blocking_fetch(client, seen, session_factory, pending, checkpoint):
+            worker_started.set()
+            assert release_worker.wait(timeout=5)
+            checkpoint([event])
+            return _empty_notification_data(), _empty_notification_ids()
+
+        client = object()
+        with (
+            patch.object(librus_optimizations, "get_new_notifications", blocking_fetch),
+            patch.object(LibrusManager, "get_client", AsyncMock(return_value=client)),
+            patch.object(LibrusManager, "_close_client"),
+        ):
+            task = asyncio.create_task(get_new_notifications("test_student"))
+            assert await asyncio.to_thread(worker_started.wait, 2)
+            task.cancel()
+            with pytest.raises(asyncio.CancelledError):
+                await task
+
+            assert load_pending_schedule_events(tmp_path, "test_student") == []
+            release_worker.set()
+            for _ in range(100):
+                if (
+                    load_pending_schedule_events(tmp_path, "test_student") == [event]
+                    and "test_student" not in LibrusManager._timed_out_workers
+                ):
+                    break
+                await asyncio.sleep(0.01)
+
+        assert load_pending_schedule_events(tmp_path, "test_student") == [event]
+        assert "test_student" not in LibrusManager._timed_out_workers
+
+    @pytest.mark.asyncio
+    async def test_state_save_failure_preserves_schedule(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("LIBRUS_STATE_DIR", str(tmp_path))
+        event = RecentEvent("2026-09-15 08:00", "Sprawdzian", "Matematyka")
+        data = NotificationData([], [], [], [], [event], [])
+        updated = NotificationIds([], [], [], [], [schedule_event_id(event)], [])
+
+        async def fake_execute(alias, func, *args, **kwargs):
+            args[3]([event])
+            return data, updated
+
+        with (
+            patch("src.librus_client.LibrusManager._execute", side_effect=fake_execute),
+            patch("src.librus_client.save_notification_ids", side_effect=OSError("disk full")),
+            pytest.raises(OSError, match="disk full"),
+        ):
+            await get_new_notifications("test_student")
+
+        assert load_pending_schedule_events(tmp_path, "test_student") == [event]
+
+    @pytest.mark.asyncio
+    async def test_successful_retry_clears_pending_schedule(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("LIBRUS_STATE_DIR", str(tmp_path))
+        event = RecentEvent("2026-09-15 08:00", "Sprawdzian", "Matematyka")
+        save_pending_schedule_events(tmp_path, "test_student", [event])
+        data = NotificationData([], [], [], [], [event], [])
+        updated = NotificationIds([], [], [], [], [schedule_event_id(event)], [])
+
+        async def fake_execute(alias, func, *args, **kwargs):
+            assert args[2] == [event]
+            return data, updated
+
+        with patch("src.librus_client.LibrusManager._execute", side_effect=fake_execute):
+            result = await get_new_notifications("test_student")
+
+        assert result["new"]["schedule"][0]["data"] == "Matematyka"
+        assert load_pending_schedule_events(tmp_path, "test_student") == []
 
 
 # --- attachments ---
@@ -367,6 +488,8 @@ class TestToolAnnotations:
         assert tools["get_grades"].annotations.read_only_hint is True
         assert tools["get_message_attachments"].annotations.read_only_hint is True
         # Notification/download tools write local state, never school data.
+        assert tools["get_recent_schedule_events"].annotations.read_only_hint is False
+        assert tools["get_recent_schedule_events"].annotations.idempotent_hint is False
         assert tools["get_new_notifications"].annotations.read_only_hint is False
         assert tools["get_new_notifications"].annotations.destructive_hint is False
         assert tools["download_attachment"].annotations.destructive_hint is False

@@ -24,6 +24,9 @@ htmlcov/
 .coverage.*
 .pytest_cache/
 coverage.xml
+cosmic-ray.sqlite
+mutants/
+.mutmut-cache
 
 # mypy / Pyre type checkers
 .mypy_cache/

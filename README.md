@@ -5,37 +5,85 @@
 
 An [MCP (Model Context Protocol)](https://modelcontextprotocol.io/) server that provides AI assistants with access to the **Librus Synergia** electronic gradebook. It supports multiple student accounts simultaneously and exposes tools for grades (numeric, GPA, and descriptive), messages, attendance, homework, schedules, timetables, announcements, completed lessons, and student information.
 
-## Requirements
-
-- **Python 3.14** or newer
-- **MCP Python SDK 2.x** (`mcp>=2.1.1,<3`), installed automatically as a dependency
-
-Since **v1.1.0** this server runs on the 2.x line of the MCP Python SDK. The 1.x entry point it was previously built on (`FastMCP`) was renamed to `MCPServer` upstream, so the two SDK majors are not interchangeable: v1.1.0 requires mcp 2.x, and v1.0.0 requires mcp 1.x.
-
-This is not a change to the tool surface. Every tool, argument, and annotation is unchanged, so **no configuration change is needed** and `uvx librus-mcp` resolves the right SDK on its own. It only matters if you pin the MCP SDK yourself in a shared environment, where `mcp<2` will no longer work. Hosts now also display this server's own version in the connection handshake rather than the SDK's.
-
-## Acknowledgments
-
-This project is built on top of the excellent [**librus-apix**](https://github.com/RustySnek/librus-apix) library by [**RustySnek**](https://github.com/RustySnek). Their work on reverse-engineering and maintaining a Python client for the Librus Synergia platform made this MCP server possible. If you find this project useful, please consider starring their repository as well.
-
 ## Quick Start
 
-### 1. Add to your AI assistant
+You do not need to clone this repository or install Python yourself. The setup
+uses [uv](https://github.com/astral-sh/uv), which installs the correct Python
+version and Librus MCP automatically.
 
-Pick your client. Credentials are passed directly via the `env` block — no files or cloning needed.
+You need your parent login and password for
+[Librus Synergia](https://synergia.librus.pl/). Accounts requiring interactive
+two-factor authentication are not supported by the underlying library.
+
+### 1. Install uv
+
+On macOS or Linux, open a terminal and run:
+
+```bash
+curl -LsSf https://astral.sh/uv/install.sh | sh
+```
+
+On Windows, open PowerShell and run:
+
+```powershell
+powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+```
+
+Close and reopen your AI assistant after installing uv. You can verify the
+installation in a new terminal with `uvx --version`.
+
+### 2. Create a private credentials file
+
+Create a file named `secrets.json` in a private folder under your user account,
+outside projects and shared or synchronized folders:
+
+```json
+{
+  "accounts": [
+    {
+      "alias": "daughter",
+      "username": "12345",
+      "password": "YOUR_LIBRUS_PASSWORD"
+    }
+  ]
+}
+```
+
+The `alias` is the short name you will use when asking your assistant about this
+student. For more than one child, add another account object to the array.
+
+Use the absolute path to this file in the next step. `~` is not expanded in
+`LIBRUS_CONFIG`. Example paths:
+
+- macOS: `/Users/YOUR_NAME/.config/librus-mcp/secrets.json`
+- Linux: `/home/YOUR_NAME/.config/librus-mcp/secrets.json`
+- Windows JSON: `C:\\Users\\YOUR_NAME\\AppData\\Roaming\\librus-mcp\\secrets.json`
+
+On macOS or Linux, protect the finished file so only your user can read it:
+
+```bash
+chmod 600 /absolute/path/to/secrets.json
+```
+
+### 3. Connect your AI assistant
+
+Choose only the client you use. Replace `/absolute/path/to/secrets.json` with
+the path created above.
 
 #### Claude Desktop
 
-Add to your `claude_desktop_config.json`:
+Open **Settings > Developer > Edit Config** and add this MCP server. The config
+file is normally at `~/Library/Application Support/Claude/claude_desktop_config.json`
+on macOS or `%APPDATA%\Claude\claude_desktop_config.json` on Windows.
 
 ```json
 {
   "mcpServers": {
     "librus": {
       "command": "uvx",
-      "args": ["librus-mcp"],
+      "args": ["librus-mcp==1.2.1"],
       "env": {
-        "LIBRUS_ACCOUNTS": "[{\"alias\":\"daughter\",\"username\":\"12345\",\"password\":\"...\"}]"
+        "LIBRUS_CONFIG": "/absolute/path/to/secrets.json"
       }
     }
   }
@@ -44,98 +92,78 @@ Add to your `claude_desktop_config.json`:
 
 #### Claude Code
 
-Via the `/mcp` command or in `~/.claude.json` (global):
+Run this once in a terminal:
 
-```json
-{
-  "mcpServers": {
-    "librus": {
-      "command": "uvx",
-      "args": ["librus-mcp"],
-      "env": {
-        "LIBRUS_ACCOUNTS": "[{\"alias\":\"daughter\",\"username\":\"12345\",\"password\":\"...\"}]"
-      }
-    }
-  }
-}
+```bash
+claude mcp add --scope user --transport stdio librus \
+  -e LIBRUS_CONFIG=/absolute/path/to/secrets.json \
+  -- uvx librus-mcp==1.2.1
 ```
 
 #### Gemini CLI
 
-Add to `~/.gemini/settings.json` (global) or `.gemini/settings.json` (project-level):
+Run this once in a terminal. User scope keeps school credentials out of project files.
 
-```json
-{
-  "mcpServers": {
-    "librus": {
-      "command": "uvx",
-      "args": ["librus-mcp"],
-      "env": {
-        "LIBRUS_ACCOUNTS": "[{\"alias\":\"daughter\",\"username\":\"12345\",\"password\":\"...\"}]"
-      }
-    }
-  }
-}
+```bash
+gemini mcp add --scope user --transport stdio \
+  -e LIBRUS_CONFIG=/absolute/path/to/secrets.json \
+  librus uvx librus-mcp==1.2.1
 ```
 
 #### OpenAI Codex CLI
 
-Add to `~/.codex/config.toml` (global) or `.codex/config.toml` (project-level):
+Run this once in a terminal:
 
-```toml
-[mcp_servers.librus]
-command = "uvx"
-args = ["librus-mcp"]
-
-[mcp_servers.librus.env]
-LIBRUS_ACCOUNTS = '[{"alias":"daughter","username":"12345","password":"..."}]'
+```bash
+codex mcp add librus \
+  --env LIBRUS_CONFIG=/absolute/path/to/secrets.json \
+  -- uvx librus-mcp==1.2.1
 ```
 
-> **Note:** `uvx` automatically downloads and runs the package from PyPI — no cloning or virtual environments needed. You only need [uv](https://github.com/astral-sh/uv) installed (`curl -LsSf https://astral.sh/uv/install.sh | sh`).
+Never put a Librus password or `LIBRUS_ACCOUNTS` in a project-level MCP
+configuration. Project files can be committed, synchronized, or shared.
 
-### Providing credentials
+### 4. Restart and verify
 
-Each account represents a **parent's login** to Librus Synergia for a specific child. In the Polish school system, parents receive separate Librus login credentials for each of their children. The `alias` is a friendly name you choose to identify which child's data you're accessing. The `username` and `password` are the parent portal credentials you use to log in at [synergia.librus.pl](https://synergia.librus.pl/).
+1. Completely restart Claude Desktop, or reconnect Librus in your CLI client.
+2. Ask: **"Use Librus to list the configured students."**
+3. Check that your chosen aliases appear.
+4. Ask: **"Use Librus to show grades for daughter."** Replace `daughter` with
+   your alias. This second request performs a real Librus login.
 
-> **Limitation:** accounts that require interactive two-factor authentication
-> are not supported — the underlying librus-apix library has no 2FA flow, so
-> such accounts fail at login.
+For CLI status checks, use `claude mcp list`, `gemini mcp list`, or
+`codex mcp list`. Claude Code and Gemini CLI also expose status through `/mcp`.
 
-There are three ways to provide credentials (checked in this order):
+### Troubleshooting
 
-| Method | Best for | Example |
-|--------|----------|---------|
-| `LIBRUS_ACCOUNTS` env var | `uvx` users, CI | JSON array of account objects (see examples above) |
-| `LIBRUS_CONFIG` env var | Custom file location | Path to your `secrets.json`, e.g. `~/.config/librus/secrets.json` |
-| `secrets.json` in working dir | Local development | Create from `secrets.json.template` |
+- **`uvx` not found:** run `uvx --version` in a new terminal, then completely
+  restart the AI assistant. GUI applications may require the absolute path to `uvx`.
+- **Config file does not exist:** use an absolute path, not `~`. In JSON on
+  Windows, write each backslash twice, for example `C:\\Users\\...`.
+- **Aliases appear but grades fail:** verify the same parent credentials at
+  [synergia.librus.pl](https://synergia.librus.pl/).
+- **Login requires a second factor:** interactive 2FA accounts are not currently supported.
 
-#### Multiple children
+## Configuration Reference
 
-Add multiple accounts to the JSON array:
+Credential sources are checked in this order and are not merged:
 
+1. `LIBRUS_ACCOUNTS`, if set.
+2. The absolute file path in `LIBRUS_CONFIG`, if set.
+3. `secrets.json` in the server working directory.
+4. `secrets.json` beside a source checkout.
+
+Invalid higher-priority configuration produces an error instead of silently
+falling back. `LIBRUS_FEATURES`, `LIBRUS_STATE_DIR`, and `LIBRUS_DOWNLOAD_DIR`
+provide separate overrides for optional tools and local storage.
+
+For advanced environments, `LIBRUS_ACCOUNTS` accepts a JSON array directly:
+
+```text
+[{"alias":"daughter","username":"12345","password":"..."}]
 ```
-[{"alias":"daughter","username":"12345","password":"..."},{"alias":"son","username":"67890","password":"..."}]
-```
 
-#### Using a config file with `uvx`
-
-If you prefer a file over inline JSON:
-
-```json
-{
-  "mcpServers": {
-    "librus": {
-      "command": "uvx",
-      "args": ["librus-mcp"],
-      "env": {
-        "LIBRUS_CONFIG": "/Users/you/.config/librus/secrets.json"
-      }
-    }
-  }
-}
-```
-
-### Alternative: Install from source
+## Alternative: Install from Source
 
 If you prefer to run from a local clone:
 
@@ -143,20 +171,26 @@ If you prefer to run from a local clone:
 git clone https://github.com/krzysztofbury/librus-mcp.git
 cd librus-mcp
 uv venv && uv pip install -e .
-cp secrets.json.template secrets.json   # Then fill in credentials
 ```
 
-Then use the full path in your MCP config:
+Point `LIBRUS_CONFIG` at the private credentials file created during Quick Start,
+then use the local executable in your MCP config:
 
 ```json
 {
   "mcpServers": {
     "librus": {
-      "command": "/path/to/librus-mcp/.venv/bin/librus-mcp"
+      "command": "/path/to/librus-mcp/.venv/bin/librus-mcp",
+      "env": {
+        "LIBRUS_CONFIG": "/absolute/path/to/secrets.json"
+      }
     }
   }
 }
 ```
+
+Contributors can run the credentialed source-tree smoke test with
+`uv run python verify_connection.py --all-accounts`.
 
 ## Available Tools
 
@@ -175,7 +209,7 @@ Then use the full path in your MCP config:
 | `get_homework_detail(student_alias, detail_url)` | Get full details of a homework assignment by its numeric Librus ID |
 | `get_schedule(student_alias, year, month)` | Get calendar events/exams for a month |
 | `get_schedule_detail(student_alias, href)` | Get details of one schedule event (test scope, room, teacher) |
-| `get_recent_schedule_events(student_alias)` | Get schedule events added since the last Librus login |
+| `get_recent_schedule_events(student_alias)` | Get schedule events added since the last Librus login. This consumes a read-once Librus view and safely checkpoints its events locally |
 | `get_timetable(student_alias, monday?)` | Get a week's timetable (default: current week; `monday` picks another week) |
 | `get_announcements(student_alias)` | Get school announcements |
 | `get_completed_lessons(student_alias, date_from, date_to)` | Get completed lessons (subject, teacher, topic) for a date range |
@@ -191,7 +225,7 @@ These tools are registered based on the `features` section of the configuration
 
 | Tool | Feature gate | Default | Description |
 |------|--------------|---------|-------------|
-| `get_new_notifications(student_alias)` | `notifications` | on | Everything new since the previous call (grades, attendance, messages, announcements, schedule, homework). Seen-state is persisted per student, so each item is reported once |
+| `get_new_notifications(student_alias)` | `notifications` | on | Everything new since the previous call (grades, attendance, messages, announcements, schedule, homework). Seen-state is persisted per student |
 | `get_message_attachments(student_alias, message_id)` | `attachments` | on | List attachments (filename + file ID) of a message |
 | `download_attachment(student_alias, message_id, file_id)` | `attachments` | on | Download an attachment to the download directory |
 | `get_behaviour_notes(student_alias)` | `behaviour_notes` | on | Behaviour notes (uwagi): date, teacher, category, content |
@@ -202,6 +236,13 @@ These tools are registered based on the `features` section of the configuration
 `send_message` uses a two-step confirmation: the first call sends nothing and
 returns a preview plus a single-use `confirm_token` (valid 5 minutes); only a
 second call with that token delivers the message.
+
+Librus exposes recently added schedule events only once. Librus MCP checkpoints
+each event locally before continuing. After that checkpoint succeeds, a cancelled
+call or failed state update can replay the event instead of losing it. Recovery
+uses at-least-once delivery, so a replayed schedule event may appear again. A
+connection failure, parse failure, local storage failure, or machine crash before
+the checkpoint completes can still lose data from this read-once upstream view.
 
 Example with all options:
 
@@ -235,11 +276,18 @@ on a filesystem that supports hard links.
 src/
   server.py              # MCP server with tool definitions and entry point
   librus_client.py       # Librus API client wrapper with caching and retry
-  config.py              # Configuration loader (reads secrets.json)
-  notification_state.py  # Per-student persistence of seen-notification IDs
+  config.py               # Environment and JSON-file configuration loader
+  notification_state.py   # Seen IDs and read-once schedule recovery spool
   scraping.py            # Own Synergia scraping: attachments, behaviour notes
 tests/                   # pytest suite with mocked librus-apix
 ```
+
+## Acknowledgments
+
+This project is built on the excellent
+[librus-apix](https://github.com/RustySnek/librus-apix) library by
+[RustySnek](https://github.com/RustySnek). Its reverse-engineered Librus client
+makes this MCP server possible.
 
 ## Contributing
 

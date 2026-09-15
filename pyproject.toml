@@ -1,6 +1,6 @@
 [project]
 name = "librus-mcp"
-version = "1.2.0"
+version = "1.2.1"
 description = "MCP server for Librus Synergia — access grades, messages, attendance, homework, timetables, and announcements from AI assistants"
 authors = [{name = "Krzysztof Bury", email = "contact@datacraze.io"}]
 license = {text = "MIT"}
@@ -53,7 +53,13 @@ build-backend = "hatchling.build"
 packages = ["src"]
 
 [dependency-groups]
-dev = ["ruff>=0.11.0", "bandit[toml]>=1.8.0", "pytest>=8.0.0", "pytest-asyncio>=0.24.0"]
+dev = [
+    "ruff>=0.11.0",
+    "bandit[toml]>=1.8.0",
+    "cosmic-ray>=8.7,<9",
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.24.0",
+]
 
 [tool.uv]
 # Fixed supply-chain quarantine cutoff, pinned at the project level so local
@@ -101,6 +107,7 @@ line-ending = "auto"
 
 [tool.pytest.ini_options]
 asyncio_mode = "strict"
+testpaths = ["tests"]
 
 [tool.bandit]
 exclude_dirs = [".venv", "venv", "__pycache__"]

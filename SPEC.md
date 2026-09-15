@@ -49,7 +49,7 @@ src/
    openWorld hints). `send_message` is destructive and uses a **two-step
    confirmation**: the first call returns a preview plus a single-use
    `confirm_token` (5-minute TTL, bound to the exact payload); only the second
-   call with that token sends. Trust-model caveat: the gate is model-enforced —
+   call with that token sends. Trust-model caveat: the gate is model-enforced;
    the same agent holds the token and could confirm without showing the human
    the preview. It pins the payload and forces a second deliberate call; it is
    not a hard human-approval gate (MCP elicitation would be, where supported).
@@ -61,9 +61,14 @@ src/
    Aliases that need filename sanitization get a full SHA-256 suffix so distinct
    aliases cannot share a state file. During compatibility migration, the
    8-character state mirror and lock are retained so old and new MCP processes
-   cannot lose each other's updates. First run diffs against empty IDs —
-   never use `get_initial_notification_data`, it 403s on `/uczen/index` for
-   parent (rodzic) accounts.
+   cannot lose each other's updates. First run diffs against empty IDs; never use
+   `get_initial_notification_data`, it 403s on `/uczen/index` for parent (rodzic)
+   accounts. Read-once schedule events are checkpointed as independent
+   content-addressed spool files inside the blocking worker before further
+   notification parsing. The spool is cleared only after seen-state commits,
+   providing at-least-once recovery after interrupted calls once the local
+   checkpoint succeeds. Failures before that checkpoint completes remain
+   ambiguous because the upstream view has already been consumed.
 10. **Own scraping lives in `src/scraping.py`** for gaps in librus-apix
     (attachments, uwagi, final grades). Attachment download flow:
     `/wiadomosci/pobierz_zalacznik/{msg}/{file}` → 302 (not followed
@@ -83,7 +88,7 @@ src/
 
 ```bash
 uv sync
-cp secrets.json.template secrets.json  # Then fill in credentials
+export LIBRUS_CONFIG=/absolute/path/to/private/secrets.json
 ```
 
 ### Running
