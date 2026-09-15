@@ -24,7 +24,7 @@ htmlcov/
 .coverage.*
 .pytest_cache/
 coverage.xml
-cosmic-ray.sqlite
+cosmic-ray*.sqlite
 mutants/
 .mutmut-cache
 

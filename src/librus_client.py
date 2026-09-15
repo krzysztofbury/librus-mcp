@@ -1,5 +1,6 @@
 import asyncio
 import re
+import sys
 import time
 from collections.abc import Callable
 from datetime import date, datetime, timedelta
@@ -80,6 +81,14 @@ AUTH_ERRORS = (AuthorizationError, TokenError, TokenKeyError)
 # retrying a failing tool in a loop would otherwise deepen the throttle
 # (or, with bad credentials, risk a real lockout).
 AUTH_COOLDOWN_SECONDS = 60.0
+# A second operation-level auth failure after a fresh login indicates endpoint
+# denial rather than ordinary session expiry. Bound repeated login pressure for
+# that alias and operation while leaving unrelated tools available.
+OPERATION_AUTH_COOLDOWN_SECONDS = 60.0
+# One denied endpoint does not disable healthy tools. Repeated denials across
+# distinct endpoints indicate an account-wide problem and cap the total login
+# attempts in one cooldown window.
+MAX_PERSISTENT_DENIALS_PER_ALIAS = 3
 LOGIN_AUTHORIZATION_URL_SUFFIX = "/OAuth/Authorization?client_id=46"
 # Upstream librus-apix does not pass a timeout to requests.Session. Replace
 # each client session so login and every synchronous upstream call have one.
@@ -162,6 +171,9 @@ class LibrusManager:
     # alias -> (monotonic deadline, failure reason). Bounded: only configured
     # aliases reach the code that writes here.
     _auth_cooldowns: ClassVar[dict[str, tuple[float, str]]] = {}
+    # (alias, module-qualified operation) -> (monotonic deadline, reason).
+    # Both key dimensions come from configured accounts and internal call sites.
+    _operation_auth_cooldowns: ClassVar[dict[tuple[str, str], tuple[float, str]]] = {}
     # A Python thread cannot be stopped. Timed-out workers keep the alias
     # unavailable until they finish, preventing concurrent reuse of its session.
     _timed_out_workers: ClassVar[dict[str, asyncio.Task[Any]]] = {}
@@ -283,7 +295,7 @@ class LibrusManager:
 
     @classmethod
     def _check_auth_cooldown(cls, alias: str) -> None:
-        """Fail fast while an alias is cooling down after a failed login.
+        """Fail fast during an alias-wide authentication or authorization cooldown.
         Bounds login pressure to at most one attempt per cooldown window no
         matter how aggressively a caller retries a failing tool."""
         entry = cls._auth_cooldowns.get(alias)
@@ -296,12 +308,49 @@ class LibrusManager:
             return
         raise ValueError(
             f"Authentication for '{alias}' is on cooldown for another "
-            f"{int(remaining_seconds) + 1}s after a failed login. Last error: {reason}"
+            f"{int(remaining_seconds) + 1}s after an authentication or authorization "
+            f"failure. Last error: {reason}"
         )
 
     @classmethod
     def _start_auth_cooldown(cls, alias: str, reason: str) -> None:
         cls._auth_cooldowns[alias] = (time.monotonic() + AUTH_COOLDOWN_SECONDS, reason)
+
+    @staticmethod
+    def _operation_name(func: Callable[..., Any]) -> str:
+        return f"{func.__module__}.{func.__qualname__}"
+
+    @classmethod
+    def _check_operation_auth_cooldown(cls, alias: str, operation: str) -> None:
+        key = (alias, operation)
+        entry = cls._operation_auth_cooldowns.get(key)
+        if entry is None:
+            return
+        deadline, reason = entry
+        remaining_seconds = deadline - time.monotonic()
+        if remaining_seconds <= 0:
+            del cls._operation_auth_cooldowns[key]
+            return
+        raise PermissionError(
+            f"Operation '{operation}' for '{alias}' is on authorization cooldown for another "
+            f"{int(remaining_seconds) + 1}s. Last error: {reason}"
+        )
+
+    @classmethod
+    def _start_operation_auth_cooldown(cls, alias: str, operation: str, reason: str) -> None:
+        now = time.monotonic()
+        deadline = now + OPERATION_AUTH_COOLDOWN_SECONDS
+        cls._operation_auth_cooldowns[(alias, operation)] = (deadline, reason)
+        active_denials = sum(
+            candidate_alias == alias and candidate_deadline > now
+            for (candidate_alias, _), (
+                candidate_deadline,
+                _,
+            ) in cls._operation_auth_cooldowns.items()
+        )
+        assert (alias, operation) in cls._operation_auth_cooldowns
+        if active_denials >= MAX_PERSISTENT_DENIALS_PER_ALIAS:
+            cls._start_auth_cooldown(alias, reason)
 
     @classmethod
     def _evict_client(cls, alias: str) -> None:
@@ -313,7 +362,15 @@ class LibrusManager:
 
     @staticmethod
     def _close_client(client: Client) -> None:
-        client._session.close()
+        try:
+            client._session.close()
+        except Exception as error:  # noqa: BLE001 - cleanup must not mask the primary failure
+            # Cleanup failure must not mask an auth/timeout failure or bypass
+            # the cooldown that protects the login endpoint.
+            print(
+                f"librus-mcp: client session cleanup failed ({type(error).__name__})",
+                file=sys.stderr,
+            )
 
     @classmethod
     def _raise_if_worker_is_running(cls, alias: str) -> None:
@@ -397,13 +454,18 @@ class LibrusManager:
         The retry exists because Librus session tokens expire after ~30 minutes
         of inactivity. When that happens, the upstream library raises
         AuthorizationError, TokenError ("Brak dostępu" page), or TokenKeyError.
-        We evict the cached client and re-authenticate once. If the second
-        attempt also fails, we let it propagate. The per-alias lock serializes
-        operations for one account; different accounts still run concurrently.
+        We evict the cached client and re-authenticate once. A second auth-class
+        failure after that fresh login is a persistent endpoint denial, so the
+        new client is evicted and that alias-operation pair enters cooldown.
+        The per-alias lock serializes operations for one account; different
+        accounts still run concurrently.
         """
         cls._require_account(alias)
         async with cls._client_lock(alias):
             cls._raise_if_worker_is_running(alias)
+            operation = cls._operation_name(func)
+            cls._check_operation_auth_cooldown(alias, operation)
+            cls._check_auth_cooldown(alias)
             try:
                 try:
                     client = await cls.get_client(alias)
@@ -412,13 +474,23 @@ class LibrusManager:
                     )
                 except AUTH_ERRORS:
                     if not retry_auth_on_failure:
+                        cls._evict_client(alias)
                         raise
                     # Token likely expired. Clear cache and re-authenticate once.
                     cls._evict_client(alias)
                     client = await cls.get_client(alias)
-                    return await cls._run_upstream_call(
-                        alias, client, func, client, *args, **kwargs
-                    )
+                    try:
+                        return await cls._run_upstream_call(
+                            alias, client, func, client, *args, **kwargs
+                        )
+                    except AUTH_ERRORS as error:
+                        cls._evict_client(alias)
+                        reason = (
+                            f"Librus persistently denied operation '{operation}' for '{alias}' "
+                            "after a fresh login."
+                        )
+                        cls._start_operation_auth_cooldown(alias, operation, reason)
+                        raise PermissionError(reason) from error
             except MaintananceError as error:
                 raise RuntimeError(
                     f"Librus is under maintenance, try again later: {error}"

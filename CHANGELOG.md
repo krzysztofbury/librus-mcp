@@ -2,6 +2,36 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.2.2] - 2026-09-15
+
+### Security
+
+- Treat a second authentication-class failure after a successful fresh login as
+  persistent endpoint denial, evict the fresh client, and apply a 60-second
+  cooldown scoped to that student alias and operation. Repeated calls now fail
+  fast without creating unbounded login pressure, while unrelated tools and
+  aliases remain available. Three distinct persistently denied operations in
+  one window trigger an alias-wide cooldown to bound cross-operation cycling.
+- Evict a cached client after an authentication-class failure from a
+  non-idempotent operation without retrying the operation.
+
+### Testing
+
+- Add focused, repeatable Cosmic Ray campaigns for authentication and local-state
+  safety logic, including explicit line and operator filtering.
+- Add mutation-driven coverage for authorization cooldown boundaries, persistent
+  denial across all supported authentication exceptions, state schema checks,
+  collection-size bounds, recursive state-directory creation, content-addressed
+  spool integrity, and stable Unicode event identities.
+
+### License
+
+- Relicense the project from MIT to GPL-3.0-only. The required
+  `librus-apix==1.5.1` dependency declares MIT in its package metadata, but its
+  repository and the license files shipped inside both PyPI distributions contain
+  GPL-3.0. This project now follows the strongest terms actually conveyed with the
+  dependency instead of relying on contradictory metadata.
+
 ## [1.2.1] - 2026-09-15
 
 ### Fixed
