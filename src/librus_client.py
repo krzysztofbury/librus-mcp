@@ -38,7 +38,7 @@ from librus_apix.messages import (
     send_message,
 )
 from librus_apix.notifications import NotificationIds
-from librus_apix.schedule import get_recently_added_schedule, get_schedule, schedule_detail
+from librus_apix.schedule import RecentEvent, get_schedule, schedule_detail
 from librus_apix.student_information import get_student_information
 from librus_apix.timetable import get_timetable
 from requests import Session
@@ -48,10 +48,13 @@ from requests.exceptions import JSONDecodeError as RequestsJSONDecodeError
 from src import librus_optimizations, scraping
 from src.config import AccountConfig, AppConfig, load_config
 from src.notification_state import (
+    clear_pending_schedule_events,
     load_notification_ids,
+    load_pending_schedule_events,
     release_notification_state_lock,
     resolve_state_dir,
     save_notification_ids,
+    save_pending_schedule_events,
     try_acquire_notification_state_lock,
 )
 
@@ -732,9 +735,32 @@ class LibrusManager:
 
     @classmethod
     async def fetch_recent_schedule_events(cls, alias: str) -> list[Any]:
-        """Fetch schedule events added since the last Librus login."""
-        events = await cls._execute(alias, get_recently_added_schedule)
-        assert isinstance(events, list), "get_recently_added_schedule must return a list"
+        """Fetch read-once schedule events through the state transaction."""
+        cls._require_account(alias)
+        state_dir = resolve_state_dir(cls._get_config().state_dir)
+        async with cls._notification_lock(alias):
+            lock_descriptor = await cls._acquire_notification_state_lock(state_dir, alias)
+            try:
+                seen_ids = load_notification_ids(state_dir, alias)
+                if seen_ids is None:
+                    seen_ids = NotificationIds([], [], [], [], [], [])
+                pending = load_pending_schedule_events(state_dir, alias)
+                checkpointed: list[RecentEvent] = []
+                checkpoint = cls._schedule_checkpoint(state_dir, alias, checkpointed)
+                result = await cls._execute(
+                    alias,
+                    librus_optimizations.get_recent_schedule_events,
+                    seen_ids.schedule,
+                    pending,
+                    checkpoint,
+                )
+                assert isinstance(result, tuple), "recent schedule fetch must return a tuple"
+                assert len(result) == 2, "recent schedule fetch must return (events, ids)"
+                events, seen_ids.schedule = result
+                save_notification_ids(state_dir, alias, seen_ids)
+                clear_pending_schedule_events(state_dir, alias, [*pending, *checkpointed])
+            finally:
+                release_notification_state_lock(lock_descriptor)
         return events
 
     @classmethod
@@ -756,19 +782,37 @@ class LibrusManager:
                 first_run = seen_ids is None
                 if seen_ids is None:
                     seen_ids = NotificationIds([], [], [], [], [], [])
+                pending = load_pending_schedule_events(state_dir, alias)
+                checkpointed: list[RecentEvent] = []
+                checkpoint = cls._schedule_checkpoint(state_dir, alias, checkpointed)
                 result = await cls._execute(
                     alias,
                     librus_optimizations.get_new_notifications,
                     seen_ids,
                     LibrusTimeoutSession,
+                    pending,
+                    checkpoint,
                 )
                 assert isinstance(result, tuple), "notification fetch must return a tuple"
                 assert len(result) == 2, "notification fetch must return (data, ids)"
                 data, updated_ids = result
                 save_notification_ids(state_dir, alias, updated_ids)
+                clear_pending_schedule_events(state_dir, alias, [*pending, *checkpointed])
             finally:
                 release_notification_state_lock(lock_descriptor)
         return {"first_run": first_run, "new": data}
+
+    @staticmethod
+    def _schedule_checkpoint(
+        state_dir: Path, alias: str, checkpointed: list[RecentEvent]
+    ) -> Callable[[list[RecentEvent]], None]:
+        """Build an idempotent callback that runs inside the upstream worker."""
+
+        def checkpoint(events: list[RecentEvent]) -> None:
+            save_pending_schedule_events(state_dir, alias, events)
+            checkpointed.extend(events)
+
+        return checkpoint
 
     @classmethod
     async def _acquire_notification_state_lock(cls, state_dir: Path, alias: str) -> int:

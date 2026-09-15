@@ -1,4 +1,5 @@
 import asyncio
+import hashlib
 import threading
 from datetime import date
 from types import SimpleNamespace
@@ -9,9 +10,11 @@ import pytest
 from aiohttp import ClientResponseError
 from librus_apix.exceptions import AuthorizationError
 from librus_apix.notifications import NotificationIds
+from librus_apix.schedule import RecentEvent
 from yarl import URL
 
 from src import librus_optimizations
+from src.notification_state import schedule_event_id
 
 
 class FakeJsonResponse:
@@ -294,3 +297,53 @@ class TestParallelNotifications:
             session.close.assert_called_once()
         assert data.grades == []
         assert updated.grades == []
+
+
+class TestRecoverableScheduleNotifications:
+    def test_standalone_fetch_checkpoints_before_returning(self):
+        event = RecentEvent("2026-09-15 08:00", "Sprawdzian", "Matematyka")
+        checkpoint = MagicMock()
+
+        with patch.object(
+            librus_optimizations, "get_recently_added_schedule", return_value=[event]
+        ):
+            events, seen_ids = librus_optimizations.get_recent_schedule_events(
+                SimpleNamespace(), [], [], checkpoint
+            )
+
+        checkpoint.assert_called_once_with([event])
+        assert events == [event]
+        assert seen_ids == [schedule_event_id(event)]
+
+    def test_pending_event_is_reported_even_when_legacy_id_was_saved(self):
+        event = RecentEvent("2026-09-15 08:00", "Sprawdzian", "Matematyka")
+        legacy_id = hashlib.md5(event.data.encode(), usedforsecurity=False).hexdigest()
+
+        events, seen_ids = librus_optimizations._parse_schedule_notifications(
+            [event], [], [legacy_id]
+        )
+
+        assert events == [event]
+        assert schedule_event_id(event) in seen_ids
+
+    def test_fresh_event_seen_only_under_legacy_id_is_replayed_once(self):
+        event = RecentEvent("2026-09-15 08:00", "Sprawdzian", "Matematyka")
+        legacy_id = hashlib.md5(event.data.encode(), usedforsecurity=False).hexdigest()
+
+        events, seen_ids = librus_optimizations._parse_schedule_notifications(
+            [], [event], [legacy_id]
+        )
+
+        assert events == [event]
+        assert schedule_event_id(event) in seen_ids
+
+        events, _ = librus_optimizations._parse_schedule_notifications([], [event], seen_ids)
+        assert events == []
+
+    def test_pending_and_fresh_copy_are_returned_once(self):
+        event = RecentEvent("2026-09-15 08:00", "Sprawdzian", "Matematyka")
+
+        events, seen_ids = librus_optimizations._parse_schedule_notifications([event], [event], [])
+
+        assert events == [event]
+        assert seen_ids == [schedule_event_id(event)]

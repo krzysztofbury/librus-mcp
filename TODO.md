@@ -19,13 +19,18 @@ can be delivered independently. Suggested versions assume the current release is
 
 ### Notification Correctness
 
-- [ ] Treat recently added schedule events as read-once data rather than a
+- [x] Treat recently added schedule events as read-once data rather than a
   read-only, idempotent endpoint.
-- [ ] Make `get_recent_schedule_events` state-mutating in its MCP annotations and
+- [x] Make `get_recent_schedule_events` state-mutating in its MCP annotations and
   document that reading the events consumes them upstream.
-- [ ] Persist a durable pending notification result immediately after consuming
+- [x] Persist a durable pending notification result immediately after consuming
   read-once schedule events, before further parsing or state updates can fail.
-- [ ] Add tests for cancellation and state-save failure after schedule events are fetched.
+- [x] Add tests for cancellation and state-save failure after schedule events are fetched.
+
+### Security Verification
+
+- [ ] Establish a Cosmic Ray mutation baseline for authentication and local-state
+  safety invariants before changing those paths; require targeted mutants to be killed.
 
 ### Authentication Failure Control
 
@@ -40,7 +45,7 @@ can be delivered independently. Suggested versions assume the current release is
   actionable startup error without a traceback.
 - [ ] Store passwords as `SecretStr` and unwrap them only at the authentication boundary.
 - [ ] Warn or fail when a POSIX credential file is readable by group or other users.
-- [ ] Update setup instructions to create credential files with mode `0600` and
+- [x] Update setup instructions to create credential files with mode `0600` and
   recommend a global file outside project workspaces.
 - [ ] Create notification state directories as `0700` and state files as `0600`.
 - [ ] Bound notification state file size, list length, ID type, and ID length before parsing.
@@ -51,6 +56,8 @@ can be delivered independently. Suggested versions assume the current release is
 
 - [ ] Add a central maximum response-body size for requests and gateway responses,
   including chunked responses.
+- [ ] Bound recently added schedule events before or during parsing without silently
+  dropping data already consumed from the read-once upstream endpoint.
 - [ ] Enforce collection item limits independently of page-count assumptions.
 - [ ] Reject or truncate message pages larger than the expected page size and
   report `truncated=true` when applicable.
@@ -157,12 +164,14 @@ can be delivered independently. Suggested versions assume the current release is
   `UPSTREAM_TIMEOUT`, `LAYOUT_CHANGED`, and `DELIVERY_UNKNOWN`.
 - [ ] Remove the deprecated `all_pages` mode after bounded pagination is established.
 - [ ] Remove or replace the standalone read-once schedule-events tool once consumers
-  have migrated to durable notifications.
+  have migrated to stateful notifications.
 
 ### Package And Configuration Cleanup
 
 - [ ] Move the generic top-level `src` package to `src/librus_mcp` and update the
   console entry point to `librus_mcp.server:main`.
+- [ ] Replace Cosmic Ray with mutmut 3 after removing the unsupported `src`
+  import package name.
 - [ ] Prefer an explicit `LIBRUS_CONFIG` or XDG configuration path over silently
   discovering a generic `secrets.json` in the current working directory.
 - [ ] Provide a documented migration path before removing current-directory config discovery.

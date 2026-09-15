@@ -18,8 +18,8 @@ mcp = MCPServer("librus-mcp", version=__version__)
 
 # Every tool talks to the external Librus service, hence open_world_hint on all.
 READ_ONLY = ToolAnnotations(read_only_hint=True, open_world_hint=True)
-# Mutates local state only (seen-notification IDs / downloaded files), nothing
-# at the school; not idempotent because repeated calls yield different results.
+# Mutates local state or consumes a read-once upstream view, but does not change
+# school records; repeated calls can therefore yield different results.
 LOCAL_STATE_WRITE = ToolAnnotations(
     read_only_hint=False, destructive_hint=False, idempotent_hint=False, open_world_hint=True
 )
@@ -285,10 +285,12 @@ async def get_final_grades(student_alias: StudentAlias) -> Any:
     return to_dict(grades)
 
 
-@mcp.tool(annotations=READ_ONLY)
+@mcp.tool(annotations=LOCAL_STATE_WRITE)
 async def get_recent_schedule_events(student_alias: StudentAlias) -> Any:
     """
-    Fetches schedule events added since the last Librus login (new tests, trips, meetings).
+    Fetches schedule events added since the last Librus login (new tests, trips,
+    meetings). Librus exposes this view only once, so events are checkpointed
+    locally before they are returned.
     Args:
         student_alias: The alias of the student.
     """
@@ -303,8 +305,9 @@ async def get_new_notifications(student_alias: StudentAlias) -> Any:
     """
     Returns what is new since the previous call: grades, attendance, messages,
     announcements, schedule events, and homework. Seen-state is persisted per
-    student, so each item is reported only once. On the first call for a student
-    it returns the baseline (items since last Librus login) with first_run=true.
+    student. If an earlier call was interrupted, a read-once schedule event may
+    be replayed rather than lost. On the first call for a student it returns the
+    baseline (items since last Librus login) with first_run=true.
     Args:
         student_alias: The alias of the student.
     """

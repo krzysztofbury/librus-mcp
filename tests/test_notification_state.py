@@ -9,12 +9,17 @@ from pathlib import Path
 
 import pytest
 from librus_apix.notifications import NotificationIds
+from librus_apix.schedule import RecentEvent
 
 from src.notification_state import (
     _state_path,
+    clear_pending_schedule_events,
     load_notification_ids,
+    load_pending_schedule_events,
     resolve_state_dir,
     save_notification_ids,
+    save_pending_schedule_events,
+    schedule_event_id,
 )
 
 
@@ -192,6 +197,68 @@ class TestSaveLoadRoundtrip:
     def test_empty_alias_raises(self, tmp_path):
         with pytest.raises(AssertionError):
             save_notification_ids(tmp_path, "", _sample_ids())
+
+
+class TestPendingScheduleEvents:
+    def test_roundtrip_is_content_addressed_and_clear_is_exact(self, tmp_path):
+        event = RecentEvent("2026-09-15 08:00", "Sprawdzian", "Matematyka 2026-09-20")
+        later_event = RecentEvent("2026-09-15 09:00", "Wycieczka", "Muzeum")
+
+        save_pending_schedule_events(tmp_path, "primary", [event, later_event])
+        save_pending_schedule_events(tmp_path, "primary", [event])
+
+        assert set(map(schedule_event_id, load_pending_schedule_events(tmp_path, "primary"))) == {
+            schedule_event_id(event),
+            schedule_event_id(later_event),
+        }
+        assert len(list(tmp_path.glob("*.pending-schedule.*.json"))) == 2
+        clear_pending_schedule_events(tmp_path, "primary", [event])
+        assert load_pending_schedule_events(tmp_path, "primary") == [later_event]
+
+    def test_identity_covers_all_visible_fields(self):
+        first = RecentEvent("2026-09-15 08:00", "Sprawdzian", "Matematyka")
+        second = RecentEvent("2026-09-16 08:00", "Sprawdzian", "Matematyka")
+
+        assert schedule_event_id(first) != schedule_event_id(second)
+
+    def test_corrupt_spool_fails_loudly(self, tmp_path):
+        event = RecentEvent("2026-09-15 08:00", "Sprawdzian", "Matematyka")
+        save_pending_schedule_events(tmp_path, "primary", [event])
+        path = next(tmp_path.glob("*.pending-schedule.*.json"))
+        path.write_text("{not-json", encoding="utf-8")
+
+        with pytest.raises(ValueError, match="corrupt pending schedule"):
+            load_pending_schedule_events(tmp_path, "primary")
+
+    def test_large_spool_is_drained_in_bounded_batches(self, tmp_path):
+        events = [
+            RecentEvent(f"2026-09-15 {index:04d}", "Sprawdzian", f"Matematyka {index}")
+            for index in range(501)
+        ]
+
+        save_pending_schedule_events(tmp_path, "primary", events)
+        first_batch = load_pending_schedule_events(tmp_path, "primary")
+        assert len(first_batch) == 500
+
+        clear_pending_schedule_events(tmp_path, "primary", first_batch)
+        assert len(load_pending_schedule_events(tmp_path, "primary")) == 1
+
+    def test_rejects_non_string_event_fields(self, tmp_path):
+        event = RecentEvent("2026-09-15 08:00", "Sprawdzian", 123)
+
+        with pytest.raises(TypeError, match="data must be a string"):
+            save_pending_schedule_events(tmp_path, "primary", [event])
+
+    def test_valid_tampered_payload_fails_digest_check(self, tmp_path):
+        event = RecentEvent("2026-09-15 08:00", "Sprawdzian", "Matematyka")
+        save_pending_schedule_events(tmp_path, "primary", [event])
+        path = next(tmp_path.glob("*.pending-schedule.*.json"))
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        payload["data"] = "Fizyka"
+        path.write_text(json.dumps(payload), encoding="utf-8")
+
+        with pytest.raises(ValueError, match="digest mismatch"):
+            load_pending_schedule_events(tmp_path, "primary")
 
 
 class TestResolveStateDir:

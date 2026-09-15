@@ -30,11 +30,12 @@ from librus_apix.notifications import (
     _parse_grades_notifications,
     _parse_homework_notification,
     _parse_messages_notification,
-    _parse_recent_schedule_notification,
 )
-from librus_apix.schedule import get_recently_added_schedule
+from librus_apix.schedule import RecentEvent, get_recently_added_schedule
 from requests.cookies import RequestsCookieJar
 from yarl import URL
+
+from src.notification_state import schedule_event_id
 
 GATEWAY_CONCURRENCY = 5
 GATEWAY_RETRIES = 2
@@ -192,8 +193,10 @@ def get_new_notifications(
     client: Client,
     seen: NotificationIds,
     session_factory: Callable[[], Any],
+    pending_schedule: list[RecentEvent] | None = None,
+    schedule_checkpoint: Callable[[list[RecentEvent]], None] | None = None,
 ) -> tuple[NotificationData, NotificationIds]:
-    """Fetch safe notification categories in parallel, then recent schedule last."""
+    """Fetch safe categories first, then checkpoint the read-once schedule."""
     today = datetime.now(SCHOOL_TIME_ZONE).date()
     calls = {
         "grades": (get_grades, ("last_login",)),
@@ -215,9 +218,13 @@ def get_new_notifications(
         }
         results = {name: future.result() for name, future in futures.items()}
     schedule = get_recently_added_schedule(client)
+    if schedule_checkpoint is not None:
+        schedule_checkpoint(schedule)
     grades, _, _ = results["grades"]
     homework = results["homework"][::-1]
-    new_schedule, seen_schedule = _parse_recent_schedule_notification(schedule, seen.schedule)
+    new_schedule, seen_schedule = _parse_schedule_notifications(
+        pending_schedule or [], schedule, seen.schedule
+    )
     new_grades, seen_grades = _parse_grades_notifications(grades, seen.grades)
     new_attendance, seen_attendance = _parse_attendance_notification(
         results["attendance"], seen.attendance
@@ -242,6 +249,37 @@ def get_new_notifications(
         seen_schedule,
         seen_homework,
     )
+
+
+def get_recent_schedule_events(
+    client: Client,
+    seen_ids: list[str],
+    pending_schedule: list[RecentEvent],
+    schedule_checkpoint: Callable[[list[RecentEvent]], None],
+) -> tuple[list[RecentEvent], list[str]]:
+    """Fetch, checkpoint, and diff the upstream read-once schedule view."""
+    schedule = get_recently_added_schedule(client)
+    schedule_checkpoint(schedule)
+    return _parse_schedule_notifications(pending_schedule, schedule, seen_ids)
+
+
+def _parse_schedule_notifications(
+    pending: list[RecentEvent], fresh: list[RecentEvent], seen_ids: list[str]
+) -> tuple[list[RecentEvent], list[str]]:
+    """Prefer spooled events over seen state so partial commits cannot hide them."""
+    pending_ids = {schedule_event_id(event) for event in pending}
+    unique_events: dict[str, RecentEvent] = {}
+    for event in [*pending, *fresh]:
+        unique_events.setdefault(schedule_event_id(event), event)
+
+    new_schedule: list[RecentEvent] = []
+    for event_id, event in unique_events.items():
+        was_seen = event_id in seen_ids
+        if event_id not in seen_ids:
+            seen_ids.append(event_id)
+        if event_id in pending_ids or not was_seen:
+            new_schedule.append(event)
+    return new_schedule, seen_ids
 
 
 def _call_with_clone(
