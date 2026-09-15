@@ -1,6 +1,6 @@
 # Librus MCP Server
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
 [![PyPI](https://img.shields.io/pypi/v/librus-mcp)](https://pypi.org/project/librus-mcp/)
 
 An [MCP (Model Context Protocol)](https://modelcontextprotocol.io/) server that provides AI assistants with access to the **Librus Synergia** electronic gradebook. It supports multiple student accounts simultaneously and exposes tools for grades (numeric, GPA, and descriptive), messages, attendance, homework, schedules, timetables, announcements, completed lessons, and student information.
@@ -43,14 +43,15 @@ outside projects and shared or synchronized folders:
     {
       "alias": "daughter",
       "username": "12345",
-      "password": "YOUR_LIBRUS_PASSWORD"
+      "password": ""
     }
   ]
 }
 ```
 
-The `alias` is the short name you will use when asking your assistant about this
-student. For more than one child, add another account object to the array.
+Replace the empty `password` value with your Librus password. The `alias` is the
+short name you will use when asking your assistant about this student. For more
+than one child, add another account object to the array.
 
 Use the absolute path to this file in the next step. `~` is not expanded in
 `LIBRUS_CONFIG`. Example paths:
@@ -81,7 +82,7 @@ on macOS or `%APPDATA%\Claude\claude_desktop_config.json` on Windows.
   "mcpServers": {
     "librus": {
       "command": "uvx",
-      "args": ["librus-mcp==1.2.1"],
+      "args": ["librus-mcp==1.2.2"],
       "env": {
         "LIBRUS_CONFIG": "/absolute/path/to/secrets.json"
       }
@@ -97,7 +98,7 @@ Run this once in a terminal:
 ```bash
 claude mcp add --scope user --transport stdio librus \
   -e LIBRUS_CONFIG=/absolute/path/to/secrets.json \
-  -- uvx librus-mcp==1.2.1
+  -- uvx librus-mcp==1.2.2
 ```
 
 #### Gemini CLI
@@ -107,7 +108,7 @@ Run this once in a terminal. User scope keeps school credentials out of project 
 ```bash
 gemini mcp add --scope user --transport stdio \
   -e LIBRUS_CONFIG=/absolute/path/to/secrets.json \
-  librus uvx librus-mcp==1.2.1
+  librus uvx librus-mcp==1.2.2
 ```
 
 #### OpenAI Codex CLI
@@ -117,7 +118,7 @@ Run this once in a terminal:
 ```bash
 codex mcp add librus \
   --env LIBRUS_CONFIG=/absolute/path/to/secrets.json \
-  -- uvx librus-mcp==1.2.1
+  -- uvx librus-mcp==1.2.2
 ```
 
 Never put a Librus password or `LIBRUS_ACCOUNTS` in a project-level MCP
@@ -299,4 +300,14 @@ To report vulnerabilities, see [SECURITY.md](SECURITY.md).
 
 ## License
 
-This project is licensed under the MIT License. See [LICENSE](LICENSE) for details.
+Copyright (C) 2026 Krzysztof Bury.
+
+This project is licensed under the GNU General Public License v3.0 only
+(`GPL-3.0-only`). See [LICENSE](LICENSE) for the complete terms.
+
+The project adopted GPL-3.0-only in v1.2.2 to honor the strongest license terms
+actually distributed with its required `librus-apix==1.5.1` dependency. That
+dependency declares MIT in package metadata, but both its source repository and
+the `LICENSE` files bundled in its PyPI wheel and source archive contain the
+complete GPL-3.0 text. Using GPL-3.0-only avoids relying on the contradictory
+metadata when redistributing this combined application.

@@ -2,7 +2,7 @@
 
 This roadmap groups work by release size and compatibility risk. Each work group
 can be delivered independently. Suggested versions assume the current release is
-1.2.0:
+1.2.2:
 
 - Minor work release (`1.2.x`): compatible safety, correctness, and documentation fixes.
 - Medium work release (`1.3.0`): substantial but backward-compatible agent UX and performance work.
@@ -12,10 +12,10 @@ can be delivered independently. Suggested versions assume the current release is
 
 ### Release Compliance
 
-- [ ] Resolve the GPL-3.0 repository license versus MIT PyPI metadata for
-  `librus-apix` before the next public release.
-- [ ] Record the upstream licensing conclusion in the README and package metadata.
-- [ ] Until resolved, disclose the ambiguity in the README known limitations.
+- [x] Resolve the GPL-3.0 repository license versus MIT PyPI metadata for
+  `librus-apix` conservatively by licensing this project as GPL-3.0-only.
+- [x] Record the upstream licensing conclusion in the README and package metadata.
+- [x] Disclose the upstream metadata conflict and the reason for the license choice.
 
 ### Notification Correctness
 
@@ -29,15 +29,15 @@ can be delivered independently. Suggested versions assume the current release is
 
 ### Security Verification
 
-- [ ] Establish a Cosmic Ray mutation baseline for authentication and local-state
+- [x] Establish a Cosmic Ray mutation baseline for authentication and local-state
   safety invariants before changing those paths; require targeted mutants to be killed.
 
 ### Authentication Failure Control
 
-- [ ] Distinguish an expired session from a persistent endpoint authorization denial.
-- [ ] Evict the newly authenticated client after a second authentication-class failure.
-- [ ] Add a short per-alias and per-operation cooldown for persistent access denial.
-- [ ] Test repeated calls to a permanently denied endpoint and bound login attempts.
+- [x] Distinguish an expired session from a persistent endpoint authorization denial.
+- [x] Evict the newly authenticated client after a second authentication-class failure.
+- [x] Add a short per-alias and per-operation cooldown for persistent access denial.
+- [x] Test repeated calls to a permanently denied endpoint and bound login attempts.
 
 ### Configuration And Local-State Safety
 

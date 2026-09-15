@@ -48,6 +48,34 @@ python verify_connection.py
 
 When adding new functionality, ensure you test it manually against a real Librus account.
 
+### Mutation Testing
+
+Run the focused authentication campaign:
+
+```bash
+rm -f cosmic-ray-auth.sqlite
+uv run cosmic-ray init cosmic-ray-auth.toml cosmic-ray-auth.sqlite
+uv run cr-filter-lines --config cosmic-ray-auth.toml cosmic-ray-auth.sqlite
+uv run cr-filter-operators cosmic-ray-auth.sqlite cosmic-ray-auth.toml
+uv run cosmic-ray exec cosmic-ray-auth.toml cosmic-ray-auth.sqlite
+uv run cosmic-ray dump cosmic-ray-auth.sqlite
+```
+
+For the local-state campaign, use the same commands with `auth` replaced by
+`state`. The filter steps are required: `cosmic-ray init` records all candidates
+before the focused line and operator filters narrow the session.
+
+The v1.2.2 baseline produced this evidence:
+
+- Authentication: 114 of 140 selected mutants killed. All 41 control-flow and
+  state-transition mutants in the new operation-denial path were killed. Its
+  two survivors only change the rounded seconds displayed in the cooldown error.
+- Local state: 120 of 173 selected mutants killed. Targeted schema, size-bound,
+  nested-directory, content-identity, digest-check, and migration-direction
+  mutants were all killed. Remaining survivors are equivalent mutations,
+  diagnostic-only changes, exception substitutions on race paths, or branches
+  for the non-host Windows locking implementation.
+
 ## Submitting Changes
 
 1. Commit your changes with a clear, descriptive message

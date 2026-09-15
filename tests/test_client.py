@@ -9,7 +9,14 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from librus_apix.exceptions import MaintananceError, ParseError, TokenError
+from librus_apix.exceptions import (
+    AuthorizationError,
+    MaintananceError,
+    ParseError,
+    TokenError,
+    TokenKeyError,
+)
+from librus_apix.grades import get_grades
 
 import src.librus_client as librus_client_module
 from src.librus_client import LibrusManager
@@ -101,31 +108,278 @@ class TestExecuteRetry:
         assert get_client.await_count == 2
 
     @pytest.mark.asyncio
-    async def test_second_failure_propagates(self):
+    @pytest.mark.parametrize("error_type", [AuthorizationError, TokenError, TokenKeyError])
+    async def test_second_auth_failure_evicts_fresh_client_and_starts_cooldown(self, error_type):
+        clients = [MagicMock(), MagicMock()]
+        available_clients = iter(clients)
+
+        async def cache_next_client(alias):
+            client = next(available_clients)
+            LibrusManager._instances[alias] = client
+            LibrusManager._tokens[alias] = object()
+            return client
+
         def always_failing(client):
+            raise error_type("Brak dostępu")
+
+        with (
+            patch.object(
+                LibrusManager, "get_client", new_callable=AsyncMock, side_effect=cache_next_client
+            ) as get_client,
+            pytest.raises(PermissionError, match="persistently denied"),
+        ):
+            await LibrusManager._execute("test_student", always_failing)
+
+        assert get_client.await_count == 2
+        assert LibrusManager._instances == {}
+        assert LibrusManager._tokens == {}
+        assert LibrusManager._operation_auth_cooldowns
+        for client in clients:
+            client._session.close.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_persistent_denial_cooldown_bounds_logins_and_is_scoped(self, monkeypatch):
+        monkeypatch.setenv(
+            "LIBRUS_ACCOUNTS",
+            json.dumps(
+                [
+                    {
+                        "alias": "first",
+                        "username": "u1",
+                        "password": "p1",  # pragma: allowlist secret
+                    },
+                    {
+                        "alias": "second",
+                        "username": "u2",
+                        "password": "p2",  # pragma: allowlist secret
+                    },
+                ]
+            ),
+        )
+        clients = [MagicMock() for _ in range(5)]
+        available_clients = iter(clients)
+        denied_attempts = 0
+
+        async def cache_next_client(alias):
+            client = next(available_clients)
+            LibrusManager._instances[alias] = client
+            LibrusManager._tokens[alias] = object()
+            return client
+
+        def denied(client):
+            nonlocal denied_attempts
+            denied_attempts += 1
             raise TokenError("Brak dostępu")
 
-        with patch.object(LibrusManager, "get_client", new_callable=AsyncMock) as get_client:
-            get_client.return_value = object()
-            with pytest.raises(TokenError):
-                await LibrusManager._execute("test_student", always_failing)
+        with patch.object(
+            LibrusManager, "get_client", new_callable=AsyncMock, side_effect=cache_next_client
+        ) as get_client:
+            with pytest.raises(PermissionError, match="persistently denied"):
+                await LibrusManager._execute("first", denied)
+            for _ in range(5):
+                with pytest.raises(PermissionError, match="cooldown"):
+                    await LibrusManager._execute("first", denied)
+
+            assert await LibrusManager._execute("first", lambda client: "ok") == "ok"
+            with pytest.raises(PermissionError, match="persistently denied"):
+                await LibrusManager._execute("second", denied)
+
+        assert denied_attempts == 4
+        assert get_client.await_count == 5
+        for client in (clients[0], clients[1], clients[3], clients[4]):
+            client._session.close.assert_called_once()
+        clients[2]._session.close.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_expired_operation_cooldown_allows_one_new_bounded_attempt(self, monkeypatch):
+        monkeypatch.setattr(librus_client_module, "OPERATION_AUTH_COOLDOWN_SECONDS", 0.0)
+        clients = [MagicMock() for _ in range(4)]
+        available_clients = iter(clients)
+        denied_attempts = 0
+
+        async def cache_next_client(alias):
+            client = next(available_clients)
+            LibrusManager._instances[alias] = client
+            LibrusManager._tokens[alias] = object()
+            return client
+
+        def denied(client):
+            nonlocal denied_attempts
+            denied_attempts += 1
+            raise TokenError("Brak dostępu")
+
+        with patch.object(
+            LibrusManager, "get_client", new_callable=AsyncMock, side_effect=cache_next_client
+        ) as get_client:
+            for _ in range(2):
+                with pytest.raises(PermissionError, match="persistently denied"):
+                    await LibrusManager._execute("test_student", denied)
+
+        assert denied_attempts == 4
+        assert get_client.await_count == 4
+        for client in clients:
+            client._session.close.assert_called_once()
+
+    def test_operation_cooldown_expires_at_deadline_but_not_before(self, monkeypatch):
+        operation = "src.librus_client.LibrusManager.fetch_grades"
+        key = ("test_student", operation)
+        LibrusManager._operation_auth_cooldowns[key] = (100.5, "denied")
+        monkeypatch.setattr(librus_client_module.time, "monotonic", lambda: 100.0)
+
+        with pytest.raises(PermissionError, match="cooldown"):
+            LibrusManager._check_operation_auth_cooldown(*key)
+
+        LibrusManager._operation_auth_cooldowns[key] = (100.0, "denied")
+        LibrusManager._check_operation_auth_cooldown(*key)
+        assert key not in LibrusManager._operation_auth_cooldowns
+
+    def test_operation_name_is_stable_and_module_qualified(self):
+        assert LibrusManager._operation_name(get_grades) == "librus_apix.grades.get_grades"
+
+    def test_operation_cooldown_policy_values_and_deadline(self, monkeypatch):
+        monkeypatch.setattr(librus_client_module.time, "monotonic", lambda: 100.0)
+
+        LibrusManager._start_operation_auth_cooldown("test_student", "operation", "denied")
+
+        assert librus_client_module.AUTH_COOLDOWN_SECONDS == 60.0
+        assert librus_client_module.OPERATION_AUTH_COOLDOWN_SECONDS == 60.0
+        assert librus_client_module.MAX_PERSISTENT_DENIALS_PER_ALIAS == 3
+        assert LibrusManager._operation_auth_cooldowns[("test_student", "operation")][0] == 160.0
+
+    def test_alias_budget_counts_only_active_denials_for_same_alias(self, monkeypatch):
+        monkeypatch.setattr(librus_client_module.time, "monotonic", lambda: 100.0)
+        LibrusManager._operation_auth_cooldowns.update(
+            {
+                ("test_student", "expired-one"): (99.0, "denied"),
+                ("test_student", "expired-two"): (99.0, "denied"),
+                ("test_student", "deadline-one"): (100.0, "denied"),
+                ("test_student", "deadline-two"): (100.0, "denied"),
+                ("a-other-one", "active"): (200.0, "denied"),
+                ("a-other-two", "active"): (200.0, "denied"),
+                ("z-other-one", "active"): (200.0, "denied"),
+                ("z-other-two", "active"): (200.0, "denied"),
+            }
+        )
+
+        LibrusManager._start_operation_auth_cooldown("test_student", "new", "denied")
+
+        assert LibrusManager._auth_cooldowns == {}
+
+    def test_alias_budget_uses_value_equality(self, monkeypatch):
+        monkeypatch.setattr(librus_client_module.time, "monotonic", lambda: 100.0)
+        alias = "test_student"
+        equal_alias_one = "".join(("test", "_student"))
+        equal_alias_two = "".join(("test_", "student"))
+        assert equal_alias_one == alias
+        assert equal_alias_one is not alias
+        assert equal_alias_two == alias
+        assert equal_alias_two is not alias
+        LibrusManager._operation_auth_cooldowns.update(
+            {
+                (equal_alias_one, "denied-one"): (200.0, "denied"),
+                (equal_alias_two, "denied-two"): (200.0, "denied"),
+            }
+        )
+
+        LibrusManager._start_operation_auth_cooldown(alias, "denied-three", "denied")
+
+        assert LibrusManager._auth_cooldowns
+
+    def test_alias_budget_fails_safe_above_threshold(self, monkeypatch):
+        monkeypatch.setattr(librus_client_module.time, "monotonic", lambda: 100.0)
+        LibrusManager._operation_auth_cooldowns.update(
+            {
+                ("test_student", "denied-one"): (200.0, "denied"),
+                ("test_student", "denied-two"): (200.0, "denied"),
+                ("test_student", "denied-three"): (200.0, "denied"),
+            }
+        )
+
+        LibrusManager._start_operation_auth_cooldown("test_student", "denied-four", "denied")
+
+        assert LibrusManager._auth_cooldowns
+
+    @pytest.mark.asyncio
+    async def test_denials_across_operations_start_alias_cooldown(self):
+        clients = [MagicMock() for _ in range(6)]
+        available_clients = iter(clients)
+
+        async def cache_next_client(alias):
+            client = next(available_clients)
+            LibrusManager._instances[alias] = client
+            LibrusManager._tokens[alias] = object()
+            return client
+
+        def denied_one(client):
+            raise TokenError("Brak dostępu")
+
+        def denied_two(client):
+            raise TokenError("Brak dostępu")
+
+        def denied_three(client):
+            raise TokenError("Brak dostępu")
+
+        with patch.object(
+            LibrusManager, "get_client", new_callable=AsyncMock, side_effect=cache_next_client
+        ) as get_client:
+            for operation in (denied_one, denied_two, denied_three):
+                with pytest.raises(PermissionError, match="persistently denied"):
+                    await LibrusManager._execute("test_student", operation)
+            with pytest.raises(ValueError, match="cooldown"):
+                await LibrusManager._execute("test_student", lambda client: "healthy")
+
+        assert get_client.await_count == 6
+        assert LibrusManager._auth_cooldowns
+
+    @pytest.mark.asyncio
+    async def test_close_failure_does_not_bypass_persistent_denial_cooldown(self, capsys):
+        clients = [MagicMock(), MagicMock()]
+        clients[1]._session.close.side_effect = RuntimeError("close failed")
+        available_clients = iter(clients)
+
+        async def cache_next_client(alias):
+            client = next(available_clients)
+            LibrusManager._instances[alias] = client
+            LibrusManager._tokens[alias] = object()
+            return client
+
+        def denied(client):
+            raise TokenError("Brak dostępu")
+
+        with (
+            patch.object(
+                LibrusManager, "get_client", new_callable=AsyncMock, side_effect=cache_next_client
+            ),
+            pytest.raises(PermissionError, match="persistently denied"),
+        ):
+            await LibrusManager._execute("test_student", denied)
+
+        assert LibrusManager._operation_auth_cooldowns
+        assert "cleanup failed (RuntimeError)" in capsys.readouterr().err
 
     @pytest.mark.asyncio
     async def test_non_idempotent_call_is_not_retried(self):
         calls = {"count": 0}
+        client = MagicMock()
+        LibrusManager._instances["test_student"] = client
+        LibrusManager._tokens["test_student"] = object()
 
         def token_failure(client):
             calls["count"] += 1
             raise TokenError("Brak dostępu")
 
         with patch.object(LibrusManager, "get_client", new_callable=AsyncMock) as get_client:
-            get_client.return_value = object()
+            get_client.return_value = client
             with pytest.raises(TokenError):
                 await LibrusManager._execute(
                     "test_student", token_failure, retry_auth_on_failure=False
                 )
         assert calls["count"] == 1
         assert get_client.await_count == 1
+        assert LibrusManager._instances == {}
+        assert LibrusManager._tokens == {}
+        assert LibrusManager._operation_auth_cooldowns == {}
+        client._session.close.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_send_disables_auth_retry(self):

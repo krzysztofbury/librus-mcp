@@ -1,0 +1,16 @@
+[cosmic-ray]
+module-path = "src/notification_state.py"
+timeout = 30.0
+test-command = "uv run pytest -q tests/test_notification_state.py"
+excluded-modules = []
+
+[cosmic-ray.distributor]
+name = "local"
+
+[cosmic-ray.filters.line-filter.lines]
+"src/notification_state.py" = ["31-296"]
+
+[cosmic-ray.filters.operators-filter]
+exclude-operators = [
+    "^(?!core/(ReplaceComparisonOperator_.*|ReplaceTrueWithFalse|ReplaceFalseWithTrue|ReplaceAndWithOr|ReplaceOrWithAnd|AddNot|ExceptionReplacer|NumberReplacer|ZeroIterationForLoop)$).*",
+]

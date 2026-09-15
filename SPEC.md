@@ -10,8 +10,9 @@ This document describes how AI agents and bots should interact with this codebas
 - **Package manager:** [uv](https://github.com/astral-sh/uv) (preferred) or pip
 - **Formatter/Linter:** [ruff](https://github.com/astral-sh/ruff) (line-length: 100, target: py314)
 - **Build system:** hatchling
-- **License:** MIT (note: upstream librus-apix ships GPL-3.0 in its repository
-  but MIT in its PyPI metadata — an open upstream question tracked before releases)
+- **License:** GPL-3.0-only. The project uses the strongest license terms shipped
+  with the required `librus-apix` dependency because its MIT package metadata
+  conflicts with the GPL-3.0 text bundled in both upstream distribution formats.
 
 ## Architecture
 

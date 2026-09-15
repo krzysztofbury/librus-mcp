@@ -12,6 +12,9 @@ from librus_apix.notifications import NotificationIds
 from librus_apix.schedule import RecentEvent
 
 from src.notification_state import (
+    MAX_IDS_PER_CATEGORY,
+    MAX_LEGACY_FILENAME_LENGTH,
+    MAX_STATE_ALIAS_PREFIX_LENGTH,
     _state_path,
     clear_pending_schedule_events,
     load_notification_ids,
@@ -71,6 +74,13 @@ class TestSaveLoadRoundtrip:
         assert loaded.messages == ["123456"]
         assert loaded.homework == ["/hw/1"]
 
+    def test_save_creates_nested_state_directory(self, tmp_path):
+        state_dir = tmp_path / "nested" / "state"
+
+        save_notification_ids(state_dir, "primary", _sample_ids())
+
+        assert load_notification_ids(state_dir, "primary") is not None
+
     def test_missing_file_returns_none(self, tmp_path):
         assert load_notification_ids(tmp_path, "nobody") is None
 
@@ -80,6 +90,37 @@ class TestSaveLoadRoundtrip:
         files = list(tmp_path.glob("*.json"))
         assert len(files) == 1
         files[0].write_text("{not valid json")
+        assert load_notification_ids(tmp_path, "primary") is None
+
+    def test_scalar_category_returns_none(self, tmp_path):
+        data = {
+            key: []
+            for key in ("grades", "attendance", "messages", "announcements", "schedule", "homework")
+        }
+        data["grades"] = "not-a-list"
+        _state_path(tmp_path, "primary").write_text(json.dumps(data), encoding="utf-8")
+
+        assert load_notification_ids(tmp_path, "primary") is None
+
+    @pytest.mark.parametrize(
+        "data",
+        [
+            [],
+            {"grades": []},
+            {
+                "grades": [],
+                "attendance": [],
+                "messages": [],
+                "announcements": [],
+                "schedule": [],
+                "homework": [],
+                "unexpected": [],
+            },
+        ],
+    )
+    def test_unexpected_top_level_schema_returns_none(self, tmp_path, data):
+        _state_path(tmp_path, "primary").write_text(json.dumps(data), encoding="utf-8")
+
         assert load_notification_ids(tmp_path, "primary") is None
 
     def test_alias_with_spaces_and_slashes_is_sanitized(self, tmp_path):
@@ -160,7 +201,39 @@ class TestSaveLoadRoundtrip:
         assert loaded.messages == ["new-message"]
         assert legacy_path.read_bytes() == _state_path(tmp_path, alias).read_bytes()
 
+    def test_new_version_imports_lexically_smaller_legacy_payload(self, tmp_path):
+        alias = "child/a"
+        empty_ids = NotificationIds([], [], [], [], [], [])
+        save_notification_ids(tmp_path, alias, empty_ids)
+        short_digest = hashlib.sha256(alias.encode("utf-8")).hexdigest()[:8]
+        legacy_path = tmp_path / f"child_a.{short_digest}.notifications.json"
+        ids = _sample_ids()
+        legacy_path.write_text(
+            json.dumps(
+                {
+                    key: getattr(ids, key)
+                    for key in (
+                        "grades",
+                        "attendance",
+                        "messages",
+                        "announcements",
+                        "schedule",
+                        "homework",
+                    )
+                }
+            ),
+            encoding="utf-8",
+        )
+        assert legacy_path.read_bytes() < _state_path(tmp_path, alias).read_bytes()
+
+        loaded = load_notification_ids(tmp_path, alias)
+
+        assert loaded is not None
+        assert loaded.grades == ids.grades
+
     def test_long_sanitized_alias_stays_within_filename_limit(self, tmp_path):
+        assert MAX_STATE_ALIAS_PREFIX_LENGTH == 80
+        assert MAX_LEGACY_FILENAME_LENGTH == 190
         alias = f"{'a' * 200}/child"
 
         save_notification_ids(tmp_path, alias, _sample_ids())
@@ -200,6 +273,14 @@ class TestSaveLoadRoundtrip:
 
 
 class TestPendingScheduleEvents:
+    def test_save_creates_nested_state_directory(self, tmp_path):
+        state_dir = tmp_path / "nested" / "spool"
+        event = RecentEvent("2026-09-15 08:00", "Sprawdzian", "Matematyka")
+
+        save_pending_schedule_events(state_dir, "primary", [event])
+
+        assert load_pending_schedule_events(state_dir, "primary") == [event]
+
     def test_roundtrip_is_content_addressed_and_clear_is_exact(self, tmp_path):
         event = RecentEvent("2026-09-15 08:00", "Sprawdzian", "Matematyka 2026-09-20")
         later_event = RecentEvent("2026-09-15 09:00", "Wycieczka", "Muzeum")
@@ -221,6 +302,12 @@ class TestPendingScheduleEvents:
 
         assert schedule_event_id(first) != schedule_event_id(second)
 
+    def test_identity_uses_canonical_unicode_json(self):
+        event = RecentEvent("2026-09-15 08:00", "Sprawdzian", "żółć")
+        canonical = '{"data":"żółć","date_added":"2026-09-15 08:00","type":"Sprawdzian"}'
+
+        assert schedule_event_id(event) == hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
     def test_corrupt_spool_fails_loudly(self, tmp_path):
         event = RecentEvent("2026-09-15 08:00", "Sprawdzian", "Matematyka")
         save_pending_schedule_events(tmp_path, "primary", [event])
@@ -228,6 +315,28 @@ class TestPendingScheduleEvents:
         path.write_text("{not-json", encoding="utf-8")
 
         with pytest.raises(ValueError, match="corrupt pending schedule"):
+            load_pending_schedule_events(tmp_path, "primary")
+
+    @pytest.mark.parametrize(
+        "payload",
+        [
+            [],
+            {"date_added": "2026-09-15 08:00"},
+            {
+                "date_added": "2026-09-15 08:00",
+                "type": "Sprawdzian",
+                "data": "Matematyka",
+                "unexpected": "field",
+            },
+        ],
+    )
+    def test_unexpected_spool_schema_fails_loudly(self, tmp_path, payload):
+        event = RecentEvent("2026-09-15 08:00", "Sprawdzian", "Matematyka")
+        save_pending_schedule_events(tmp_path, "primary", [event])
+        path = next(tmp_path.glob("*.pending-schedule.*.json"))
+        path.write_text(json.dumps(payload), encoding="utf-8")
+
+        with pytest.raises(ValueError, match="unexpected pending schedule event schema"):
             load_pending_schedule_events(tmp_path, "primary")
 
     def test_large_spool_is_drained_in_bounded_batches(self, tmp_path):
@@ -260,6 +369,32 @@ class TestPendingScheduleEvents:
         with pytest.raises(ValueError, match="digest mismatch"):
             load_pending_schedule_events(tmp_path, "primary")
 
+    def test_tampered_payload_fails_digest_check_in_opposite_sort_order(self, tmp_path):
+        event = RecentEvent("2026-09-15 08:00", "Sprawdzian", "Matematyka")
+        original_id = schedule_event_id(event)
+        tampered_event = None
+        for index in range(100):
+            candidate = RecentEvent("2026-09-15 08:00", "Sprawdzian", f"tampered-{index}")
+            if schedule_event_id(candidate) < original_id:
+                tampered_event = candidate
+                break
+        assert tampered_event is not None, "test must cover the opposite digest ordering"
+        save_pending_schedule_events(tmp_path, "primary", [event])
+        path = next(tmp_path.glob("*.pending-schedule.*.json"))
+        path.write_text(
+            json.dumps(
+                {
+                    "date_added": tampered_event.date_added,
+                    "type": tampered_event.type,
+                    "data": tampered_event.data,
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        with pytest.raises(ValueError, match="digest mismatch"):
+            load_pending_schedule_events(tmp_path, "primary")
+
 
 class TestResolveStateDir:
     def test_env_var_wins(self, tmp_path, monkeypatch):
@@ -286,6 +421,16 @@ class TestResolveStateDir:
 
 
 class TestProcessStateLock:
+    def test_lock_creates_nested_state_directory(self, tmp_path):
+        from src.notification_state import (
+            release_notification_state_lock,
+            try_acquire_notification_state_lock,
+        )
+
+        descriptor = try_acquire_notification_state_lock(tmp_path / "nested" / "state", "primary")
+        assert descriptor is not None
+        release_notification_state_lock(descriptor)
+
     def test_sanitized_alias_uses_legacy_lock_name_during_migration(self, tmp_path):
         from src.notification_state import (
             release_notification_state_lock,
@@ -337,6 +482,22 @@ class TestProcessStateLock:
 
 
 class TestPruning:
+    def test_category_size_limit_accepts_boundary_and_rejects_oversize(self, tmp_path):
+        assert MAX_IDS_PER_CATEGORY == 10_000
+        boundary_ids = NotificationIds(
+            grades=[f"/g/{index}" for index in range(10_000)],
+            attendance=[],
+            messages=[],
+            announcements=[],
+            schedule=[],
+            homework=[],
+        )
+        save_notification_ids(tmp_path, "boundary", boundary_ids)
+
+        boundary_ids.grades.append("/g/oversize")
+        with pytest.raises(AssertionError, match="unexpectedly large"):
+            save_notification_ids(tmp_path, "oversize", boundary_ids)
+
     def test_ids_pruned_to_newest_500_on_save(self, tmp_path):
         ids = NotificationIds(
             grades=[f"/g/{i}" for i in range(600)],

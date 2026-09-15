@@ -28,6 +28,7 @@ def reset_librus_manager():
     LibrusManager._notification_locks.clear()
     LibrusManager._client_locks.clear()
     LibrusManager._auth_cooldowns.clear()
+    LibrusManager._operation_auth_cooldowns.clear()
     LibrusManager._timed_out_workers.clear()
     yield
     LibrusManager._instances.clear()
@@ -36,6 +37,7 @@ def reset_librus_manager():
     LibrusManager._notification_locks.clear()
     LibrusManager._client_locks.clear()
     LibrusManager._auth_cooldowns.clear()
+    LibrusManager._operation_auth_cooldowns.clear()
     LibrusManager._timed_out_workers.clear()
 
 
