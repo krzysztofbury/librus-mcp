@@ -47,7 +47,7 @@ from requests.cookies import RequestsCookieJar
 from requests.exceptions import JSONDecodeError as RequestsJSONDecodeError
 
 from src import librus_optimizations, scraping
-from src.config import AccountConfig, AppConfig, load_config
+from src.config import AccountConfig, AppConfig, load_config, validate_alias
 from src.notification_state import (
     clear_pending_schedule_events,
     load_notification_ids,
@@ -105,9 +105,10 @@ SCHEDULE_HREF_PATTERN = re.compile(r"^[A-Za-z0-9_-]+/[A-Za-z0-9_/-]+$")
 
 
 def _require_alias(alias: Any) -> str:
-    if not isinstance(alias, str) or not alias.strip():
-        raise ValueError("student_alias must be a non-empty string")
-    return alias
+    try:
+        return validate_alias(alias)
+    except ValueError as error:
+        raise ValueError(str(error).replace("account alias", "student_alias")) from None
 
 
 def _require_non_empty(value: Any, name: str) -> str:
@@ -246,8 +247,9 @@ class LibrusManager:
         # another child's requests. A fresh jar per client isolates sessions.
         client.cookies = RequestsCookieJar()
         try:
+            password = account.password.get_secret_value()
             token = await cls._run_upstream_call(
-                alias, client, client.get_token, account.username, account.password
+                alias, client, client.get_token, account.username, password
             )
         except MaintananceError as error:
             # No cooldown: maintenance is service-wide, not a per-account

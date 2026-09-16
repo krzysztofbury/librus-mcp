@@ -2,6 +2,7 @@ import dataclasses
 import hashlib
 import json
 import secrets
+import sys
 import time
 from typing import Annotated, Any, Literal
 
@@ -10,6 +11,7 @@ from mcp.types import ToolAnnotations
 from pydantic import Field
 
 from src import __version__
+from src.config import ALIAS_PATTERN, MAX_ALIAS_LENGTH, ConfigError
 from src.librus_client import LibrusManager
 
 # Passing version explicitly: an unversioned server advertises an empty version
@@ -27,7 +29,15 @@ SEND_MESSAGE = ToolAnnotations(
     read_only_hint=False, destructive_hint=True, idempotent_hint=False, open_world_hint=True
 )
 
-StudentAlias = Annotated[str, Field(min_length=1, description="Alias of the student account")]
+StudentAlias = Annotated[
+    str,
+    Field(
+        min_length=1,
+        max_length=MAX_ALIAS_LENGTH,
+        pattern=ALIAS_PATTERN,
+        description="Alias of the student account",
+    ),
+]
 # Message and file identifiers are bare numeric path segments in Synergia.
 NumericId = Annotated[str, Field(pattern=r"^\d+$")]
 IsoDate = Annotated[str, Field(pattern=r"^\d{4}-\d{2}-\d{2}$")]
@@ -503,8 +513,12 @@ def register_optional_tools() -> list[str]:
     return registered
 
 
-def main():
-    register_optional_tools()
+def main() -> None:
+    try:
+        register_optional_tools()
+    except ConfigError as error:
+        print(f"librus-mcp: configuration error: {error}", file=sys.stderr)
+        raise SystemExit(2) from None
     mcp.run()
 
 

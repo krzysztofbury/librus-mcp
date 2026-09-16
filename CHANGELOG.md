@@ -2,6 +2,32 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.2.3] - 2026-09-16
+
+### Security
+
+- Store account passwords as Pydantic `SecretStr` values and unwrap them only at
+  the Librus authentication boundary. Configuration validation and startup errors
+  omit input values, so malformed account entries cannot print sibling credentials.
+- Reject POSIX credential files accessible by group or other users with an
+  actionable `chmod 600` error. Invalid startup configuration now produces one
+  redacted stderr diagnostic and exits without a traceback.
+- Create notification state directories with mode `0700` and atomically published
+  state, legacy-mirror, pending-event, and lock files with mode `0600` on POSIX.
+- Require regular notification state files and bound reads to 4 MiB before JSON
+  parsing. Pending schedule events are additionally bounded to 64 KiB each and
+  128 KiB per save/load batch. Validate the exact schema, category size,
+  notification ID type, and ID length before constructing upstream state objects
+  or persisting new state.
+- Reject account aliases with surrounding whitespace, control characters, or more
+  than 80 characters. Unknown account fields are now configuration errors instead
+  of being silently ignored.
+
+### Testing
+
+- Add credential-redaction, startup-error, authentication-boundary, POSIX mode,
+  oversized-state, malformed-ID, and alias-boundary coverage.
+
 ## [1.2.2] - 2026-09-15
 
 ### Security

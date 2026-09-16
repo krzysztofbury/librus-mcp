@@ -1,6 +1,8 @@
 """Tests for all MCP tools exposed by the librus-mcp server."""
 
 import dataclasses
+import json
+import os
 from collections import defaultdict
 from datetime import date
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -50,6 +52,66 @@ class TestServerInfo:
 
     def test_package_version_is_resolvable(self):
         assert __version__ != "0+unknown"
+
+    def test_invalid_config_exits_once_without_secret_or_traceback(self, monkeypatch, capsys):
+        from src.server import main, mcp
+
+        marker = "startup-recognizable-password"  # pragma: allowlist secret
+        monkeypatch.setenv(
+            "LIBRUS_ACCOUNTS",
+            json.dumps([{"username": "u", "password": marker}]),
+        )
+
+        with patch.object(mcp, "run") as run, pytest.raises(SystemExit) as exit_error:
+            main()
+
+        captured = capsys.readouterr()
+        assert exit_error.value.code == 2
+        assert captured.out == ""
+        assert len(captured.err.splitlines()) == 1
+        assert "configuration error" in captured.err
+        assert "accounts.0.alias" in captured.err
+        assert marker not in captured.err
+        assert "Traceback" not in captured.err
+        run.assert_not_called()
+
+    def test_invalid_utf8_config_exits_without_traceback(self, tmp_path, monkeypatch, capsys):
+        from src.server import main, mcp
+
+        secrets = tmp_path / "secrets.json"
+        secrets.write_bytes(b"\xff\xfe")
+        if os.name == "posix":
+            secrets.chmod(0o600)
+        monkeypatch.delenv("LIBRUS_ACCOUNTS", raising=False)
+        monkeypatch.setenv("LIBRUS_CONFIG", str(secrets))
+
+        with patch.object(mcp, "run") as run, pytest.raises(SystemExit) as exit_error:
+            main()
+
+        captured = capsys.readouterr()
+        assert exit_error.value.code == 2
+        assert captured.out == ""
+        assert "invalid UTF-8" in captured.err
+        assert "Traceback" not in captured.err
+        run.assert_not_called()
+
+    @pytest.mark.parametrize(
+        "alias",
+        [
+            " test_student",
+            "test_student ",
+            "test\nstudent",
+            "test\u00a0student",
+            "test\u2028student",
+        ],
+    )
+    def test_student_alias_schema_rejects_runtime_invalid_values(self, alias):
+        from pydantic import TypeAdapter, ValidationError
+
+        from src.server import StudentAlias
+
+        with pytest.raises(ValidationError):
+            TypeAdapter(StudentAlias).validate_python(alias)
 
 
 # --- Fake dataclasses mirroring librus-apix shapes ---

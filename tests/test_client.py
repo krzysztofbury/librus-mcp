@@ -561,6 +561,27 @@ class TestUpstreamTimeouts:
         assert LibrusManager._timed_out_workers == {}
 
     @pytest.mark.asyncio
+    async def test_password_is_unwrapped_only_for_authentication(self):
+        seen = {}
+
+        class LoginClient:
+            def __init__(self):
+                self._session = MagicMock()
+                self.cookies = None
+
+            def get_token(self, username, password):
+                seen["username"] = username
+                seen["password"] = password
+                return object()
+
+        client = LoginClient()
+        with patch("src.librus_client.new_client", return_value=client):
+            assert await LibrusManager.get_client("test_student") is client
+
+        assert seen == {"username": "00000", "password": "fake"}
+        assert isinstance(seen["password"], str)
+
+    @pytest.mark.asyncio
     async def test_cancel_after_worker_completion_retires_client(self):
         client = MagicMock()
         LibrusManager._instances["test_student"] = client
@@ -687,6 +708,13 @@ class TestUnknownAlias:
     async def test_unknown_alias_lists_configured(self):
         with pytest.raises(ValueError, match="test_student"):
             await LibrusManager.fetch_grades("ghost")
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("alias", [" test_student", "test_student ", "a" * 81])
+    async def test_invalid_alias_shape_raises_before_creating_locks(self, alias):
+        with pytest.raises(ValueError, match="student_alias"):
+            await LibrusManager._execute(alias, lambda client: None)
+        assert alias not in LibrusManager._client_locks
 
 
 class TestPerAliasSerialization:
