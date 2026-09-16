@@ -2,7 +2,7 @@
 
 This roadmap groups work by release size and compatibility risk. Each work group
 can be delivered independently. Suggested versions assume the current release is
-1.2.2:
+1.2.3:
 
 - Minor work release (`1.2.x`): compatible safety, correctness, and documentation fixes.
 - Medium work release (`1.3.0`): substantial but backward-compatible agent UX and performance work.
@@ -41,16 +41,18 @@ can be delivered independently. Suggested versions assume the current release is
 
 ### Configuration And Local-State Safety
 
-- [ ] Hide credential values in Pydantic validation errors and emit one redacted,
+- [x] Hide credential values in Pydantic validation errors and emit one redacted,
   actionable startup error without a traceback.
-- [ ] Store passwords as `SecretStr` and unwrap them only at the authentication boundary.
-- [ ] Warn or fail when a POSIX credential file is readable by group or other users.
+- [x] Store passwords as `SecretStr` and unwrap them only at the authentication boundary.
+- [x] Warn or fail when a POSIX credential file is readable by group or other users.
 - [x] Update setup instructions to create credential files with mode `0600` and
   recommend a global file outside project workspaces.
-- [ ] Create notification state directories as `0700` and state files as `0600`.
-- [ ] Bound notification state file size, list length, ID type, and ID length before parsing.
-- [ ] Normalize or reject surrounding alias whitespace, bound alias length, and
+- [x] Create notification state directories as `0700` and state files as `0600`.
+- [x] Bound notification state file size, list length, ID type, and ID length before parsing.
+- [x] Normalize or reject surrounding alias whitespace, bound alias length, and
   reject unknown `AccountConfig` keys.
+- [x] Centralize all operator-facing environment variables, defaults, and source
+  precedence in `config.py`; pass effective paths to feature modules.
 
 ### Input And Response Bounds
 

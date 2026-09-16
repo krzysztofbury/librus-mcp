@@ -1,14 +1,14 @@
 [cosmic-ray]
-module-path = "src/notification_state.py"
+module-path = "src/config.py"
 timeout = 30.0
-test-command = "uv run pytest -q tests/test_notification_state.py"
+test-command = "uv run pytest -q tests/test_config.py tests/test_server.py"
 excluded-modules = []
 
 [cosmic-ray.distributor]
 name = "local"
 
 [cosmic-ray.filters.line-filter.lines]
-"src/notification_state.py" = ["85-172", "207-259", "279-320", "360-414"]
+"src/config.py" = ["14-107", "116-225", "235-294"]
 
 [cosmic-ray.filters.operators-filter]
 exclude-operators = [

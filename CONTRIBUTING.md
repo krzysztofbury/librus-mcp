@@ -61,9 +61,10 @@ uv run cosmic-ray exec cosmic-ray-auth.toml cosmic-ray-auth.sqlite
 uv run cosmic-ray dump cosmic-ray-auth.sqlite
 ```
 
-For the local-state campaign, use the same commands with `auth` replaced by
-`state`. The filter steps are required: `cosmic-ray init` records all candidates
-before the focused line and operator filters narrow the session.
+For the configuration and local-state campaigns, use the same commands with
+`auth` replaced by `config` or `state`. The filter steps are required:
+`cosmic-ray init` records all candidates before the focused line and operator
+filters narrow the session.
 
 The v1.2.2 baseline produced this evidence:
 
@@ -75,6 +76,12 @@ The v1.2.2 baseline produced this evidence:
   mutants were all killed. Remaining survivors are equivalent mutations,
   diagnostic-only changes, exception substitutions on race paths, or branches
   for the non-host Windows locking implementation.
+
+The v1.2.3 safety campaigns additionally killed 113 of 150 selected configuration
+mutants and 157 of 224 selected local-state mutants. Surviving mutations were
+manually triaged as equivalent comparisons, descriptor edge cases unavailable to
+normal process startup, race-only exception substitutions, or non-host platform
+branches.
 
 ## Submitting Changes
 

@@ -3,6 +3,8 @@
 import hashlib
 import json
 import multiprocessing
+import os
+import stat
 import threading
 import time
 from pathlib import Path
@@ -14,12 +16,15 @@ from librus_apix.schedule import RecentEvent
 from src.notification_state import (
     MAX_IDS_PER_CATEGORY,
     MAX_LEGACY_FILENAME_LENGTH,
+    MAX_NOTIFICATION_ID_LENGTH,
+    MAX_NOTIFICATION_STATE_FILE_BYTES,
+    MAX_PENDING_SCHEDULE_BATCH_BYTES,
+    MAX_PENDING_SCHEDULE_EVENT_BYTES,
     MAX_STATE_ALIAS_PREFIX_LENGTH,
     _state_path,
     clear_pending_schedule_events,
     load_notification_ids,
     load_pending_schedule_events,
-    resolve_state_dir,
     save_notification_ids,
     save_pending_schedule_events,
     schedule_event_id,
@@ -65,6 +70,13 @@ def _sample_ids() -> NotificationIds:
     )
 
 
+def _empty_state_payload() -> dict[str, list[str]]:
+    return {
+        key: []
+        for key in ("grades", "attendance", "messages", "announcements", "schedule", "homework")
+    }
+
+
 class TestSaveLoadRoundtrip:
     def test_roundtrip(self, tmp_path):
         save_notification_ids(tmp_path, "primary", _sample_ids())
@@ -81,6 +93,66 @@ class TestSaveLoadRoundtrip:
 
         assert load_notification_ids(state_dir, "primary") is not None
 
+    @pytest.mark.skipif(os.name != "posix", reason="POSIX mode bits are not portable")
+    def test_state_directory_and_file_are_private_with_permissive_umask(self, tmp_path):
+        state_dir = tmp_path / "nested" / "state"
+        previous_umask = os.umask(0)
+        try:
+            save_notification_ids(state_dir, "primary", _sample_ids())
+        finally:
+            os.umask(previous_umask)
+
+        state_path = _state_path(state_dir, "primary")
+        assert stat.S_IMODE(state_dir.stat().st_mode) == 0o700
+        assert stat.S_IMODE(state_path.stat().st_mode) == 0o600
+
+    @pytest.mark.skipif(os.name != "posix", reason="POSIX mode bits are not portable")
+    def test_created_state_modes_override_restrictive_umask(self, tmp_path):
+        state_dir = tmp_path / "state"
+        try:
+            previous_umask = os.umask(0o777)
+            try:
+                save_notification_ids(state_dir, "primary", _sample_ids())
+            finally:
+                os.umask(previous_umask)
+
+            state_path = _state_path(state_dir, "primary")
+            assert stat.S_IMODE(state_dir.stat().st_mode) == 0o700
+            assert stat.S_IMODE(state_path.stat().st_mode) == 0o600
+        finally:
+            if state_dir.exists():
+                state_dir.chmod(0o700)
+
+    @pytest.mark.skipif(os.name != "posix", reason="POSIX mode bits are not portable")
+    @pytest.mark.parametrize("mode", [0o755, 0o600])
+    def test_rejects_existing_state_directory_with_wrong_mode(self, tmp_path, mode):
+        state_dir = tmp_path / "state"
+        state_dir.mkdir(mode=mode)
+        state_dir.chmod(mode)
+
+        with pytest.raises(PermissionError, match="chmod 700"):
+            save_notification_ids(state_dir, "primary", _sample_ids())
+
+        assert stat.S_IMODE(state_dir.stat().st_mode) == mode
+
+    @pytest.mark.skipif(os.name != "posix", reason="POSIX symlinks are not portable")
+    def test_rejects_symlinked_state_directory(self, tmp_path):
+        target = tmp_path / "target"
+        target.mkdir(mode=0o700)
+        state_dir = tmp_path / "state"
+        state_dir.symlink_to(target, target_is_directory=True)
+
+        with pytest.raises(ValueError, match="symlink"):
+            save_notification_ids(state_dir, "primary", _sample_ids())
+
+    @pytest.mark.skipif(os.name != "posix", reason="POSIX mode bits are not portable")
+    def test_legacy_state_mirror_is_private(self, tmp_path):
+        save_notification_ids(tmp_path, "child/a", _sample_ids())
+
+        state_files = list(tmp_path.glob("*.notifications.json"))
+        assert len(state_files) == 2
+        assert all(stat.S_IMODE(path.stat().st_mode) == 0o600 for path in state_files)
+
     def test_missing_file_returns_none(self, tmp_path):
         assert load_notification_ids(tmp_path, "nobody") is None
 
@@ -93,10 +165,7 @@ class TestSaveLoadRoundtrip:
         assert load_notification_ids(tmp_path, "primary") is None
 
     def test_scalar_category_returns_none(self, tmp_path):
-        data = {
-            key: []
-            for key in ("grades", "attendance", "messages", "announcements", "schedule", "homework")
-        }
+        data = _empty_state_payload()
         data["grades"] = "not-a-list"
         _state_path(tmp_path, "primary").write_text(json.dumps(data), encoding="utf-8")
 
@@ -271,6 +340,62 @@ class TestSaveLoadRoundtrip:
         with pytest.raises(AssertionError):
             save_notification_ids(tmp_path, "", _sample_ids())
 
+    def test_oversized_state_file_is_rejected_before_json_parse(self, tmp_path, capsys):
+        assert MAX_NOTIFICATION_STATE_FILE_BYTES == 4 * 1024 * 1024
+        path = _state_path(tmp_path, "primary")
+        path.write_bytes(b" " * (MAX_NOTIFICATION_STATE_FILE_BYTES + 1))
+
+        assert load_notification_ids(tmp_path, "primary") is None
+        assert "too large" in capsys.readouterr().err
+
+    def test_state_file_at_exact_size_limit_is_accepted(self, tmp_path):
+        data = json.dumps(_empty_state_payload()).encode("utf-8")
+        path = _state_path(tmp_path, "primary")
+        path.write_bytes(data + b" " * (MAX_NOTIFICATION_STATE_FILE_BYTES - len(data)))
+
+        assert load_notification_ids(tmp_path, "primary") is not None
+
+    @pytest.mark.skipif(os.name != "posix", reason="POSIX symlinks are not portable")
+    def test_symlinked_state_file_is_not_read(self, tmp_path):
+        target = tmp_path / "target.json"
+        target.write_text(json.dumps(_empty_state_payload()), encoding="utf-8")
+        _state_path(tmp_path, "primary").symlink_to(target)
+
+        assert load_notification_ids(tmp_path, "primary") is None
+
+    @pytest.mark.skipif(not hasattr(os, "mkfifo"), reason="FIFOs are not portable")
+    def test_fifo_state_file_is_rejected_without_blocking(self, tmp_path):
+        os.mkfifo(_state_path(tmp_path, "primary"))
+
+        assert load_notification_ids(tmp_path, "primary") is None
+
+    def test_oversized_category_is_rejected_on_load(self, tmp_path):
+        data = _empty_state_payload()
+        data["grades"] = ["x"] * (MAX_IDS_PER_CATEGORY + 1)
+        _state_path(tmp_path, "primary").write_text(json.dumps(data), encoding="utf-8")
+
+        assert load_notification_ids(tmp_path, "primary") is None
+
+    @pytest.mark.parametrize("invalid_id", [1, None, [], {}, ""])
+    def test_invalid_notification_id_is_rejected_on_load(self, tmp_path, invalid_id):
+        data = _empty_state_payload()
+        data["grades"] = [invalid_id]
+        _state_path(tmp_path, "primary").write_text(json.dumps(data), encoding="utf-8")
+
+        assert load_notification_ids(tmp_path, "primary") is None
+
+    def test_notification_id_length_boundary_on_load(self, tmp_path):
+        assert MAX_NOTIFICATION_ID_LENGTH == 1024
+        data = _empty_state_payload()
+        data["grades"] = ["x" * MAX_NOTIFICATION_ID_LENGTH]
+        path = _state_path(tmp_path, "primary")
+        path.write_text(json.dumps(data), encoding="utf-8")
+        assert load_notification_ids(tmp_path, "primary") is not None
+
+        data["grades"] = ["x" * (MAX_NOTIFICATION_ID_LENGTH + 1)]
+        path.write_text(json.dumps(data), encoding="utf-8")
+        assert load_notification_ids(tmp_path, "primary") is None
+
 
 class TestPendingScheduleEvents:
     def test_save_creates_nested_state_directory(self, tmp_path):
@@ -280,6 +405,20 @@ class TestPendingScheduleEvents:
         save_pending_schedule_events(state_dir, "primary", [event])
 
         assert load_pending_schedule_events(state_dir, "primary") == [event]
+
+    @pytest.mark.skipif(os.name != "posix", reason="POSIX mode bits are not portable")
+    def test_spool_directory_and_file_are_private_with_permissive_umask(self, tmp_path):
+        state_dir = tmp_path / "nested" / "spool"
+        event = RecentEvent("2026-09-15 08:00", "Sprawdzian", "Matematyka")
+        previous_umask = os.umask(0)
+        try:
+            save_pending_schedule_events(state_dir, "primary", [event])
+        finally:
+            os.umask(previous_umask)
+
+        path = next(state_dir.glob("*.pending-schedule.*.json"))
+        assert stat.S_IMODE(state_dir.stat().st_mode) == 0o700
+        assert stat.S_IMODE(path.stat().st_mode) == 0o600
 
     def test_roundtrip_is_content_addressed_and_clear_is_exact(self, tmp_path):
         event = RecentEvent("2026-09-15 08:00", "Sprawdzian", "Matematyka 2026-09-20")
@@ -316,6 +455,35 @@ class TestPendingScheduleEvents:
 
         with pytest.raises(ValueError, match="corrupt pending schedule"):
             load_pending_schedule_events(tmp_path, "primary")
+
+    def test_oversized_spool_fails_before_json_parse(self, tmp_path):
+        event = RecentEvent("2026-09-15 08:00", "Sprawdzian", "Matematyka")
+        save_pending_schedule_events(tmp_path, "primary", [event])
+        path = next(tmp_path.glob("*.pending-schedule.*.json"))
+        path.write_bytes(b" " * (MAX_PENDING_SCHEDULE_EVENT_BYTES + 1))
+
+        with pytest.raises(ValueError, match="too large"):
+            load_pending_schedule_events(tmp_path, "primary")
+
+    def test_pending_schedule_batch_size_is_bounded_and_drains_across_loads(self, tmp_path):
+        data = "x" * (MAX_PENDING_SCHEDULE_BATCH_BYTES // 3)
+        events = [
+            RecentEvent(f"2026-09-{index + 10} 08:00", "Sprawdzian", data) for index in range(4)
+        ]
+
+        with pytest.raises(ValueError, match="batch is too large"):
+            save_pending_schedule_events(tmp_path, "primary", events)
+        assert not list(tmp_path.glob("*.pending-schedule.*.json"))
+
+        for event in events:
+            save_pending_schedule_events(tmp_path, "primary", [event])
+        first_batch = load_pending_schedule_events(tmp_path, "primary")
+        assert 0 < len(first_batch) < len(events)
+        clear_pending_schedule_events(tmp_path, "primary", first_batch)
+        second_batch = load_pending_schedule_events(tmp_path, "primary")
+        assert set(map(schedule_event_id, first_batch + second_batch)) == set(
+            map(schedule_event_id, events)
+        )
 
     @pytest.mark.parametrize(
         "payload",
@@ -396,30 +564,6 @@ class TestPendingScheduleEvents:
             load_pending_schedule_events(tmp_path, "primary")
 
 
-class TestResolveStateDir:
-    def test_env_var_wins(self, tmp_path, monkeypatch):
-        monkeypatch.setenv("LIBRUS_STATE_DIR", str(tmp_path / "env_state"))
-        result = resolve_state_dir(str(tmp_path / "config_state"))
-        assert result == tmp_path / "env_state"
-
-    def test_config_value_used_when_no_env(self, tmp_path, monkeypatch):
-        monkeypatch.delenv("LIBRUS_STATE_DIR", raising=False)
-        result = resolve_state_dir(str(tmp_path / "config_state"))
-        assert result == tmp_path / "config_state"
-
-    def test_default_when_nothing_set(self, monkeypatch):
-        monkeypatch.delenv("LIBRUS_STATE_DIR", raising=False)
-        result = resolve_state_dir(None)
-        assert result.name == "state"
-        assert ".librus-mcp" in str(result)
-
-    def test_tilde_in_config_value_is_expanded(self, monkeypatch):
-        monkeypatch.delenv("LIBRUS_STATE_DIR", raising=False)
-        result = resolve_state_dir("~/custom_state")
-        assert "~" not in str(result)
-        assert str(result).startswith("/")
-
-
 class TestProcessStateLock:
     def test_lock_creates_nested_state_directory(self, tmp_path):
         from src.notification_state import (
@@ -430,6 +574,26 @@ class TestProcessStateLock:
         descriptor = try_acquire_notification_state_lock(tmp_path / "nested" / "state", "primary")
         assert descriptor is not None
         release_notification_state_lock(descriptor)
+
+    @pytest.mark.skipif(os.name != "posix", reason="POSIX mode bits are not portable")
+    def test_lock_directory_and_file_are_private_with_permissive_umask(self, tmp_path):
+        from src.notification_state import (
+            release_notification_state_lock,
+            try_acquire_notification_state_lock,
+        )
+
+        state_dir = tmp_path / "nested" / "state"
+        previous_umask = os.umask(0)
+        try:
+            descriptor = try_acquire_notification_state_lock(state_dir, "primary")
+        finally:
+            os.umask(previous_umask)
+        assert descriptor is not None
+        release_notification_state_lock(descriptor)
+
+        lock_path = next(state_dir.glob("*.lock"))
+        assert stat.S_IMODE(state_dir.stat().st_mode) == 0o700
+        assert stat.S_IMODE(lock_path.stat().st_mode) == 0o600
 
     def test_sanitized_alias_uses_legacy_lock_name_during_migration(self, tmp_path):
         from src.notification_state import (
@@ -495,8 +659,15 @@ class TestPruning:
         save_notification_ids(tmp_path, "boundary", boundary_ids)
 
         boundary_ids.grades.append("/g/oversize")
-        with pytest.raises(AssertionError, match="unexpectedly large"):
+        with pytest.raises(ValueError, match="unexpectedly large"):
             save_notification_ids(tmp_path, "oversize", boundary_ids)
+
+    @pytest.mark.parametrize("invalid_id", [1, None, [], {}, "", "x" * 1025])
+    def test_save_rejects_invalid_notification_ids(self, tmp_path, invalid_id):
+        ids = NotificationIds([invalid_id], [], [], [], [], [])
+
+        with pytest.raises((TypeError, ValueError), match="notification ID"):
+            save_notification_ids(tmp_path, "invalid", ids)
 
     def test_ids_pruned_to_newest_500_on_save(self, tmp_path):
         ids = NotificationIds(

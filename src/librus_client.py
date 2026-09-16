@@ -47,13 +47,12 @@ from requests.cookies import RequestsCookieJar
 from requests.exceptions import JSONDecodeError as RequestsJSONDecodeError
 
 from src import librus_optimizations, scraping
-from src.config import AccountConfig, AppConfig, load_config
+from src.config import AccountConfig, AppConfig, load_config, validate_alias
 from src.notification_state import (
     clear_pending_schedule_events,
     load_notification_ids,
     load_pending_schedule_events,
     release_notification_state_lock,
-    resolve_state_dir,
     save_notification_ids,
     save_pending_schedule_events,
     try_acquire_notification_state_lock,
@@ -105,9 +104,10 @@ SCHEDULE_HREF_PATTERN = re.compile(r"^[A-Za-z0-9_-]+/[A-Za-z0-9_/-]+$")
 
 
 def _require_alias(alias: Any) -> str:
-    if not isinstance(alias, str) or not alias.strip():
-        raise ValueError("student_alias must be a non-empty string")
-    return alias
+    try:
+        return validate_alias(alias)
+    except ValueError as error:
+        raise ValueError(str(error).replace("account alias", "student_alias")) from None
 
 
 def _require_non_empty(value: Any, name: str) -> str:
@@ -246,8 +246,9 @@ class LibrusManager:
         # another child's requests. A fresh jar per client isolates sessions.
         client.cookies = RequestsCookieJar()
         try:
+            password = account.password.get_secret_value()
             token = await cls._run_upstream_call(
-                alias, client, client.get_token, account.username, account.password
+                alias, client, client.get_token, account.username, password
             )
         except MaintananceError as error:
             # No cooldown: maintenance is service-wide, not a per-account
@@ -809,7 +810,7 @@ class LibrusManager:
     async def fetch_recent_schedule_events(cls, alias: str) -> list[Any]:
         """Fetch read-once schedule events through the state transaction."""
         cls._require_account(alias)
-        state_dir = resolve_state_dir(cls._get_config().state_dir)
+        state_dir = cls._get_config().state_dir
         async with cls._notification_lock(alias):
             lock_descriptor = await cls._acquire_notification_state_lock(state_dir, alias)
             try:
@@ -846,7 +847,7 @@ class LibrusManager:
         """
         cls._require_account(alias)
         config = cls._get_config()
-        state_dir = resolve_state_dir(config.state_dir)
+        state_dir = config.state_dir
         async with cls._notification_lock(alias):
             lock_descriptor = await cls._acquire_notification_state_lock(state_dir, alias)
             try:
@@ -990,9 +991,8 @@ class LibrusManager:
         _require_message_id(message_id)
         _require_message_id(file_id, "file_id")
         config = cls._get_config()
-        download_dir = scraping.resolve_download_dir(config.download_dir)
         info = await cls._execute(
-            alias, scraping.download_attachment, message_id, file_id, download_dir
+            alias, scraping.download_attachment, message_id, file_id, config.download_dir
         )
         assert isinstance(info, dict), "download_attachment must return a dict"
         return info

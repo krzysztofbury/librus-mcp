@@ -82,7 +82,7 @@ on macOS or `%APPDATA%\Claude\claude_desktop_config.json` on Windows.
   "mcpServers": {
     "librus": {
       "command": "uvx",
-      "args": ["librus-mcp==1.2.2"],
+      "args": ["librus-mcp==1.2.3"],
       "env": {
         "LIBRUS_CONFIG": "/absolute/path/to/secrets.json"
       }
@@ -98,7 +98,7 @@ Run this once in a terminal:
 ```bash
 claude mcp add --scope user --transport stdio librus \
   -e LIBRUS_CONFIG=/absolute/path/to/secrets.json \
-  -- uvx librus-mcp==1.2.2
+  -- uvx librus-mcp==1.2.3
 ```
 
 #### Gemini CLI
@@ -108,7 +108,7 @@ Run this once in a terminal. User scope keeps school credentials out of project 
 ```bash
 gemini mcp add --scope user --transport stdio \
   -e LIBRUS_CONFIG=/absolute/path/to/secrets.json \
-  librus uvx librus-mcp==1.2.2
+  librus uvx librus-mcp==1.2.3
 ```
 
 #### OpenAI Codex CLI
@@ -118,7 +118,7 @@ Run this once in a terminal:
 ```bash
 codex mcp add librus \
   --env LIBRUS_CONFIG=/absolute/path/to/secrets.json \
-  -- uvx librus-mcp==1.2.2
+  -- uvx librus-mcp==1.2.3
 ```
 
 Never put a Librus password or `LIBRUS_ACCOUNTS` in a project-level MCP
@@ -141,6 +141,9 @@ For CLI status checks, use `claude mcp list`, `gemini mcp list`, or
   restart the AI assistant. GUI applications may require the absolute path to `uvx`.
 - **Config file does not exist:** use an absolute path, not `~`. In JSON on
   Windows, write each backslash twice, for example `C:\\Users\\...`.
+- **Credential file permissions are too open:** on macOS or Linux, run
+  `chmod 600 /absolute/path/to/secrets.json`. The server refuses files readable
+  or writable by group or other users.
 - **Aliases appear but grades fail:** verify the same parent credentials at
   [synergia.librus.pl](https://synergia.librus.pl/).
 - **Login requires a second factor:** interactive 2FA accounts are not currently supported.
@@ -157,6 +160,15 @@ Credential sources are checked in this order and are not merged:
 Invalid higher-priority configuration produces an error instead of silently
 falling back. `LIBRUS_FEATURES`, `LIBRUS_STATE_DIR`, and `LIBRUS_DOWNLOAD_DIR`
 provide separate overrides for optional tools and local storage.
+
+All `LIBRUS_*` environment variables, JSON-file values, defaults, and source
+priorities are declared and resolved in `src/config.py` with Pydantic Settings.
+The rest of the application receives one validated `AppConfig` snapshot and
+does not read configuration directly from the environment.
+
+Account aliases must be 1 to 80 printable characters with no surrounding
+whitespace. Unknown account fields are rejected. Passwords are redacted from
+validation and startup errors.
 
 For advanced environments, `LIBRUS_ACCOUNTS` accepts a JSON array directly:
 
@@ -277,7 +289,7 @@ on a filesystem that supports hard links.
 src/
   server.py              # MCP server with tool definitions and entry point
   librus_client.py       # Librus API client wrapper with caching and retry
-  config.py               # Environment and JSON-file configuration loader
+  config.py               # All operator settings, defaults, and source precedence
   notification_state.py   # Seen IDs and read-once schedule recovery spool
   scraping.py            # Own Synergia scraping: attachments, behaviour notes
 tests/                   # pytest suite with mocked librus-apix

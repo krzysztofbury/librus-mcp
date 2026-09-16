@@ -44,7 +44,10 @@ src/
    `AuthorizationError`, `TokenError` ("Brak dostępu" page), or `TokenKeyError`.
    `MaintananceError` and `ParseError` are normalized into actionable `RuntimeError`s.
 5. **Config is loaded once** and cached in `LibrusManager._config_cache`.
-   Aliases must be unique and non-blank (enforced by Pydantic validators).
+   Aliases are unique, printable, whitespace-exact, and at most 80 characters.
+   Account passwords remain `SecretStr` values until the authentication call.
+   Unknown account keys and insecure POSIX credential-file modes are rejected.
+   Expected configuration failures produce one redacted startup diagnostic.
 6. **Dataclasses are converted** to dicts via `to_dict()` for JSON-RPC serialization.
 7. **Every tool carries `ToolAnnotations`** (readOnly / destructive / idempotent /
    openWorld hints). `send_message` is destructive and uses a **two-step
@@ -59,6 +62,10 @@ src/
    `config.features` (env override: `LIBRUS_FEATURES`). `send_message` defaults off.
 9. **Notification state is persisted** per alias as JSON under `state_dir`
    (`LIBRUS_STATE_DIR` > config > `~/.librus-mcp/state`), written atomically.
+   State directories use mode `0700`; state, spool, mirror, and lock files use
+   mode `0600` on POSIX. Reads require regular files and are bounded to 4 MiB
+   before JSON parsing; pending schedule events are limited to 64 KiB each and
+   128 KiB per batch. Category size plus notification ID type and length are validated.
    Aliases that need filename sanitization get a full SHA-256 suffix so distinct
    aliases cannot share a state file. During compatibility migration, the
    8-character state mirror and lock are retained so old and new MCP processes
@@ -82,6 +89,12 @@ src/
     requests in flight, host-scoped cookies, disabled redirects, two attempts
     per request, and a 50-second resolution deadline. Received messages and
     completed lessons reuse the first response for both data and page count.
+12. **Operator configuration has one boundary.** `src/config.py` uses
+    Pydantic Settings to map every supported `LIBRUS_*` variable, merge typed
+    environment overrides over the JSON file, expand paths, and return one
+    effective `AppConfig`. Feature modules never read environment settings.
+    Implementation safety limits and file modes remain local constants and are
+    deliberately not operator-configurable.
 
 ## How to Work With This Codebase
 
@@ -144,9 +157,13 @@ Credentials are loaded by `src/config.py` in this priority order:
 2. **`LIBRUS_CONFIG` env var** — absolute path to a `secrets.json` file. Best for custom locations.
 3. **`secrets.json` in CWD** — then project root as fallback. Best for local development.
 
-The schema is defined by `AppConfig` and `AccountConfig` Pydantic models in `src/config.py`. The template is in `secrets.json.template`.
+The schema and every supported `LIBRUS_*` environment variable are defined by
+the Pydantic models in `src/config.py`. `load_config()` returns effective paths
+after defaults and environment overrides are applied. The template is in
+`secrets.json.template`.
 
-**Never commit `secrets.json`.** It contains plaintext Librus credentials.
+**Never commit `secrets.json`.** It contains plaintext Librus credentials. On
+POSIX systems it must not grant any group or other permissions; use `chmod 600`.
 
 ## Testing
 

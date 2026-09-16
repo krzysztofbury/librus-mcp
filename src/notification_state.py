@@ -10,6 +10,7 @@ import hashlib
 import json
 import os
 import re
+import stat
 import sys
 from itertools import islice
 from pathlib import Path
@@ -37,16 +38,13 @@ MAX_SAVED_IDS_PER_CATEGORY = 500
 MAX_STATE_ALIAS_PREFIX_LENGTH = 80
 MAX_LEGACY_FILENAME_LENGTH = 190
 MAX_PENDING_SCHEDULE_EVENTS = 500
+MAX_PENDING_SCHEDULE_EVENT_BYTES = 64 * 1024
+MAX_PENDING_SCHEDULE_BATCH_BYTES = 128 * 1024
+MAX_NOTIFICATION_ID_LENGTH = 1024
+MAX_NOTIFICATION_STATE_FILE_BYTES = 4 * 1024 * 1024
+STATE_DIRECTORY_MODE = 0o700
+STATE_FILE_MODE = 0o600
 SCHEDULE_EVENT_FIELDS = ("date_added", "type", "data")
-
-
-def resolve_state_dir(config_state_dir: str | None) -> Path:
-    """Resolve state dir. Priority: LIBRUS_STATE_DIR env > config > default."""
-    if "LIBRUS_STATE_DIR" in os.environ:
-        return Path(os.environ["LIBRUS_STATE_DIR"]).expanduser()
-    if config_state_dir:
-        return Path(config_state_dir).expanduser()
-    return Path.home() / ".librus-mcp" / "state"
 
 
 def _state_path(state_dir: Path, alias: str) -> Path:
@@ -76,16 +74,93 @@ def _legacy_state_path(state_dir: Path, alias: str) -> Path | None:
 
 
 def _atomic_publish(path: Path, payload: bytes) -> None:
+    _ensure_state_directory(path.parent)
     tmp_path = path.with_name(f"{path.name}.{os.getpid()}.{uuid4().hex}.tmp")
+    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0)
+    descriptor = os.open(tmp_path, flags, STATE_FILE_MODE)
     try:
-        with tmp_path.open("wb") as temporary_file:
+        if os.name == "posix":
+            os.fchmod(descriptor, STATE_FILE_MODE)
+        temporary_file = os.fdopen(descriptor, "wb")
+        descriptor = -1
+        with temporary_file:
             temporary_file.write(payload)
             temporary_file.flush()
             os.fsync(temporary_file.fileno())
         os.replace(tmp_path, path)
         _fsync_directory(path.parent)
     finally:
+        if descriptor >= 0:
+            os.close(descriptor)
         tmp_path.unlink(missing_ok=True)
+
+
+def _ensure_state_directory(path: Path) -> None:
+    if os.name != "posix":
+        path.mkdir(parents=True, exist_ok=True)
+        return
+    created = False
+    try:
+        path.mkdir(parents=True, mode=STATE_DIRECTORY_MODE)
+        created = True
+    except FileExistsError:
+        pass
+    if path.is_symlink():
+        raise ValueError(f"notification state directory must not be a symlink: {path}")
+    if created:
+        os.chmod(path, STATE_DIRECTORY_MODE, follow_symlinks=False)
+    flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0)
+    descriptor = os.open(path, flags)
+    try:
+        status = os.fstat(descriptor)
+        if not stat.S_ISDIR(status.st_mode):
+            raise ValueError(f"notification state path must be a directory: {path}")
+        if created:
+            os.fchmod(descriptor, STATE_DIRECTORY_MODE)
+        elif stat.S_IMODE(status.st_mode) != STATE_DIRECTORY_MODE:
+            raise PermissionError(
+                f"notification state directory {path} must use mode 0700; run: chmod 700 {path}"
+            )
+    finally:
+        os.close(descriptor)
+
+
+def _read_bounded_bytes(path: Path, max_bytes: int = MAX_NOTIFICATION_STATE_FILE_BYTES) -> bytes:
+    flags = os.O_RDONLY | getattr(os, "O_NONBLOCK", 0) | getattr(os, "O_NOFOLLOW", 0)
+    try:
+        descriptor = os.open(path, flags)
+    except OSError as error:
+        if error.errno == errno.ELOOP:
+            raise ValueError(f"notification state at {path} must be a regular file") from None
+        raise
+    try:
+        if not stat.S_ISREG(os.fstat(descriptor).st_mode):
+            raise ValueError(f"notification state at {path} must be a regular file")
+        with os.fdopen(descriptor, "rb") as file:
+            descriptor = -1
+            payload = file.read(max_bytes + 1)
+    finally:
+        if descriptor >= 0:
+            os.close(descriptor)
+    if len(payload) > max_bytes:
+        raise ValueError(f"notification state at {path} is too large (maximum {max_bytes} bytes)")
+    return payload
+
+
+def _validate_id_category(category: object, key: str) -> list[str]:
+    if not isinstance(category, list):
+        raise TypeError(f"ids.{key} must be a list")
+    if len(category) > MAX_IDS_PER_CATEGORY:
+        raise ValueError(f"ids.{key} is unexpectedly large")
+    for notification_id in category:
+        if not isinstance(notification_id, str):
+            raise TypeError(f"ids.{key} contains a non-string notification ID")
+        if not notification_id or len(notification_id) > MAX_NOTIFICATION_ID_LENGTH:
+            raise ValueError(
+                f"ids.{key} contains a notification ID outside the 1 to "
+                f"{MAX_NOTIFICATION_ID_LENGTH} character limit"
+            )
+    return category
 
 
 def _fsync_directory(path: Path) -> None:
@@ -123,11 +198,20 @@ def _pending_schedule_path(state_dir: Path, alias: str, event: RecentEvent) -> P
 def save_pending_schedule_events(state_dir: Path, alias: str, events: list[RecentEvent]) -> None:
     """Checkpoint read-once schedule events as independent atomic spool files."""
     state_dir = Path(state_dir)
-    state_dir.mkdir(parents=True, exist_ok=True)
+    _ensure_state_directory(state_dir)
+    encoded_events: list[tuple[RecentEvent, bytes]] = []
+    batch_size_bytes = 0
     for event in events:
         payload = json.dumps(
             _schedule_event_payload(event), ensure_ascii=False, sort_keys=True
         ).encode("utf-8")
+        if len(payload) > MAX_PENDING_SCHEDULE_EVENT_BYTES:
+            raise ValueError("pending schedule event is too large to checkpoint safely")
+        batch_size_bytes += len(payload)
+        if batch_size_bytes > MAX_PENDING_SCHEDULE_BATCH_BYTES:
+            raise ValueError("pending schedule event batch is too large to checkpoint safely")
+        encoded_events.append((event, payload))
+    for event, payload in encoded_events:
         _atomic_publish(_pending_schedule_path(state_dir, alias, event), payload)
 
 
@@ -139,10 +223,17 @@ def load_pending_schedule_events(state_dir: Path, alias: str) -> list[RecentEven
         state_dir.glob(f"{state_name}.pending-schedule.*.json"), MAX_PENDING_SCHEDULE_EVENTS
     )
     events: list[RecentEvent] = []
+    batch_size_bytes = 0
     for path in paths:
+        encoded_payload = _read_bounded_bytes(path, MAX_PENDING_SCHEDULE_EVENT_BYTES)
+        next_batch_size_bytes = batch_size_bytes + len(encoded_payload)
+        if next_batch_size_bytes > MAX_PENDING_SCHEDULE_BATCH_BYTES:
+            assert events, "one pending schedule event must fit within the batch limit"
+            break
+        batch_size_bytes = next_batch_size_bytes
         try:
-            payload = json.loads(path.read_text(encoding="utf-8"))
-        except json.JSONDecodeError as error:
+            payload = json.loads(encoded_payload)
+        except (json.JSONDecodeError, UnicodeDecodeError) as error:
             raise ValueError(f"corrupt pending schedule event at {path}") from error
         if not isinstance(payload, dict) or set(payload) != set(SCHEDULE_EVENT_FIELDS):
             raise ValueError(f"unexpected pending schedule event schema at {path}")
@@ -184,10 +275,16 @@ def _migrate_legacy_state_path(state_dir: Path, alias: str) -> Path:
     if legacy_path is None or not legacy_path.exists():
         return path
     try:
-        legacy_payload = legacy_path.read_bytes()
+        legacy_payload = _read_bounded_bytes(legacy_path)
     except FileNotFoundError:
         return path
-    if not path.exists() or path.read_bytes() != legacy_payload:
+    current_payload = None
+    if path.exists():
+        try:
+            current_payload = _read_bounded_bytes(path)
+        except ValueError:
+            pass
+    if current_payload != legacy_payload:
         # Keep the legacy file as a compatibility mirror. New processes lock
         # it too, so an older process can safely update state during rollout.
         _atomic_publish(path, legacy_payload)
@@ -202,11 +299,13 @@ def try_acquire_notification_state_lock(state_dir: Path, alias: str) -> int | No
     """
     state_dir = Path(state_dir)
     state_path = _legacy_state_path(state_dir, alias) or _state_path(state_dir, alias)
-    state_path.parent.mkdir(parents=True, exist_ok=True)
+    _ensure_state_directory(state_path.parent)
     lock_path = state_path.with_name(f"{state_path.name}.lock")
     flags = os.O_CREAT | os.O_RDWR | getattr(os, "O_NOFOLLOW", 0)
     descriptor = os.open(lock_path, flags, 0o600)
     try:
+        if os.name == "posix":
+            os.fchmod(descriptor, STATE_FILE_MODE)
         if _try_lock_descriptor(descriptor):
             return descriptor
     except Exception:
@@ -256,21 +355,33 @@ def load_notification_ids(state_dir: Path, alias: str) -> NotificationIds | None
     missing or unusable (corrupt JSON, wrong schema) — callers then rebuild the
     baseline. Filesystem errors propagate: masking them as 'first run' would
     silently re-report every notification."""
-    path = _migrate_legacy_state_path(Path(state_dir), alias)
+    try:
+        path = _migrate_legacy_state_path(Path(state_dir), alias)
+    except (TypeError, ValueError) as error:
+        print(f"librus-mcp: {error}, rebuilding", file=sys.stderr)
+        return None
     if not path.exists():
         return None
     try:
-        data = json.loads(path.read_text(encoding="utf-8"))
-    except json.JSONDecodeError:
+        data = json.loads(_read_bounded_bytes(path))
+    except json.JSONDecodeError, UnicodeDecodeError:
         print(f"librus-mcp: corrupt notification state at {path}, rebuilding", file=sys.stderr)
+        return None
+    except ValueError as error:
+        print(f"librus-mcp: {error}, rebuilding", file=sys.stderr)
         return None
     if not isinstance(data, dict) or set(data.keys()) != set(CATEGORY_KEYS):
         print(f"librus-mcp: unexpected notification state schema at {path}", file=sys.stderr)
         return None
-    for key in CATEGORY_KEYS:
-        if not isinstance(data[key], list):
-            print(f"librus-mcp: unexpected notification state schema at {path}", file=sys.stderr)
-            return None
+    try:
+        for key in CATEGORY_KEYS:
+            _validate_id_category(data[key], key)
+    except (TypeError, ValueError) as error:
+        print(
+            f"librus-mcp: unexpected notification state schema at {path}: {error}",
+            file=sys.stderr,
+        )
+        return None
     return NotificationIds(**data)
 
 
@@ -279,17 +390,17 @@ def save_notification_ids(state_dir: Path, alias: str, ids: NotificationIds) -> 
     call so concurrent writers cannot interleave bytes in a shared temp file;
     last rename wins. Each category is pruned to its newest tail."""
     assert isinstance(ids, NotificationIds), "ids must be a NotificationIds instance"
-    payload: dict[str, list] = {}
+    payload: dict[str, list[str]] = {}
     for key in CATEGORY_KEYS:
-        category = getattr(ids, key)
-        assert isinstance(category, list), f"ids.{key} must be a list"
-        assert len(category) <= MAX_IDS_PER_CATEGORY, f"ids.{key} unexpectedly large"
+        category = _validate_id_category(getattr(ids, key), key)
         payload[key] = category[-MAX_SAVED_IDS_PER_CATEGORY:]
     assert set(payload.keys()) == set(CATEGORY_KEYS), "payload must cover all categories"
     state_dir = Path(state_dir)
     path = _state_path(state_dir, alias)
-    path.parent.mkdir(parents=True, exist_ok=True)
+    _ensure_state_directory(path.parent)
     encoded_payload = json.dumps(payload).encode("utf-8")
+    if len(encoded_payload) > MAX_NOTIFICATION_STATE_FILE_BYTES:
+        raise ValueError("notification state payload is too large to persist safely")
     legacy_path = _legacy_state_path(state_dir, alias)
     if legacy_path is not None:
         _atomic_publish(legacy_path, encoded_payload)
