@@ -77,7 +77,7 @@ The v1.2.2 baseline produced this evidence:
   diagnostic-only changes, exception substitutions on race paths, or branches
   for the non-host Windows locking implementation.
 
-The v1.2.3 safety campaigns additionally killed 77 of 100 selected configuration
+The v1.2.3 safety campaigns additionally killed 113 of 150 selected configuration
 mutants and 157 of 224 selected local-state mutants. Surviving mutations were
 manually triaged as equivalent comparisons, descriptor edge cases unavailable to
 normal process startup, race-only exception substitutions, or non-host platform

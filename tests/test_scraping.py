@@ -442,21 +442,6 @@ class TestDownloadAttachment:
         assert info["filename"] == "raport (1).pdf"
 
 
-class TestResolveDownloadDir:
-    def test_tilde_is_expanded(self, monkeypatch):
-        from src.scraping import resolve_download_dir
-
-        monkeypatch.delenv("LIBRUS_DOWNLOAD_DIR", raising=False)
-        result = resolve_download_dir("~/custom_downloads")
-        assert "~" not in str(result)
-
-    def test_env_var_wins(self, tmp_path, monkeypatch):
-        from src.scraping import resolve_download_dir
-
-        monkeypatch.setenv("LIBRUS_DOWNLOAD_DIR", str(tmp_path / "env_dl"))
-        assert resolve_download_dir("/other") == tmp_path / "env_dl"
-
-
 class TestSingleHtmlParse:
     def test_attachment_page_is_parsed_once(self, monkeypatch):
         from src import scraping

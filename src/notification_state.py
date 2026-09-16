@@ -47,15 +47,6 @@ STATE_FILE_MODE = 0o600
 SCHEDULE_EVENT_FIELDS = ("date_added", "type", "data")
 
 
-def resolve_state_dir(config_state_dir: str | None) -> Path:
-    """Resolve state dir. Priority: LIBRUS_STATE_DIR env > config > default."""
-    if "LIBRUS_STATE_DIR" in os.environ:
-        return Path(os.environ["LIBRUS_STATE_DIR"]).expanduser()
-    if config_state_dir:
-        return Path(config_state_dir).expanduser()
-    return Path.home() / ".librus-mcp" / "state"
-
-
 def _state_path(state_dir: Path, alias: str) -> Path:
     assert alias, "alias must not be empty"
     assert isinstance(alias, str), "alias must be a string"

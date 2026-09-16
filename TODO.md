@@ -51,6 +51,8 @@ can be delivered independently. Suggested versions assume the current release is
 - [x] Bound notification state file size, list length, ID type, and ID length before parsing.
 - [x] Normalize or reject surrounding alias whitespace, bound alias length, and
   reject unknown `AccountConfig` keys.
+- [x] Centralize all operator-facing environment variables, defaults, and source
+  precedence in `config.py`; pass effective paths to feature modules.
 
 ### Input And Response Bounds
 

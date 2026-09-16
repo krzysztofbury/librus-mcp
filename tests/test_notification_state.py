@@ -25,7 +25,6 @@ from src.notification_state import (
     clear_pending_schedule_events,
     load_notification_ids,
     load_pending_schedule_events,
-    resolve_state_dir,
     save_notification_ids,
     save_pending_schedule_events,
     schedule_event_id,
@@ -563,30 +562,6 @@ class TestPendingScheduleEvents:
 
         with pytest.raises(ValueError, match="digest mismatch"):
             load_pending_schedule_events(tmp_path, "primary")
-
-
-class TestResolveStateDir:
-    def test_env_var_wins(self, tmp_path, monkeypatch):
-        monkeypatch.setenv("LIBRUS_STATE_DIR", str(tmp_path / "env_state"))
-        result = resolve_state_dir(str(tmp_path / "config_state"))
-        assert result == tmp_path / "env_state"
-
-    def test_config_value_used_when_no_env(self, tmp_path, monkeypatch):
-        monkeypatch.delenv("LIBRUS_STATE_DIR", raising=False)
-        result = resolve_state_dir(str(tmp_path / "config_state"))
-        assert result == tmp_path / "config_state"
-
-    def test_default_when_nothing_set(self, monkeypatch):
-        monkeypatch.delenv("LIBRUS_STATE_DIR", raising=False)
-        result = resolve_state_dir(None)
-        assert result.name == "state"
-        assert ".librus-mcp" in str(result)
-
-    def test_tilde_in_config_value_is_expanded(self, monkeypatch):
-        monkeypatch.delenv("LIBRUS_STATE_DIR", raising=False)
-        result = resolve_state_dir("~/custom_state")
-        assert "~" not in str(result)
-        assert str(result).startswith("/")
 
 
 class TestProcessStateLock:

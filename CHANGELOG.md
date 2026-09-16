@@ -22,6 +22,9 @@ All notable changes to this project will be documented in this file.
 - Reject account aliases with surrounding whitespace, control characters, or more
   than 80 characters. Unknown account fields are now configuration errors instead
   of being silently ignored.
+- Centralize every `LIBRUS_*` environment variable, default, path expansion, and
+  source-priority rule in `src/config.py` using Pydantic Settings. Feature modules
+  now consume one validated `AppConfig` instead of reading the environment.
 
 ### Testing
 

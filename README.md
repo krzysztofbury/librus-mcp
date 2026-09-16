@@ -161,6 +161,11 @@ Invalid higher-priority configuration produces an error instead of silently
 falling back. `LIBRUS_FEATURES`, `LIBRUS_STATE_DIR`, and `LIBRUS_DOWNLOAD_DIR`
 provide separate overrides for optional tools and local storage.
 
+All `LIBRUS_*` environment variables, JSON-file values, defaults, and source
+priorities are declared and resolved in `src/config.py` with Pydantic Settings.
+The rest of the application receives one validated `AppConfig` snapshot and
+does not read configuration directly from the environment.
+
 Account aliases must be 1 to 80 printable characters with no surrounding
 whitespace. Unknown account fields are rejected. Passwords are redacted from
 validation and startup errors.
@@ -284,7 +289,7 @@ on a filesystem that supports hard links.
 src/
   server.py              # MCP server with tool definitions and entry point
   librus_client.py       # Librus API client wrapper with caching and retry
-  config.py               # Environment and JSON-file configuration loader
+  config.py               # All operator settings, defaults, and source precedence
   notification_state.py   # Seen IDs and read-once schedule recovery spool
   scraping.py            # Own Synergia scraping: attachments, behaviour notes
 tests/                   # pytest suite with mocked librus-apix

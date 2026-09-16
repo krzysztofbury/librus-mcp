@@ -53,7 +53,6 @@ from src.notification_state import (
     load_notification_ids,
     load_pending_schedule_events,
     release_notification_state_lock,
-    resolve_state_dir,
     save_notification_ids,
     save_pending_schedule_events,
     try_acquire_notification_state_lock,
@@ -811,7 +810,7 @@ class LibrusManager:
     async def fetch_recent_schedule_events(cls, alias: str) -> list[Any]:
         """Fetch read-once schedule events through the state transaction."""
         cls._require_account(alias)
-        state_dir = resolve_state_dir(cls._get_config().state_dir)
+        state_dir = cls._get_config().state_dir
         async with cls._notification_lock(alias):
             lock_descriptor = await cls._acquire_notification_state_lock(state_dir, alias)
             try:
@@ -848,7 +847,7 @@ class LibrusManager:
         """
         cls._require_account(alias)
         config = cls._get_config()
-        state_dir = resolve_state_dir(config.state_dir)
+        state_dir = config.state_dir
         async with cls._notification_lock(alias):
             lock_descriptor = await cls._acquire_notification_state_lock(state_dir, alias)
             try:
@@ -992,9 +991,8 @@ class LibrusManager:
         _require_message_id(message_id)
         _require_message_id(file_id, "file_id")
         config = cls._get_config()
-        download_dir = scraping.resolve_download_dir(config.download_dir)
         info = await cls._execute(
-            alias, scraping.download_attachment, message_id, file_id, download_dir
+            alias, scraping.download_attachment, message_id, file_id, config.download_dir
         )
         assert isinstance(info, dict), "download_attachment must return a dict"
         return info

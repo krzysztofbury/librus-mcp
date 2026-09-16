@@ -68,15 +68,6 @@ class BehaviourNote:
     content: str
 
 
-def resolve_download_dir(config_download_dir: str | None) -> Path:
-    """Resolve download dir. Priority: LIBRUS_DOWNLOAD_DIR env > config > default."""
-    if "LIBRUS_DOWNLOAD_DIR" in os.environ:
-        return Path(os.environ["LIBRUS_DOWNLOAD_DIR"]).expanduser()
-    if config_download_dir:
-        return Path(config_download_dir).expanduser()
-    return Path.home() / ".librus-mcp" / "downloads"
-
-
 def parse_attachments(html: str) -> list[Attachment]:
     """Extract attachment entries from a message detail page."""
     assert html, "html must not be empty"

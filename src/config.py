@@ -2,6 +2,7 @@ import json
 import os
 import stat
 import sys
+from pathlib import Path
 from typing import Any, BinaryIO
 
 from pydantic import (
@@ -12,6 +13,8 @@ from pydantic import (
     ValidationError,
     field_validator,
 )
+from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings.exceptions import SettingsError
 
 MAX_ALIAS_LENGTH = 80
 MAX_CONFIG_FILE_BYTES = 1024 * 1024
@@ -20,6 +23,14 @@ ALIAS_PATTERN = r"^(?:[^\s\p{C}]|[^\s\p{C}](?:[^\s\p{C}]| )*[^\s\p{C}])$"
 
 class ConfigError(ValueError):
     """A redacted, actionable configuration error safe to show at startup."""
+
+
+def _default_state_dir() -> Path:
+    return Path.home() / ".librus-mcp" / "state"
+
+
+def _default_download_dir() -> Path:
+    return Path.home() / ".librus-mcp" / "downloads"
 
 
 def validate_alias(value: object) -> str:
@@ -39,6 +50,18 @@ def _validation_summary(error: ValidationError) -> str:
     for item in error.errors(include_url=False, include_context=False, include_input=False):
         location = ".".join(str(part) for part in item["loc"])
         details.append(f"{location}: {item['msg']}" if location else item["msg"])
+    return "; ".join(details)
+
+
+def _environment_validation_summary(error: ValidationError) -> str:
+    details: list[str] = []
+    for item in error.errors(include_url=False, include_context=False, include_input=False):
+        location = list(item["loc"])
+        if location and location[0] in EnvironmentSettings.model_fields:
+            field = EnvironmentSettings.model_fields[str(location[0])]
+            location[0] = field.validation_alias or location[0]
+        field = ".".join(str(part) for part in location)
+        details.append(f"{field}: {item['msg']}" if field else item["msg"])
     return "; ".join(details)
 
 
@@ -95,8 +118,23 @@ class AppConfig(BaseModel):
 
     accounts: list[AccountConfig]
     features: FeaturesConfig = Field(default_factory=FeaturesConfig)
-    state_dir: str | None = None
-    download_dir: str | None = None
+    state_dir: Path = Field(default_factory=_default_state_dir)
+    download_dir: Path = Field(default_factory=_default_download_dir)
+
+    @field_validator("state_dir", mode="before")
+    @classmethod
+    def _default_state_path(cls, value: object) -> object:
+        return _default_state_dir() if value is None or value == "" else value
+
+    @field_validator("download_dir", mode="before")
+    @classmethod
+    def _default_download_path(cls, value: object) -> object:
+        return _default_download_dir() if value is None or value == "" else value
+
+    @field_validator("state_dir", "download_dir")
+    @classmethod
+    def _expand_path(cls, value: Path) -> Path:
+        return value.expanduser()
 
     @field_validator("accounts")
     @classmethod
@@ -113,49 +151,65 @@ class AppConfig(BaseModel):
         return accounts
 
 
-def _load_from_env_accounts() -> AppConfig:
-    """Parse LIBRUS_ACCOUNTS env var: a JSON array of account objects."""
-    raw = os.environ["LIBRUS_ACCOUNTS"]
-    try:
-        accounts = json.loads(raw)
-    except json.JSONDecodeError:
-        raise ConfigError("LIBRUS_ACCOUNTS contains invalid JSON") from None
-    if not isinstance(accounts, list):
-        raise ConfigError("LIBRUS_ACCOUNTS must be a JSON array")
-    if len(accounts) == 0:
-        raise ConfigError("LIBRUS_ACCOUNTS must contain at least one account")
-    return _validated_config({"accounts": accounts}, "LIBRUS_ACCOUNTS")
+class EnvironmentSettings(BaseSettings):
+    """Typed operator overrides from LIBRUS_* environment variables."""
+
+    model_config = SettingsConfigDict(
+        case_sensitive=True,
+        extra="ignore",
+        hide_input_in_errors=True,
+    )
+
+    accounts: list[AccountConfig] | None = Field(None, validation_alias="LIBRUS_ACCOUNTS")
+    config_path: Path | None = Field(None, validation_alias="LIBRUS_CONFIG")
+    features: dict[str, Any] | None = Field(None, validation_alias="LIBRUS_FEATURES")
+    state_dir: Path | None = Field(None, validation_alias="LIBRUS_STATE_DIR")
+    download_dir: Path | None = Field(None, validation_alias="LIBRUS_DOWNLOAD_DIR")
 
 
-def _apply_features_env(config: AppConfig) -> AppConfig:
-    """Overlay LIBRUS_FEATURES env var (JSON object) on top of configured features."""
-    if "LIBRUS_FEATURES" not in os.environ:
-        return config
-    raw = os.environ["LIBRUS_FEATURES"]
+def _load_environment_settings() -> EnvironmentSettings:
     try:
-        overrides = json.loads(raw)
-    except json.JSONDecodeError:
-        raise ConfigError("LIBRUS_FEATURES contains invalid JSON") from None
-    if not isinstance(overrides, dict):
-        raise ConfigError("LIBRUS_FEATURES must be a JSON object")
-    unknown_keys = set(overrides) - set(FeaturesConfig.model_fields)
-    if unknown_keys:
-        raise ConfigError(
-            f"LIBRUS_FEATURES contains unknown keys: {sorted(unknown_keys)}. "
-            f"Valid keys: {sorted(FeaturesConfig.model_fields)}"
-        )
-    merged = config.features.model_dump() | overrides
-    try:
-        config.features = FeaturesConfig(**merged)
+        settings = EnvironmentSettings()
+    except SettingsError as error:
+        message = str(error)
+        source = "LIBRUS environment variable"
+        for field in ("accounts", "features"):
+            if f'field "{field}"' in message:
+                source = f"LIBRUS_{field.upper()}"
+                break
+        raise ConfigError(f"{source} contains invalid JSON") from None
     except ValidationError as error:
-        raise ConfigError(f"invalid LIBRUS_FEATURES: {_validation_summary(error)}") from None
-    return config
+        raise ConfigError(
+            f"invalid environment: {_environment_validation_summary(error)}"
+        ) from None
+    if "LIBRUS_ACCOUNTS" in os.environ and settings.accounts is None:
+        raise ConfigError("LIBRUS_ACCOUNTS must be a JSON array, not null")
+    if "LIBRUS_FEATURES" in os.environ and settings.features is None:
+        raise ConfigError("LIBRUS_FEATURES must be a JSON object, not null")
+    return settings
 
 
-def _resolve_config_path() -> str:
+def _apply_environment_settings(config: AppConfig, settings: EnvironmentSettings) -> AppConfig:
+    data = config.model_dump()
+    if settings.features is not None:
+        unknown_keys = set(settings.features) - set(FeaturesConfig.model_fields)
+        if unknown_keys:
+            raise ConfigError(
+                f"LIBRUS_FEATURES contains unknown keys: {sorted(unknown_keys)}. "
+                f"Valid keys: {sorted(FeaturesConfig.model_fields)}"
+            )
+        data["features"] = config.features.model_dump() | settings.features
+    if settings.state_dir is not None:
+        data["state_dir"] = settings.state_dir
+    if settings.download_dir is not None:
+        data["download_dir"] = settings.download_dir
+    return _validated_config(data, "configuration")
+
+
+def _resolve_config_path(config_path: Path | None) -> str:
     """Find secrets.json: LIBRUS_CONFIG env var, then CWD, then project root."""
-    if "LIBRUS_CONFIG" in os.environ:
-        path = os.environ["LIBRUS_CONFIG"]
+    if config_path is not None:
+        path = str(config_path.expanduser())
         if not os.path.exists(path):
             raise ConfigError(f"LIBRUS_CONFIG points to {path!r}, which does not exist")
         return path
@@ -227,12 +281,14 @@ def _load_from_file(path: str) -> AppConfig:
 
 def load_config() -> AppConfig:
     """Load config from env var or file. Priority: LIBRUS_ACCOUNTS > LIBRUS_CONFIG > file.
-    LIBRUS_FEATURES (JSON object) overrides the features section from any source."""
-    if "LIBRUS_ACCOUNTS" in os.environ:
-        return _apply_features_env(_load_from_env_accounts())
-    path = _resolve_config_path()
-    config = _apply_features_env(_load_from_file(path))
+    Other LIBRUS_* settings override their matching file values."""
+    settings = _load_environment_settings()
+    if settings.accounts is not None:
+        config = _validated_config({"accounts": settings.accounts}, "LIBRUS_ACCOUNTS")
+        return _apply_environment_settings(config, settings)
+    path = _resolve_config_path(settings.config_path)
+    config = _load_from_file(path)
     # stderr, never stdout (MCP transport). Lets the operator spot a surprise
     # secrets.json picked up from an unexpected working directory.
     print(f"librus-mcp: loading credentials from {path!r}", file=sys.stderr)
-    return config
+    return _apply_environment_settings(config, settings)

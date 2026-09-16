@@ -8,7 +8,7 @@ excluded-modules = []
 name = "local"
 
 [cosmic-ray.filters.line-filter.lines]
-"src/config.py" = ["11-79", "93-127", "181-238"]
+"src/config.py" = ["14-107", "116-225", "235-294"]
 
 [cosmic-ray.filters.operators-filter]
 exclude-operators = [

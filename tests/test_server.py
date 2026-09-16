@@ -70,7 +70,7 @@ class TestServerInfo:
         assert captured.out == ""
         assert len(captured.err.splitlines()) == 1
         assert "configuration error" in captured.err
-        assert "accounts.0.alias" in captured.err
+        assert "LIBRUS_ACCOUNTS.0.alias" in captured.err
         assert marker not in captured.err
         assert "Traceback" not in captured.err
         run.assert_not_called()

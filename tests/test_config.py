@@ -2,6 +2,7 @@
 
 import json
 import os
+from pathlib import Path
 
 import pytest
 from pydantic import SecretStr, ValidationError
@@ -46,10 +47,19 @@ class TestFeaturesConfig:
         # Unspecified keys keep defaults.
         assert config.features.attachments is True
 
-    def test_state_dir_and_download_dir_default_none(self):
+    def test_state_dir_and_download_dir_have_expanded_defaults(self):
         config = AppConfig(accounts=[{"alias": "a", "username": "u", "password": "p"}])
-        assert config.state_dir is None
-        assert config.download_dir is None
+        assert config.state_dir == Path.home() / ".librus-mcp" / "state"
+        assert config.download_dir == Path.home() / ".librus-mcp" / "downloads"
+
+    def test_explicit_null_paths_use_defaults(self):
+        config = AppConfig(
+            accounts=[{"alias": "a", "username": "u", "password": "p"}],
+            state_dir=None,
+            download_dir=None,
+        )
+        assert config.state_dir == Path.home() / ".librus-mcp" / "state"
+        assert config.download_dir == Path.home() / ".librus-mcp" / "downloads"
 
 
 class TestAccountValidation:
@@ -130,9 +140,49 @@ class TestAccountValidation:
 
 
 class TestLoadConfigFeatures:
+    def test_null_env_accounts_does_not_fall_back_to_file(self, tmp_path, monkeypatch):
+        secrets = tmp_path / "secrets.json"
+        _write_secure_config(
+            secrets,
+            {"accounts": [{"alias": "file", "username": "u", "password": "p"}]},
+        )
+        monkeypatch.setenv("LIBRUS_CONFIG", str(secrets))
+        monkeypatch.setenv("LIBRUS_ACCOUNTS", "null")
+
+        with pytest.raises(ConfigError, match="LIBRUS_ACCOUNTS.*not null"):
+            load_config()
+
+    def test_null_env_features_is_rejected(self, monkeypatch):
+        monkeypatch.setenv(
+            "LIBRUS_ACCOUNTS",
+            json.dumps([{"alias": "a", "username": "u", "password": "p"}]),
+        )
+        monkeypatch.setenv("LIBRUS_FEATURES", "null")
+
+        with pytest.raises(ConfigError, match="LIBRUS_FEATURES.*not null"):
+            load_config()
+
+    @pytest.mark.skipif(
+        os.name != "posix", reason="environment names are case-insensitive on Windows"
+    )
+    def test_lowercase_environment_name_is_ignored(self, tmp_path, monkeypatch):
+        secrets = tmp_path / "secrets.json"
+        _write_secure_config(
+            secrets,
+            {"accounts": [{"alias": "file", "username": "u", "password": "p"}]},
+        )
+        monkeypatch.delenv("LIBRUS_ACCOUNTS", raising=False)
+        monkeypatch.setenv("LIBRUS_CONFIG", str(secrets))
+        monkeypatch.setenv(
+            "librus_accounts",
+            json.dumps([{"alias": "lowercase", "username": "u", "password": "p"}]),
+        )
+
+        assert load_config().accounts[0].alias == "file"
+
     def test_env_accounts_wrong_type_raises_config_error(self, monkeypatch):
         monkeypatch.setenv("LIBRUS_ACCOUNTS", "{}")
-        with pytest.raises(ConfigError, match="JSON array"):
+        with pytest.raises(ConfigError, match="LIBRUS_ACCOUNTS.*valid list"):
             load_config()
 
     def test_env_accounts_with_features_env(self, monkeypatch):
@@ -160,7 +210,7 @@ class TestLoadConfigFeatures:
             json.dumps([{"alias": "a", "username": "u", "password": "p"}]),
         )
         monkeypatch.setenv("LIBRUS_FEATURES", "[]")
-        with pytest.raises(ConfigError, match="JSON object"):
+        with pytest.raises(ConfigError, match="LIBRUS_FEATURES.*valid dictionary"):
             load_config()
 
     def test_file_config_with_features(self, tmp_path, monkeypatch):
@@ -177,7 +227,80 @@ class TestLoadConfigFeatures:
         monkeypatch.setenv("LIBRUS_CONFIG", str(secrets))
         config = load_config()
         assert config.features.send_message is True
-        assert config.state_dir == str(tmp_path / "state")
+        assert config.state_dir == tmp_path / "state"
+
+    def test_file_config_accepts_template_null_paths(self, tmp_path, monkeypatch):
+        monkeypatch.delenv("LIBRUS_ACCOUNTS", raising=False)
+        secrets = tmp_path / "secrets.json"
+        _write_secure_config(
+            secrets,
+            {
+                "accounts": [{"alias": "a", "username": "u", "password": "p"}],
+                "state_dir": None,
+                "download_dir": None,
+            },
+        )
+        monkeypatch.setenv("LIBRUS_CONFIG", str(secrets))
+
+        config = load_config()
+
+        assert config.state_dir == Path.home() / ".librus-mcp" / "state"
+        assert config.download_dir == Path.home() / ".librus-mcp" / "downloads"
+
+    def test_file_config_empty_paths_keep_legacy_defaults(self, tmp_path, monkeypatch):
+        monkeypatch.delenv("LIBRUS_ACCOUNTS", raising=False)
+        secrets = tmp_path / "secrets.json"
+        _write_secure_config(
+            secrets,
+            {
+                "accounts": [{"alias": "a", "username": "u", "password": "p"}],
+                "state_dir": "",
+                "download_dir": "",
+            },
+        )
+        monkeypatch.setenv("LIBRUS_CONFIG", str(secrets))
+
+        config = load_config()
+
+        assert config.state_dir == Path.home() / ".librus-mcp" / "state"
+        assert config.download_dir == Path.home() / ".librus-mcp" / "downloads"
+
+    def test_environment_paths_and_features_override_file_config(self, tmp_path, monkeypatch):
+        monkeypatch.delenv("LIBRUS_ACCOUNTS", raising=False)
+        secrets = tmp_path / "secrets.json"
+        _write_secure_config(
+            secrets,
+            {
+                "accounts": [{"alias": "a", "username": "u", "password": "p"}],
+                "features": {"send_message": True},
+                "state_dir": str(tmp_path / "file-state"),
+                "download_dir": str(tmp_path / "file-downloads"),
+            },
+        )
+        monkeypatch.setenv("LIBRUS_CONFIG", str(secrets))
+        monkeypatch.setenv("LIBRUS_STATE_DIR", str(tmp_path / "env-state"))
+        monkeypatch.setenv("LIBRUS_DOWNLOAD_DIR", str(tmp_path / "env-downloads"))
+        monkeypatch.setenv("LIBRUS_FEATURES", '{"attachments": false}')
+
+        config = load_config()
+
+        assert config.state_dir == tmp_path / "env-state"
+        assert config.download_dir == tmp_path / "env-downloads"
+        assert config.features.attachments is False
+        assert config.features.send_message is True
+
+    def test_config_paths_expand_home(self, monkeypatch):
+        monkeypatch.setenv(
+            "LIBRUS_ACCOUNTS",
+            json.dumps([{"alias": "a", "username": "u", "password": "p"}]),
+        )
+        monkeypatch.setenv("LIBRUS_STATE_DIR", "~/custom-state")
+        monkeypatch.setenv("LIBRUS_DOWNLOAD_DIR", "~/custom-downloads")
+
+        config = load_config()
+
+        assert "~" not in str(config.state_dir)
+        assert "~" not in str(config.download_dir)
 
     def test_file_config_wrong_type_raises_type_error(self, tmp_path, monkeypatch):
         monkeypatch.delenv("LIBRUS_ACCOUNTS", raising=False)
@@ -199,7 +322,7 @@ class TestLoadConfigFeatures:
             load_config()
 
         assert marker not in str(error.value)
-        assert "accounts.0.alias" in str(error.value)
+        assert "LIBRUS_ACCOUNTS.0.alias" in str(error.value)
 
     def test_file_validation_error_is_redacted(self, tmp_path, monkeypatch):
         marker = "file-recognizable-password"  # pragma: allowlist secret
