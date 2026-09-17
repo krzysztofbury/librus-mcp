@@ -470,6 +470,52 @@ class TestExecuteRetry:
 
 
 class TestUpstreamTimeouts:
+    @pytest.mark.asyncio
+    async def test_blocked_response_abort_does_not_block_event_loop(self):
+        cancellation = librus_client_module.scraping.DownloadCancellation()
+        abort_started = threading.Event()
+        release_abort = threading.Event()
+
+        def blocking_abort():
+            abort_started.set()
+            assert release_abort.wait(timeout=5)
+
+        cancellation.set_abort(blocking_abort)
+        try:
+            await asyncio.wait_for(LibrusManager._cancel_worker(cancellation), timeout=0.1)
+            assert abort_started.wait(timeout=5)
+        finally:
+            release_abort.set()
+
+    @pytest.mark.asyncio
+    async def test_publication_barrier_does_not_block_event_loop(self):
+        cancellation = librus_client_module.scraping.DownloadCancellation()
+        publication_started = threading.Event()
+        release_publication = threading.Event()
+
+        def hold_publication_lock():
+            with cancellation._publication_lock:
+                publication_started.set()
+                assert release_publication.wait(timeout=5)
+
+        publisher = threading.Thread(target=hold_publication_lock)
+        publisher.start()
+        assert publication_started.wait(timeout=5)
+        task = asyncio.create_task(LibrusManager._cancel_worker(cancellation))
+        try:
+            await asyncio.sleep(0)
+            assert cancellation._cancelled.is_set()
+            assert not task.done()
+            task.cancel()
+            await asyncio.sleep(0)
+            assert not task.done()
+        finally:
+            release_publication.set()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+        publisher.join(timeout=5)
+        assert not publisher.is_alive()
+
     def test_session_context_keeps_connection_pool_open(self):
         session = librus_client_module.LibrusTimeoutSession()
         assert session.max_redirects == librus_client_module.MAX_UPSTREAM_REDIRECTS
@@ -708,6 +754,86 @@ class TestUpstreamTimeouts:
                 await asyncio.sleep(0.01)
             assert await LibrusManager._execute("test_student", lambda _: "ok") == "ok"
         assert "test_student" not in LibrusManager._instances
+        client._session.close.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_timed_out_attachment_worker_cannot_publish_later(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(librus_client_module, "UPSTREAM_OPERATION_TIMEOUT_SECONDS", 0.01)
+        client = MagicMock()
+        worker_started = threading.Event()
+        release_worker = threading.Event()
+        late_file = tmp_path / "late.bin"
+
+        def slow_download(received_client, message_id, file_id, download_dir, cancellation):
+            assert received_client is client
+            worker_started.set()
+            assert release_worker.wait(timeout=5)
+            cancellation.raise_if_cancelled()
+            late_file.write_bytes(b"late")
+            return {"path": str(late_file)}
+
+        config = LibrusManager._get_config().model_copy(update={"download_dir": tmp_path})
+        with (
+            patch.object(LibrusManager, "get_client", new_callable=AsyncMock, return_value=client),
+            patch.object(LibrusManager, "_get_config", return_value=config),
+            patch.object(librus_client_module.scraping, "download_attachment", slow_download),
+        ):
+            try:
+                with pytest.raises(TimeoutError, match="timed out"):
+                    await LibrusManager.download_message_attachment("test_student", "1", "2")
+                assert worker_started.is_set()
+            finally:
+                release_worker.set()
+            for _ in range(100):
+                if not LibrusManager._timed_out_workers:
+                    break
+                await asyncio.sleep(0.01)
+
+        assert not late_file.exists()
+        assert LibrusManager._timed_out_workers == {}
+        client._session.close.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_cancelled_attachment_worker_cannot_publish_later(self, tmp_path):
+        client = MagicMock()
+        worker_started = threading.Event()
+        release_worker = threading.Event()
+        late_file = tmp_path / "late.bin"
+
+        def slow_download(received_client, message_id, file_id, download_dir, cancellation):
+            assert received_client is client
+            worker_started.set()
+            assert release_worker.wait(timeout=5)
+            cancellation.raise_if_cancelled()
+            late_file.write_bytes(b"late")
+            return {"path": str(late_file)}
+
+        config = LibrusManager._get_config().model_copy(update={"download_dir": tmp_path})
+        with (
+            patch.object(LibrusManager, "get_client", new_callable=AsyncMock, return_value=client),
+            patch.object(LibrusManager, "_get_config", return_value=config),
+            patch.object(librus_client_module.scraping, "download_attachment", slow_download),
+        ):
+            task = asyncio.create_task(
+                LibrusManager.download_message_attachment("test_student", "1", "2")
+            )
+            try:
+                for _ in range(100):
+                    if worker_started.is_set():
+                        break
+                    await asyncio.sleep(0.01)
+                task.cancel()
+                with pytest.raises(asyncio.CancelledError):
+                    await task
+            finally:
+                release_worker.set()
+            for _ in range(100):
+                if not LibrusManager._timed_out_workers:
+                    break
+                await asyncio.sleep(0.01)
+
+        assert not late_file.exists()
+        assert LibrusManager._timed_out_workers == {}
         client._session.close.assert_called_once()
 
     def test_evict_client_closes_its_session(self):

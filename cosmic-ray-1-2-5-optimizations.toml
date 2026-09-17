@@ -1,0 +1,16 @@
+[cosmic-ray]
+module-path = "src/librus_optimizations.py"
+timeout = 30.0
+test-command = "uv run pytest -q tests/test_optimizations.py"
+excluded-modules = []
+
+[cosmic-ray.distributor]
+name = "local"
+
+[cosmic-ray.filters.line-filter.lines]
+"src/librus_optimizations.py" = ["70-83", "91-101", "127-131", "143-151", "177-180", "195-200"]
+
+[cosmic-ray.filters.operators-filter]
+exclude-operators = [
+    "^(?!core/(ReplaceComparisonOperator_.*|ReplaceTrueWithFalse|ReplaceFalseWithTrue|ReplaceAndWithOr|ReplaceOrWithAnd|AddNot|ExceptionReplacer|NumberReplacer|ZeroIterationForLoop)$).*",
+]

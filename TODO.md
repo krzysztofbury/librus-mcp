@@ -2,7 +2,7 @@
 
 This roadmap groups work by release size and compatibility risk. Each work group
 can be delivered independently. Suggested versions assume the current release is
-1.2.4:
+1.2.5:
 
 - Minor work release (`1.2.x`): compatible safety, correctness, and documentation fixes.
 - Medium work release (`1.3.0`): substantial but backward-compatible agent UX and performance work.
@@ -73,15 +73,15 @@ can be delivered independently. Suggested versions assume the current release is
 
 ### Parser And Download Safety
 
-- [ ] Replace assertions that validate external HTML or JSON with explicit parse errors.
-- [ ] Require a minimum populated behaviour-note field set instead of producing
+- [x] Replace assertions that validate external HTML or JSON with explicit parse errors.
+- [x] Require a minimum populated behaviour-note field set instead of producing
   notes with empty date or content fields.
 - [ ] Add an anonymized integration fixture for a populated behaviour-notes page.
-- [ ] Decide whether behaviour notes remain default-on; otherwise mark the feature
+- [x] Decide whether behaviour notes remain default-on; otherwise mark the feature
   experimental and default it off until the populated fixture is verified.
-- [ ] Add cooperative cancellation to attachment downloads and check it before
+- [x] Add cooperative cancellation to attachment downloads and check it before
   atomically publishing the final file.
-- [ ] Test that a cancelled or timed-out download cannot publish a file later.
+- [x] Test that a cancelled or timed-out download cannot publish a file later.
 
 ### Release Verification
 

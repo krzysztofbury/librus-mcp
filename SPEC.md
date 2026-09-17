@@ -139,9 +139,10 @@ uv build --no-build-isolation
 ### Code Style
 
 - **Safety > Performance > DX** (in that priority order)
-- **Untrusted input** (MCP tool arguments, config files, upstream HTML) is
-  validated with explicit `raise ValueError(...)` — never `assert`, which
-  vanishes under `python -O`
+- **Untrusted input** (MCP tool arguments, config files, upstream HTML/JSON) is
+  validated with explicit exceptions, using `ValueError` for caller input and
+  `ParseError` for malformed upstream data - never `assert`, which vanishes
+  under `python -O`
 - **Internal invariants** (upstream return shapes, post-conditions) keep
   aggressive assertions (~2 per function); split compound assertions
 - Constrain MCP inputs in the signature too: `Literal[...]`,

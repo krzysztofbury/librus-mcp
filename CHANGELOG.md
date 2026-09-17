@@ -2,6 +2,29 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.2.5] - 2026-09-17
+
+### Security
+
+- Replace assertions over upstream HTML and gateway JSON with explicit parse
+  errors that remain active under optimized Python.
+- Require every parsed behaviour note to contain a non-empty date and content;
+  incomplete pages fail instead of returning partial or misleading records.
+- Make behaviour notes experimental and default-off until a populated live page
+  can be anonymized and added as an integration fixture.
+- Cooperatively stop attachment workers after caller cancellation or timeout and
+  serialize cancellation against atomic publication, preventing a worker from
+  publishing a file after cancellation wins the commit boundary.
+
+### Fixed
+
+- Normalize malformed subject-frequency attendance envelopes and nested records
+  to parse errors.
+- Abort attachment response streams on cancellation, enforce the absolute
+  deadline against slow-drip bodies, reject encoded response bodies that could
+  buffer outside the download loop, and remove temporary files when cancellation
+  is observed during or after streaming.
+
 ## [1.2.4] - 2026-09-17
 
 ### Security

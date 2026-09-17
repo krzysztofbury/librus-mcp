@@ -104,6 +104,13 @@ nonnegative page indexes, capped collection lengths, single-event legacy files,
 redundant per-event size checks, and subset cardinalities, or replace value equality
 with object identity.
 
+The v1.2.5 parser and cancellation campaigns use the
+`cosmic-ray-1-2-5-scraping.toml`, `cosmic-ray-1-2-5-client.toml`,
+`cosmic-ray-1-2-5-optimizations.toml`, and `cosmic-ray-1-2-5-config.toml`
+configurations. They killed all 142 selected scraping mutants, all 11 selected
+client mutants, all 23 selected gateway-validation mutants, and the selected
+experimental-feature default mutant.
+
 ## Submitting Changes
 
 1. Commit your changes with a clear, descriptive message

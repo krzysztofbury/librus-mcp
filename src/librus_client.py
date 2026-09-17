@@ -494,9 +494,31 @@ class LibrusManager:
 
         worker.add_done_callback(clear_worker)
 
+    @staticmethod
+    async def _cancel_worker(cancellation: scraping.DownloadCancellation) -> None:
+        cancellation.cancel()
+        cancelled_error: asyncio.CancelledError | None = None
+        delay = 0.0
+        while True:
+            try:
+                await asyncio.sleep(delay)
+            except asyncio.CancelledError as error:
+                cancelled_error = error
+            if cancellation.publication_is_idle():
+                break
+            delay = 0.001
+        if cancelled_error is not None:
+            raise cancelled_error
+
     @classmethod
     async def _run_upstream_call(
-        cls, alias: str, client: Client, func: Callable[..., Any], *args, **kwargs
+        cls,
+        alias: str,
+        client: Client,
+        func: Callable[..., Any],
+        *args,
+        worker_cancellation: scraping.DownloadCancellation | None = None,
+        **kwargs,
     ) -> Any:
         """Run one blocking upstream call with a deadline.
 
@@ -517,11 +539,19 @@ class LibrusManager:
                     else:
                         cls._close_client(client)
             else:
-                cls._quarantine_timed_out_worker(alias, worker, client)
+                try:
+                    if worker_cancellation is not None:
+                        await cls._cancel_worker(worker_cancellation)
+                finally:
+                    cls._quarantine_timed_out_worker(alias, worker, client)
             raise
         if worker in done:
             return worker.result()
-        cls._quarantine_timed_out_worker(alias, worker, client)
+        try:
+            if worker_cancellation is not None:
+                await cls._cancel_worker(worker_cancellation)
+        finally:
+            cls._quarantine_timed_out_worker(alias, worker, client)
         raise TimeoutError(
             f"Librus operation timed out after {UPSTREAM_OPERATION_TIMEOUT_SECONDS:.0f}s"
         )
@@ -533,6 +563,7 @@ class LibrusManager:
         func: Callable[..., Any],
         *args,
         retry_auth_on_failure: bool = True,
+        worker_cancellation: scraping.DownloadCancellation | None = None,
         **kwargs,
     ) -> Any:
         """Execute a blocking librus-apix call on a thread, with one retry on auth failure.
@@ -556,7 +587,13 @@ class LibrusManager:
                 try:
                     client = await cls.get_client(alias)
                     return await cls._run_upstream_call(
-                        alias, client, func, client, *args, **kwargs
+                        alias,
+                        client,
+                        func,
+                        client,
+                        *args,
+                        worker_cancellation=worker_cancellation,
+                        **kwargs,
                     )
                 except AUTH_ERRORS:
                     if not retry_auth_on_failure:
@@ -567,7 +604,13 @@ class LibrusManager:
                     client = await cls.get_client(alias)
                     try:
                         return await cls._run_upstream_call(
-                            alias, client, func, client, *args, **kwargs
+                            alias,
+                            client,
+                            func,
+                            client,
+                            *args,
+                            worker_cancellation=worker_cancellation,
+                            **kwargs,
                         )
                     except AUTH_ERRORS as error:
                         cls._evict_client(alias)
@@ -1143,8 +1186,15 @@ class LibrusManager:
         _require_message_id(message_id)
         _require_message_id(file_id, "file_id")
         config = cls._get_config()
+        cancellation = scraping.DownloadCancellation()
         info = await cls._execute(
-            alias, scraping.download_attachment, message_id, file_id, config.download_dir
+            alias,
+            scraping.download_attachment,
+            message_id,
+            file_id,
+            config.download_dir,
+            cancellation,
+            worker_cancellation=cancellation,
         )
         assert isinstance(info, dict), "download_attachment must return a dict"
         return info

@@ -503,9 +503,18 @@ class TestRegisterOptionalTools:
         assert "get_new_notifications" in tool_names
         assert "get_message_attachments" in tool_names
         assert "download_attachment" in tool_names
-        assert "get_behaviour_notes" in tool_names
+        assert "get_behaviour_notes" not in tool_names
         assert "send_message" not in tool_names
         assert "send_message" not in registered
+
+    @pytest.mark.asyncio
+    async def test_experimental_behaviour_notes_require_opt_in(self, monkeypatch):
+        monkeypatch.setenv("LIBRUS_FEATURES", '{"behaviour_notes": true}')
+
+        register_optional_tools()
+        tool_names = {tool.name for tool in await mcp.list_tools()}
+
+        assert "get_behaviour_notes" in tool_names
 
     def test_second_call_is_idempotent(self, monkeypatch):
         monkeypatch.delenv("LIBRUS_FEATURES", raising=False)

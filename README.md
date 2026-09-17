@@ -82,7 +82,7 @@ on macOS or `%APPDATA%\Claude\claude_desktop_config.json` on Windows.
   "mcpServers": {
     "librus": {
       "command": "uvx",
-      "args": ["librus-mcp==1.2.4"],
+      "args": ["librus-mcp==1.2.5"],
       "env": {
         "LIBRUS_CONFIG": "/absolute/path/to/secrets.json"
       }
@@ -98,7 +98,7 @@ Run this once in a terminal:
 ```bash
 claude mcp add --scope user --transport stdio librus \
   -e LIBRUS_CONFIG=/absolute/path/to/secrets.json \
-  -- uvx librus-mcp==1.2.4
+  -- uvx librus-mcp==1.2.5
 ```
 
 #### Gemini CLI
@@ -108,7 +108,7 @@ Run this once in a terminal. User scope keeps school credentials out of project 
 ```bash
 gemini mcp add --scope user --transport stdio \
   -e LIBRUS_CONFIG=/absolute/path/to/secrets.json \
-  librus uvx librus-mcp==1.2.4
+  librus uvx librus-mcp==1.2.5
 ```
 
 #### OpenAI Codex CLI
@@ -118,7 +118,7 @@ Run this once in a terminal:
 ```bash
 codex mcp add librus \
   --env LIBRUS_CONFIG=/absolute/path/to/secrets.json \
-  -- uvx librus-mcp==1.2.4
+  -- uvx librus-mcp==1.2.5
 ```
 
 Never put a Librus password or `LIBRUS_ACCOUNTS` in a project-level MCP
@@ -241,7 +241,7 @@ These tools are registered based on the `features` section of the configuration
 | `get_new_notifications(student_alias)` | `notifications` | on | Everything new since the previous call (grades, attendance, messages, announcements, schedule, homework). Seen-state is persisted per student |
 | `get_message_attachments(student_alias, message_id)` | `attachments` | on | List attachments (filename + file ID) of a message |
 | `download_attachment(student_alias, message_id, file_id)` | `attachments` | on | Download an attachment to the download directory |
-| `get_behaviour_notes(student_alias)` | `behaviour_notes` | on | Behaviour notes (uwagi): date, teacher, category, content |
+| `get_behaviour_notes(student_alias)` | `behaviour_notes` | **off** | Experimental behaviour notes (uwagi): date, teacher, category, content |
 | `get_recipient_groups(student_alias)` | `send_message` | **off** | List recipient groups for messaging |
 | `get_recipients(student_alias, group)` | `send_message` | **off** | List recipients (name → ID) in a group |
 | `send_message(student_alias, title, content, recipient_ids, confirm_token?)` | `send_message` | **off** | Send a real message to school staff — enable deliberately |
@@ -265,6 +265,18 @@ another read-once schedule request is made.
 Non-attachment Librus responses are streamed with a 4 MiB body limit, including
 chunked responses and the cumulative bodies in a redirect chain. Attachment
 downloads use their separate 50 MiB streaming cap.
+
+Attachment downloads cooperate with caller cancellation and operation timeouts.
+Cancellation actively closes a blocked response stream and is serialized against
+the final atomic publication step, so a download cannot publish later after
+cancellation wins that commit boundary. Available bytes are processed without
+waiting for a 64 KiB buffer to fill, so the absolute download deadline also
+applies to slow-drip responses. Requests require identity content encoding and
+reject encoded bodies that could buffer outside this bounded download loop.
+
+Behaviour notes default off because only the empty page has been verified against
+live Synergia markup. Operators may opt in with `behaviour_notes: true`; malformed
+or incomplete note layouts fail explicitly instead of returning partial records.
 
 Example with all options:
 
