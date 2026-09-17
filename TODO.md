@@ -2,7 +2,7 @@
 
 This roadmap groups work by release size and compatibility risk. Each work group
 can be delivered independently. Suggested versions assume the current release is
-1.2.3:
+1.2.4:
 
 - Minor work release (`1.2.x`): compatible safety, correctness, and documentation fixes.
 - Medium work release (`1.3.0`): substantial but backward-compatible agent UX and performance work.
@@ -56,20 +56,20 @@ can be delivered independently. Suggested versions assume the current release is
 
 ### Input And Response Bounds
 
-- [ ] Add a central maximum response-body size for requests and gateway responses,
+- [x] Add a central maximum response-body size for requests and gateway responses,
   including chunked responses.
-- [ ] Bound recently added schedule events before or during parsing without silently
+- [x] Bound recently added schedule events before or during parsing without silently
   dropping data already consumed from the read-once upstream endpoint.
-- [ ] Enforce collection item limits independently of page-count assumptions.
-- [ ] Reject or truncate message pages larger than the expected page size and
+- [x] Enforce collection item limits independently of page-count assumptions.
+- [x] Reject or truncate message pages larger than the expected page size and
   report `truncated=true` when applicable.
-- [ ] Bound attendance records and unique lesson and subject IDs before creating tasks.
-- [ ] Add title, content, recipient ID, and total payload limits to `send_message`.
-- [ ] Require numeric, unique recipient IDs in both the MCP schema and runtime validation.
-- [ ] Reject reversed `get_subject_frequency` date ranges.
-- [ ] Correct the completed-lessons page boundary so the configured maximum is a
+- [x] Bound attendance records and unique lesson and subject IDs before creating tasks.
+- [x] Add title, content, recipient ID, and total payload limits to `send_message`.
+- [x] Require numeric, unique recipient IDs in both the MCP schema and runtime validation.
+- [x] Reject reversed `get_subject_frequency` date ranges.
+- [x] Correct the completed-lessons page boundary so the configured maximum is a
   page count rather than a last-page index.
-- [ ] Add oversized body, oversized collection, malformed recipient, and boundary tests.
+- [x] Add oversized body, oversized collection, malformed recipient, and boundary tests.
 
 ### Parser And Download Safety
 
@@ -85,11 +85,11 @@ can be delivered independently. Suggested versions assume the current release is
 
 ### Release Verification
 
-- [ ] Check the release tag against `project.version` before publishing.
-- [ ] Run lockfile, lint, test, and build checks in the publishing workflow.
-- [ ] Install the built wheel in a clean environment and smoke-test its console entry point.
-- [ ] Pin third-party GitHub Actions to commit SHAs.
-- [ ] Align CONTRIBUTING setup and verification commands with CI and SPEC.
+- [x] Check the release tag against `project.version` before publishing.
+- [x] Run lockfile, lint, test, and build checks in the publishing workflow.
+- [x] Install the built wheel in a clean environment and smoke-test its console entry point.
+- [x] Pin third-party GitHub Actions to commit SHAs.
+- [x] Align CONTRIBUTING setup and verification commands with CI and SPEC.
 
 ## Medium Work Releases (1.3.0)
 

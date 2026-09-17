@@ -5,6 +5,7 @@ import time
 from collections.abc import Callable
 from datetime import date, datetime, timedelta
 from pathlib import Path
+from threading import local
 from typing import Any, ClassVar
 from zoneinfo import ZoneInfo
 
@@ -57,6 +58,11 @@ from src.notification_state import (
     save_pending_schedule_events,
     try_acquire_notification_state_lock,
 )
+from src.response_limits import (
+    MAX_RESPONSE_BODY_BYTES,
+    RESPONSE_READ_CHUNK_BYTES,
+    ResponseTooLargeError,
+)
 
 MESSAGE_FOLDERS = ("received", "sent")
 SORT_FILTERS = ("all", "week", "last_login")
@@ -66,9 +72,16 @@ MAX_MESSAGE_PAGE = 1000
 # mailboxes return the newest 2000 with truncated=True instead of an
 # unbounded loop against a scraped endpoint.
 MAX_ALL_MESSAGE_PAGES = 40
+MAX_ALL_MESSAGE_ITEMS = MAX_ALL_MESSAGE_PAGES * MESSAGES_PER_PAGE
 MAX_HOMEWORK_RANGE_DAYS = 370
 MAX_COMPLETED_LESSONS_RANGE_DAYS = 370
 MAX_COMPLETED_LESSONS_PAGES = 100
+MAX_COMPLETED_LESSONS_ITEMS = 10_000
+MAX_SEND_TITLE_LENGTH = 200
+MAX_SEND_CONTENT_LENGTH = 15_000
+MAX_SEND_RECIPIENTS = 50
+MAX_RECIPIENT_ID_LENGTH = 20
+MAX_SEND_PAYLOAD_BYTES = 64 * 1024
 DATE_FORMAT = "%Y-%m-%d"
 SCHOOL_TIME_ZONE = ZoneInfo("Europe/Warsaw")
 # Upstream reports expired sessions in three ways: AuthorizationError and
@@ -92,6 +105,9 @@ LOGIN_AUTHORIZATION_URL_SUFFIX = "/OAuth/Authorization?client_id=46"
 # Upstream librus-apix does not pass a timeout to requests.Session. Replace
 # each client session so login and every synchronous upstream call have one.
 UPSTREAM_REQUEST_TIMEOUT_SECONDS = 30.0
+MAX_UPSTREAM_RESPONSE_BYTES = MAX_RESPONSE_BODY_BYTES
+MAX_UPSTREAM_RESPONSE_CHAIN_BYTES = MAX_RESPONSE_BODY_BYTES
+MAX_UPSTREAM_REDIRECTS = 10
 # This also bounds non-requests work in librus-apix, such as HTML parsing and
 # its aiohttp attendance helper. A timed-out client is retired before the
 # per-alias lock is released, so its lingering worker can never share a
@@ -145,16 +161,73 @@ class LibrusTimeoutSession(Session):
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
+        self.max_redirects = MAX_UPSTREAM_REDIRECTS
+        self._response_budget = local()
         self._login_throttle_confirmed = False
 
     def request(self, method: str, url: str, **kwargs: Any) -> Any:
         kwargs.setdefault("timeout", UPSTREAM_REQUEST_TIMEOUT_SECONDS)
+        # Session.send() applies the cap to the initial response and every
+        # redirect hop before requests can buffer an intermediate body.
+        kwargs["stream"] = True
         response = super().request(method, url, **kwargs)
         if method.upper() == "POST" and url.endswith(LOGIN_AUTHORIZATION_URL_SUFFIX):
             self._login_throttle_confirmed = (
                 response.status_code == 429 or "Retry-After" in response.headers
             )
         return response
+
+    def send(self, request: Any, **kwargs: Any) -> Any:
+        allow_redirects = kwargs.pop("allow_redirects", True)
+        kwargs["stream"] = True
+        owns_response_budget = not hasattr(self._response_budget, "remaining_bytes")
+        if owns_response_budget:
+            self._response_budget.remaining_bytes = MAX_UPSTREAM_RESPONSE_CHAIN_BYTES
+        try:
+            response = super().send(request, allow_redirects=False, **kwargs)
+            try:
+                if request.url.endswith(LOGIN_AUTHORIZATION_URL_SUFFIX) and (
+                    response.status_code == 429 or "Retry-After" in response.headers
+                ):
+                    self._login_throttle_confirmed = True
+                declared_length = response.headers.get("Content-Length")
+                if declared_length is not None:
+                    declared_length = int(declared_length)
+                    if (
+                        declared_length > MAX_UPSTREAM_RESPONSE_BYTES
+                        or declared_length > self._response_budget.remaining_bytes
+                    ):
+                        raise ResponseTooLargeError(
+                            "Librus response body is too large "
+                            f"(maximum {MAX_UPSTREAM_RESPONSE_BYTES} bytes)"
+                        )
+                body = bytearray()
+                for chunk in response.iter_content(chunk_size=RESPONSE_READ_CHUNK_BYTES):
+                    body.extend(chunk)
+                    self._response_budget.remaining_bytes -= len(chunk)
+                    if (
+                        len(body) > MAX_UPSTREAM_RESPONSE_BYTES
+                        or self._response_budget.remaining_bytes < 0
+                    ):
+                        raise ResponseTooLargeError(
+                            "Librus response body is too large "
+                            f"(maximum {MAX_UPSTREAM_RESPONSE_BYTES} bytes)"
+                        )
+                response._content = bytes(body)
+                response._content_consumed = True
+            except Exception:
+                response.close()
+                raise
+            if allow_redirects:
+                history = list(self.resolve_redirects(response, request, **kwargs))
+                if history:
+                    history.insert(0, response)
+                    response = history.pop()
+                    response.history = history
+            return response
+        finally:
+            if owns_response_budget:
+                del self._response_budget.remaining_bytes
 
     def __exit__(self, *args: object) -> None:
         # librus-apix wraps every request in `with client._session`, which
@@ -266,6 +339,18 @@ class LibrusManager:
                 reason = (
                     f"Librus returned a non-JSON response while authenticating '{alias}'; "
                     "this may be a transient upstream or network error."
+                )
+            cls._close_client(client)
+            if confirmed_throttle:
+                cls._start_auth_cooldown(alias, reason)
+            raise ValueError(reason) from error
+        except ResponseTooLargeError as error:
+            confirmed_throttle = client._session._login_throttle_confirmed
+            reason = f"Librus authentication response for '{alias}' exceeded the safety limit."
+            if confirmed_throttle:
+                reason = (
+                    f"Librus confirmed login throttling for '{alias}' and returned "
+                    "an oversized response; wait a few minutes before retrying."
                 )
             cls._close_client(client)
             if confirmed_throttle:
@@ -548,8 +633,14 @@ class LibrusManager:
             messages = await cls._execute(alias, get_sent, page)
         else:
             raise ValueError(f"folder must be one of {MESSAGE_FOLDERS}, got: '{folder}'")
-        assert isinstance(messages, list), "message fetch must return a list"
-        return {"messages": messages, "folder": folder, "page": page, "max_page": max_page}
+        messages, truncated = cls._bounded_message_batch(messages)
+        return {
+            "messages": messages,
+            "folder": folder,
+            "page": page,
+            "max_page": max_page,
+            "truncated": truncated,
+        }
 
     @classmethod
     def _validate_message_page(cls, page: Any) -> None:
@@ -564,8 +655,15 @@ class LibrusManager:
         assert len(result) == 2, "first-page fetch must return (max_page, items)"
         max_page, items = result
         assert isinstance(max_page, int), "first-page max_page must be an int"
+        assert max_page >= 0, "first-page max_page must be nonnegative"
         assert isinstance(items, list), "first-page fetch must return a list of items"
         return max_page, items
+
+    @staticmethod
+    def _bounded_message_batch(messages: Any) -> tuple[list[Any], bool]:
+        assert isinstance(messages, list), "message fetch must return a list"
+        truncated = len(messages) > MESSAGES_PER_PAGE
+        return messages[:MESSAGES_PER_PAGE], truncated
 
     @classmethod
     async def fetch_all_messages(cls, alias: str, folder: str = "received") -> dict[str, Any]:
@@ -589,14 +687,26 @@ class LibrusManager:
     async def _fetch_all_received(cls, alias: str) -> tuple[list[Any], int, bool]:
         first_page_result = await cls._execute(alias, librus_optimizations.get_received_first_page)
         max_page, first_page = cls._validate_first_page_result(first_page_result)
+        first_page, page_truncated = cls._bounded_message_batch(first_page)
+        messages = first_page[:MAX_ALL_MESSAGE_ITEMS]
+        if page_truncated:
+            return messages, 1, True
+        if len(first_page) >= MAX_ALL_MESSAGE_ITEMS:
+            return messages, 1, max_page > 0
         last_page = min(max_page, MAX_ALL_MESSAGE_PAGES - 1)
-        truncated = max_page > last_page
-        messages = list(first_page)
+        truncated = max_page >= MAX_ALL_MESSAGE_PAGES
+        pages_fetched = 1
         for page in range(1, last_page + 1):
             batch = await cls._execute(alias, get_received, page)
-            assert isinstance(batch, list), "message fetch must return a list"
-            messages.extend(batch)
-        return messages, last_page + 1, truncated
+            batch, page_truncated = cls._bounded_message_batch(batch)
+            remaining = MAX_ALL_MESSAGE_ITEMS - len(messages)
+            messages.extend(batch[:remaining])
+            pages_fetched += 1
+            if page_truncated or len(batch) > remaining:
+                return messages, pages_fetched, True
+            if len(messages) == MAX_ALL_MESSAGE_ITEMS:
+                return messages, pages_fetched, page < max_page
+        return messages, pages_fetched, truncated
 
     @classmethod
     async def _fetch_all_sent(cls, alias: str) -> tuple[list[Any], int, bool]:
@@ -609,18 +719,21 @@ class LibrusManager:
         truncated = True
         for page in range(MAX_ALL_MESSAGE_PAGES):
             batch = await cls._execute(alias, get_sent, page)
-            assert isinstance(batch, list), "message fetch must return a list"
+            batch, page_truncated = cls._bounded_message_batch(batch)
             # Upstream falls back to href="" when its parse heuristic fails;
             # two distinct pages of all-empty hrefs would compare equal and
-            # stop early — acceptable, since such pages are already unusable.
+            # stop early - acceptable, since such pages are already unusable.
             hrefs = [message.href for message in batch]
             if hrefs == previous_hrefs:
                 truncated = False
                 break
-            messages.extend(batch)
+            remaining = MAX_ALL_MESSAGE_ITEMS - len(messages)
+            messages.extend(batch[:remaining])
             pages_fetched += 1
             previous_hrefs = hrefs
-            if len(batch) < MESSAGES_PER_PAGE:
+            if page_truncated or len(batch) > remaining:
+                break
+            if len(batch) != MESSAGES_PER_PAGE:
                 truncated = False
                 break
         return messages, pages_fetched, truncated
@@ -644,6 +757,14 @@ class LibrusManager:
         _require_sort_by(sort_by)
         attendance = await cls._execute(alias, get_attendance, sort_by)
         assert isinstance(attendance, list), "get_attendance must return a list"
+        assert all(isinstance(semester, list) for semester in attendance), (
+            "get_attendance must group records into semester lists"
+        )
+        record_count = sum(len(semester) for semester in attendance)
+        if record_count > librus_optimizations.MAX_ATTENDANCE_RECORDS:
+            raise ValueError(
+                f"attendance record count exceeds {librus_optimizations.MAX_ATTENDANCE_RECORDS}"
+            )
         return attendance
 
     @classmethod
@@ -684,10 +805,14 @@ class LibrusManager:
     ) -> dict[str, Any]:
         """Fetch per-subject attendance frequency, optionally filtered by date range."""
         kwargs: dict[str, Any] = {}
-        if start:
-            kwargs["start"] = _parse_date(start, "start")
-        if end:
-            kwargs["end"] = _parse_date(end, "end")
+        start_date = _parse_date(start, "start") if start is not None else None
+        end_date = _parse_date(end, "end") if end is not None else None
+        if start_date is not None and end_date is not None and start_date > end_date:
+            raise ValueError(f"start {start} is after end {end}")
+        if start_date is not None:
+            kwargs["start"] = start_date
+        if end_date is not None:
+            kwargs["end"] = end_date
         frequency = await cls._execute(alias, librus_optimizations.get_subject_frequency, **kwargs)
         assert isinstance(frequency, dict), "get_subject_frequency must return a dict"
         return dict(frequency)
@@ -786,16 +911,27 @@ class LibrusManager:
             date_to,
         )
         max_page, first_page = cls._validate_first_page_result(first_page_result)
-        if max_page > MAX_COMPLETED_LESSONS_PAGES:
+        page_count = max_page + 1
+        if page_count > MAX_COMPLETED_LESSONS_PAGES:
             raise ValueError(
-                f"range spans {max_page + 1} pages of lessons "
-                f"(limit {MAX_COMPLETED_LESSONS_PAGES + 1}); narrow the date range"
+                f"range spans {page_count} pages of lessons "
+                f"(limit {MAX_COMPLETED_LESSONS_PAGES}); narrow the date range"
             )
 
         all_lessons = list(first_page)
+        if len(all_lessons) > MAX_COMPLETED_LESSONS_ITEMS:
+            raise ValueError(
+                f"completed lesson count exceeds {MAX_COMPLETED_LESSONS_ITEMS}; "
+                "narrow the date range"
+            )
         for page in range(1, max_page + 1):
             lessons = await cls._execute(alias, get_completed, date_from, date_to, page)
             assert isinstance(lessons, list), "get_completed must return a list"
+            if len(all_lessons) + len(lessons) > MAX_COMPLETED_LESSONS_ITEMS:
+                raise ValueError(
+                    f"completed lesson count exceeds {MAX_COMPLETED_LESSONS_ITEMS}; "
+                    "narrow the date range"
+                )
             all_lessons.extend(lessons)
         return all_lessons
 
@@ -925,14 +1061,30 @@ class LibrusManager:
         at the preview step so a bad request fails before a confirmation token
         is issued, not after the human already approved the preview."""
         cls._require_account(alias)
-        _require_non_empty(title, "title")
-        _require_non_empty(content, "content")
-        if not isinstance(recipient_ids, list) or len(recipient_ids) == 0:
+        title = _require_non_empty(title, "title")
+        content = _require_non_empty(content, "content")
+        if len(title) > MAX_SEND_TITLE_LENGTH:
+            raise ValueError(f"title exceeds {MAX_SEND_TITLE_LENGTH} characters")
+        if len(content) > MAX_SEND_CONTENT_LENGTH:
+            raise ValueError(f"content exceeds {MAX_SEND_CONTENT_LENGTH} characters")
+        if not isinstance(recipient_ids, list) or not recipient_ids:
             raise ValueError("recipient_ids must be a non-empty list")
-        if len(recipient_ids) > 50:
+        if len(recipient_ids) > MAX_SEND_RECIPIENTS:
             raise ValueError(f"implausible recipient count: {len(recipient_ids)}")
         for recipient_id in recipient_ids:
-            _require_non_empty(recipient_id, "each recipient_id")
+            recipient_id = _require_non_empty(recipient_id, "each recipient_id")
+            if len(recipient_id) > MAX_RECIPIENT_ID_LENGTH:
+                raise ValueError(
+                    f"each recipient_id must be at most {MAX_RECIPIENT_ID_LENGTH} digits"
+                )
+            if re.fullmatch(r"[0-9]+", recipient_id) is None:
+                raise ValueError("each recipient_id must contain only ASCII digits")
+        if len(set(recipient_ids)) < len(recipient_ids):
+            raise ValueError("recipient_ids must be unique")
+        payload_size = len(title.encode("utf-8")) + len(content.encode("utf-8"))
+        payload_size += sum(len(recipient_id.encode("ascii")) for recipient_id in recipient_ids)
+        if payload_size > MAX_SEND_PAYLOAD_BYTES:
+            raise ValueError(f"message payload exceeds {MAX_SEND_PAYLOAD_BYTES} bytes")
 
     @classmethod
     async def send_message_to(

@@ -5,26 +5,111 @@ on:
     types: [published]
 
 permissions:
-  id-token: write
+  contents: read
 
 jobs:
+  verify:
+    name: Verify and build release
+    runs-on: ubuntu-latest
+    outputs:
+      artifact-id: ${{ steps.upload.outputs.artifact-id }}
+      checksum-manifest-sha256: ${{ steps.checksums.outputs.manifest-sha256 }}
+    steps:
+      - name: Check out the released tag
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ github.event.release.tag_name }}
+          fetch-depth: 0
+
+      - name: Verify release identity
+        env:
+          RELEASE_EVENT_SHA: ${{ github.sha }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          python3 release_verification/verify_release.py \
+            --tag "$RELEASE_TAG" \
+            --event-sha "$RELEASE_EVENT_SHA"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@38f3f104447c67c051c4a08e39b64a148898af3a # v4
+        with:
+          version: "0.12.7"
+          checksum: "788f18abea7c5f55d6216e4f5613fd89d4d59b631efeec117b2b07fe72f1da21"
+
+      - name: Check lockfile is up to date
+        run: uv lock --check
+
+      - name: Set up Python and install dependencies
+        run: |
+          uv python install 3.14
+          uv sync --locked --python 3.14
+
+      - name: Ruff check
+        run: uv run ruff check src/ tests/ release_verification/
+
+      - name: Ruff format check
+        run: uv run ruff format --check src/ tests/ release_verification/
+
+      - name: Bandit security check
+        run: uv run bandit -c pyproject.toml -r src/
+
+      - name: Run tests
+        run: uv run pytest -q
+
+      - name: Build package
+        run: uv build --no-build-isolation
+
+      - name: Verify built wheel
+        run: uv run python release_verification/verify_wheel.py dist/*.whl
+
+      - name: Record distribution checksums
+        id: checksums
+        run: |
+          sha256sum dist/*.whl dist/*.tar.gz > dist/SHA256SUMS
+          echo "manifest-sha256=$(sha256sum dist/SHA256SUMS | cut -d ' ' -f 1)" >> "$GITHUB_OUTPUT"
+
+      - name: Upload verified distributions
+        id: upload
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: verified-distributions
+          path: dist/
+          if-no-files-found: error
+          retention-days: 7
+
   publish:
-    name: Build and publish to PyPI
+    name: Publish verified distributions to PyPI
+    needs: verify
     runs-on: ubuntu-latest
     environment:
       name: pypi
       url: https://pypi.org/p/librus-mcp
+    permissions:
+      actions: read
+      contents: read
+      id-token: write
     steps:
-      - uses: actions/checkout@v4
+      - name: Download verified distributions
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
+        with:
+          artifact-ids: ${{ needs.verify.outputs.artifact-id }}
+          path: dist/
+          merge-multiple: true
 
-      - name: Install uv
-        uses: astral-sh/setup-uv@v4
-
-      - name: Set up Python
-        run: uv python install 3.14
-
-      - name: Build package
-        run: uv build
+      - name: Verify distribution checksums
+        env:
+          EXPECTED_MANIFEST_SHA256: ${{ needs.verify.outputs.checksum-manifest-sha256 }}
+        run: |
+          test -n "$EXPECTED_MANIFEST_SHA256"
+          echo "$EXPECTED_MANIFEST_SHA256  dist/SHA256SUMS" | sha256sum --check --strict
+          sha256sum --check --strict dist/SHA256SUMS
+          mkdir verified-dist
+          while read -r _ distribution; do
+            cp -- "$distribution" verified-dist/
+          done < dist/SHA256SUMS
 
       - name: Publish to PyPI
-        uses: pypa/gh-action-pypi-publish@release/v1
+        uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # release/v1
+        with:
+          packages-dir: verified-dist/
+          attestations: true

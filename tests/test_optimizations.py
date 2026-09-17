@@ -1,5 +1,6 @@
 import asyncio
 import hashlib
+import json
 import threading
 from datetime import date
 from types import SimpleNamespace
@@ -8,7 +9,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from aiohttp import ClientResponseError
-from librus_apix.exceptions import AuthorizationError
+from librus_apix.exceptions import AuthorizationError, ParseError
 from librus_apix.notifications import NotificationIds
 from librus_apix.schedule import RecentEvent
 from yarl import URL
@@ -23,6 +24,8 @@ class FakeJsonResponse:
     def __init__(self, payload, activity):
         self.payload = payload
         self.activity = activity
+        self.content_length = None
+        self.content = FakeContent(json.dumps(payload).encode())
 
     async def __aenter__(self):
         self.activity["active"] += 1
@@ -36,8 +39,21 @@ class FakeJsonResponse:
     def raise_for_status(self):
         pass
 
-    async def json(self):
-        return self.payload
+
+class FakeContent:
+    def __init__(self, payload):
+        self.payload = payload
+
+    async def iter_chunked(self, size):
+        assert size > 0
+        for offset in range(0, len(self.payload), size):
+            yield self.payload[offset : offset + size]
+
+
+class UnreadableContent:
+    async def iter_chunked(self, size):
+        raise AssertionError("body must not be read when Content-Length exceeds the limit")
+        yield b""  # pragma: no cover
 
 
 class FakeClientSession:
@@ -65,6 +81,8 @@ class FakeClientSession:
 class SequenceResponse:
     def __init__(self, status):
         self.status = status
+        self.content_length = None
+        self.content = FakeContent(b'{"ok": true}')
 
     async def __aenter__(self):
         return self
@@ -75,9 +93,6 @@ class SequenceResponse:
     def raise_for_status(self):
         if self.status >= 400:
             raise ClientResponseError(None, (), status=self.status)
-
-    async def json(self):
-        return {"ok": True}
 
 
 class SequenceSession:
@@ -92,7 +107,10 @@ class SequenceSession:
 
 
 class TestSubjectFrequency:
-    def test_deduplicates_lessons_and_subjects(self):
+    def test_deduplicates_lessons_and_subjects(self, monkeypatch):
+        monkeypatch.setattr(librus_optimizations, "MAX_ATTENDANCE_RECORDS", 3)
+        monkeypatch.setattr(librus_optimizations, "MAX_UNIQUE_LESSON_IDS", 2)
+        monkeypatch.setattr(librus_optimizations, "MAX_UNIQUE_SUBJECT_IDS", 1)
         base_url = "https://synergia.librus.pl"
         attendances = [
             {"Date": "2026-01-01", "Lesson": {"Id": 1}, "Type": {"Id": 100}},
@@ -160,6 +178,79 @@ class TestSubjectFrequency:
         assert result == {"ok": True}
         assert session.calls == librus_optimizations.GATEWAY_RETRIES
 
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("content_length", [5, None])
+    async def test_gateway_rejects_declared_or_chunked_body_over_limit(
+        self, monkeypatch, content_length
+    ):
+        monkeypatch.setattr(librus_optimizations, "MAX_GATEWAY_RESPONSE_BYTES", 4)
+        response = SequenceResponse(200)
+        response.content_length = content_length
+        response.content = FakeContent(b"12345")
+        session = MagicMock()
+        session.get.return_value = response
+
+        with pytest.raises(RuntimeError, match="gateway response body is too large"):
+            await librus_optimizations._request_json(
+                session, "https://synergia.librus.pl/gateway", asyncio.Semaphore(1), None
+            )
+
+    @pytest.mark.asyncio
+    async def test_gateway_accepts_body_at_exact_size_limit(self, monkeypatch):
+        monkeypatch.setattr(librus_optimizations, "MAX_GATEWAY_RESPONSE_BYTES", 2)
+        response = SequenceResponse(200)
+        response.content_length = 2
+        response.content = FakeContent(b"{}")
+        session = MagicMock()
+        session.get.return_value = response
+
+        result = await librus_optimizations._request_json(
+            session, "https://synergia.librus.pl/gateway", asyncio.Semaphore(1), None
+        )
+
+        assert result == {}
+
+    @pytest.mark.asyncio
+    async def test_declared_oversize_is_rejected_before_reading_body(self, monkeypatch):
+        monkeypatch.setattr(librus_optimizations, "MAX_GATEWAY_RESPONSE_BYTES", 2)
+        response = SequenceResponse(200)
+        response.content_length = 3
+        response.content = UnreadableContent()
+        session = MagicMock()
+        session.get.return_value = response
+
+        with pytest.raises(RuntimeError, match="gateway response body is too large"):
+            await librus_optimizations._request_json(
+                session, "https://synergia.librus.pl/gateway", asyncio.Semaphore(1), None
+            )
+
+    @pytest.mark.asyncio
+    async def test_declared_body_below_limit_is_read(self, monkeypatch):
+        monkeypatch.setattr(librus_optimizations, "MAX_GATEWAY_RESPONSE_BYTES", 3)
+        response = SequenceResponse(200)
+        response.content_length = 2
+        response.content = FakeContent(b"{}")
+        session = MagicMock()
+        session.get.return_value = response
+
+        result = await librus_optimizations._request_json(
+            session, "https://synergia.librus.pl/gateway", asyncio.Semaphore(1), None
+        )
+
+        assert result == {}
+
+    @pytest.mark.asyncio
+    async def test_invalid_utf8_gateway_body_is_normalized(self):
+        response = SequenceResponse(200)
+        response.content = FakeContent(b'\xff{"ok": true}')
+        session = MagicMock()
+        session.get.return_value = response
+
+        with pytest.raises(ParseError, match="gateway response is not valid JSON"):
+            await librus_optimizations._request_json(
+                session, "https://synergia.librus.pl/gateway", asyncio.Semaphore(1), None
+            )
+
     def test_resolution_deadline_cancels_outstanding_requests(self, monkeypatch):
         cancelled = False
 
@@ -194,6 +285,117 @@ class TestSubjectFrequency:
             librus_optimizations.get_subject_frequency(client)
 
         assert cancelled is True
+
+    def test_attendance_record_count_is_bounded_before_task_creation(self, monkeypatch):
+        monkeypatch.setattr(librus_optimizations, "MAX_ATTENDANCE_RECORDS", 1)
+        client = SimpleNamespace(
+            GATEWAY_API_ATTENDANCE="https://synergia.librus.pl/gateway",
+            refresh_oauth=MagicMock(),
+            get=MagicMock(
+                return_value=SimpleNamespace(
+                    json=lambda: {
+                        "Attendances": [
+                            {"Date": "2026-01-01", "Lesson": {"Id": 1}, "Type": {"Id": 100}},
+                            {"Date": "2026-01-02", "Lesson": {"Id": 2}, "Type": {"Id": 100}},
+                        ]
+                    }
+                )
+            ),
+        )
+
+        with pytest.raises(ValueError, match="attendance record count"):
+            librus_optimizations.get_subject_frequency(client)
+
+    @pytest.mark.asyncio
+    async def test_unique_lesson_count_is_bounded_before_session_creation(self, monkeypatch):
+        monkeypatch.setattr(librus_optimizations, "MAX_UNIQUE_LESSON_IDS", 1)
+        client = SimpleNamespace()
+        attendances = [
+            {"Lesson": {"Id": 1}, "Type": {"Id": 100}},
+            {"Lesson": {"Id": 2}, "Type": {"Id": 100}},
+        ]
+
+        with (
+            patch.object(librus_optimizations, "ClientSession") as session,
+            pytest.raises(ValueError, match="unique lesson count"),
+        ):
+            await librus_optimizations._resolve_subjects(client, attendances)
+
+        session.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_unique_subject_count_is_bounded_before_subject_tasks(self, monkeypatch):
+        monkeypatch.setattr(librus_optimizations, "MAX_UNIQUE_SUBJECT_IDS", 1)
+        client = SimpleNamespace(
+            BASE_URL="https://synergia.librus.pl",
+            proxy={},
+            _session=SimpleNamespace(cookies={}, headers={}),
+        )
+        attendances = [
+            {"Lesson": {"Id": 1}, "Type": {"Id": 100}},
+            {"Lesson": {"Id": 2}, "Type": {"Id": 100}},
+        ]
+        lesson_payloads = [
+            {"Lesson": {"Subject": {"Id": 10}}},
+            {"Lesson": {"Subject": {"Id": 20}}},
+        ]
+
+        with (
+            patch.object(librus_optimizations, "ClientSession", FakeClientSession),
+            patch.object(
+                librus_optimizations, "_request_json", AsyncMock(side_effect=lesson_payloads)
+            ) as request,
+            pytest.raises(ValueError, match="unique subject count"),
+        ):
+            await librus_optimizations._resolve_subjects(client, attendances)
+
+        assert request.await_count == 2
+
+    @pytest.mark.asyncio
+    async def test_unique_subject_count_below_limit_is_accepted(self, monkeypatch):
+        monkeypatch.setattr(librus_optimizations, "MAX_UNIQUE_SUBJECT_IDS", 2)
+        client = SimpleNamespace(
+            BASE_URL="https://synergia.librus.pl",
+            proxy={},
+            _session=SimpleNamespace(cookies={}, headers={}),
+        )
+        attendances = [{"Lesson": {"Id": 1}, "Type": {"Id": 100}}]
+        payloads = [
+            {"Lesson": {"Subject": {"Id": 10}}},
+            {"Subject": {"Name": "Math"}},
+        ]
+
+        with (
+            patch.object(librus_optimizations, "ClientSession", FakeClientSession),
+            patch.object(
+                librus_optimizations, "_request_json", AsyncMock(side_effect=payloads)
+            ) as request,
+        ):
+            result = await librus_optimizations._resolve_subjects(client, attendances)
+
+        assert result == [("Math", "ob")]
+        assert request.await_count == 2
+
+    @pytest.mark.asyncio
+    async def test_lesson_response_count_must_match_request_count(self):
+        client = SimpleNamespace(
+            BASE_URL="https://synergia.librus.pl",
+            proxy={},
+            _session=SimpleNamespace(cookies={}, headers={}),
+        )
+        attendances = [{"Lesson": {"Id": 1}, "Type": {"Id": 100}}]
+
+        async def drop_responses(*coroutines):
+            for coroutine in coroutines:
+                coroutine.close()
+            return []
+
+        with (
+            patch.object(librus_optimizations, "ClientSession", FakeClientSession),
+            patch.object(librus_optimizations.asyncio, "gather", drop_responses),
+            pytest.raises(ValueError, match=r"zip\(\) argument 2 is shorter"),
+        ):
+            await librus_optimizations._resolve_subjects(client, attendances)
 
 
 class TestFirstPageReuse:
@@ -300,9 +502,10 @@ class TestParallelNotifications:
 
 
 class TestRecoverableScheduleNotifications:
-    def test_standalone_fetch_checkpoints_before_returning(self):
+    def test_standalone_fetch_checkpoints_before_returning(self, monkeypatch):
         event = RecentEvent("2026-09-15 08:00", "Sprawdzian", "Matematyka")
         checkpoint = MagicMock()
+        monkeypatch.setattr(librus_optimizations, "MAX_SCHEDULE_EVENTS_PER_CALL", 1)
 
         with patch.object(
             librus_optimizations, "get_recently_added_schedule", return_value=[event]
@@ -315,6 +518,22 @@ class TestRecoverableScheduleNotifications:
         assert events == [event]
         assert seen_ids == [schedule_event_id(event)]
 
+    def test_schedule_overflow_is_checkpointed_before_rejection(self, monkeypatch):
+        events = [
+            RecentEvent(f"2026-09-15 0{index}:00", "Sprawdzian", f"Event {index}")
+            for index in range(2)
+        ]
+        checkpoint = MagicMock()
+        monkeypatch.setattr(librus_optimizations, "MAX_SCHEDULE_EVENTS_PER_CALL", 1)
+
+        with (
+            patch.object(librus_optimizations, "get_recently_added_schedule", return_value=events),
+            pytest.raises(ValueError, match="preserved"),
+        ):
+            librus_optimizations.get_recent_schedule_events(SimpleNamespace(), [], [], checkpoint)
+
+        checkpoint.assert_called_once_with(events)
+
     def test_pending_event_is_reported_even_when_legacy_id_was_saved(self):
         event = RecentEvent("2026-09-15 08:00", "Sprawdzian", "Matematyka")
         legacy_id = hashlib.md5(event.data.encode(), usedforsecurity=False).hexdigest()
@@ -325,6 +544,48 @@ class TestRecoverableScheduleNotifications:
 
         assert events == [event]
         assert schedule_event_id(event) in seen_ids
+
+    def test_pending_events_drain_before_consuming_upstream_again(self):
+        event = RecentEvent("2026-09-15 08:00", "Sprawdzian", "Matematyka")
+        checkpoint = MagicMock()
+
+        with patch.object(librus_optimizations, "get_recently_added_schedule") as upstream:
+            events, seen_ids = librus_optimizations.get_recent_schedule_events(
+                SimpleNamespace(), [], [event], checkpoint
+            )
+
+        upstream.assert_not_called()
+        checkpoint.assert_called_once_with([])
+        assert events == [event]
+        assert seen_ids == [schedule_event_id(event)]
+
+    def test_aggregate_notifications_drain_pending_schedule_before_upstream(self):
+        event = RecentEvent("2026-09-15 08:00", "Sprawdzian", "Matematyka")
+        seen = NotificationIds([], [], [], [], [], [])
+        sessions = [MagicMock() for _ in range(5)]
+        checkpoint = MagicMock()
+        client = SimpleNamespace(token=object(), cookies={}, _session=SimpleNamespace())
+
+        with (
+            patch.object(librus_optimizations, "get_grades", return_value=([], {}, [])),
+            patch.object(librus_optimizations, "get_attendance", return_value=[]),
+            patch.object(librus_optimizations, "get_received", return_value=[]),
+            patch.object(librus_optimizations, "get_announcements", return_value=[]),
+            patch.object(librus_optimizations, "get_homework", return_value=[]),
+            patch.object(librus_optimizations, "get_recently_added_schedule") as upstream,
+        ):
+            data, updated = librus_optimizations.get_new_notifications(
+                client,
+                seen,
+                MagicMock(side_effect=sessions),
+                pending_schedule=[event],
+                schedule_checkpoint=checkpoint,
+            )
+
+        upstream.assert_not_called()
+        checkpoint.assert_called_once_with([])
+        assert data.schedule == [event]
+        assert updated.schedule == [schedule_event_id(event)]
 
     def test_fresh_event_seen_only_under_legacy_id_is_replayed_once(self):
         event = RecentEvent("2026-09-15 08:00", "Sprawdzian", "Matematyka")

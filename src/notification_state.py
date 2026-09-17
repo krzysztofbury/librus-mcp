@@ -19,6 +19,8 @@ from uuid import uuid4
 from librus_apix.notifications import NotificationIds
 from librus_apix.schedule import RecentEvent
 
+from src.response_limits import MAX_RESPONSE_BODY_BYTES
+
 try:
     import fcntl
 except ImportError:
@@ -38,8 +40,11 @@ MAX_SAVED_IDS_PER_CATEGORY = 500
 MAX_STATE_ALIAS_PREFIX_LENGTH = 80
 MAX_LEGACY_FILENAME_LENGTH = 190
 MAX_PENDING_SCHEDULE_EVENTS = 500
-MAX_PENDING_SCHEDULE_EVENT_BYTES = 64 * 1024
 MAX_PENDING_SCHEDULE_BATCH_BYTES = 128 * 1024
+# Parsed event text can approach the full response size and JSON escaping can
+# expand it. Keep the durable file bounded while preserving any accepted body.
+MAX_PENDING_SCHEDULE_EVENT_BYTES = 2 * MAX_RESPONSE_BODY_BYTES + 64 * 1024
+MAX_PENDING_SCHEDULE_FILES = 512
 MAX_NOTIFICATION_ID_LENGTH = 1024
 MAX_NOTIFICATION_STATE_FILE_BYTES = 4 * 1024 * 1024
 STATE_DIRECTORY_MODE = 0o700
@@ -195,24 +200,68 @@ def _pending_schedule_path(state_dir: Path, alias: str, event: RecentEvent) -> P
     return Path(state_dir) / f"{state_name}.pending-schedule.{schedule_event_id(event)}.json"
 
 
+def _pending_schedule_batch_path(state_dir: Path, alias: str, payload: bytes) -> Path:
+    state_name = _state_path(Path(state_dir), alias).name.removesuffix(".notifications.json")
+    digest = hashlib.sha256(payload).hexdigest()
+    return Path(state_dir) / f"{state_name}.pending-schedule.batch.{digest}.json"
+
+
+def _encoded_schedule_event(event: RecentEvent) -> bytes:
+    return json.dumps(
+        _schedule_event_payload(event),
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+
+
+def _publish_pending_schedule_batch(state_dir: Path, alias: str, events: list[RecentEvent]) -> None:
+    encoded_events: list[bytes] = []
+    for event in events:
+        encoded_event = _encoded_schedule_event(event)
+        encoded_event_file_size = len(encoded_event) + 2
+        if encoded_event_file_size > MAX_PENDING_SCHEDULE_EVENT_BYTES:
+            raise ValueError("pending schedule event is too large to checkpoint safely")
+        encoded_events.append(encoded_event)
+    if not encoded_events:
+        return
+    payload = b"[" + b",".join(encoded_events) + b"]"
+    if len(payload) > MAX_PENDING_SCHEDULE_EVENT_BYTES:
+        raise ValueError("pending schedule event batch is too large to checkpoint safely")
+    _atomic_publish(_pending_schedule_batch_path(state_dir, alias, payload), payload)
+
+
 def save_pending_schedule_events(state_dir: Path, alias: str, events: list[RecentEvent]) -> None:
-    """Checkpoint read-once schedule events as independent atomic spool files."""
+    """Checkpoint a complete read-once result as one bounded atomic batch."""
     state_dir = Path(state_dir)
     _ensure_state_directory(state_dir)
-    encoded_events: list[tuple[RecentEvent, bytes]] = []
-    batch_size_bytes = 0
-    for event in events:
-        payload = json.dumps(
-            _schedule_event_payload(event), ensure_ascii=False, sort_keys=True
-        ).encode("utf-8")
-        if len(payload) > MAX_PENDING_SCHEDULE_EVENT_BYTES:
-            raise ValueError("pending schedule event is too large to checkpoint safely")
-        batch_size_bytes += len(payload)
-        if batch_size_bytes > MAX_PENDING_SCHEDULE_BATCH_BYTES:
-            raise ValueError("pending schedule event batch is too large to checkpoint safely")
-        encoded_events.append((event, payload))
-    for event, payload in encoded_events:
-        _atomic_publish(_pending_schedule_path(state_dir, alias, event), payload)
+    _publish_pending_schedule_batch(state_dir, alias, events)
+
+
+def _pending_events_from_file(
+    path: Path, state_dir: Path, alias: str
+) -> tuple[list[RecentEvent], int]:
+    encoded_payload = _read_bounded_bytes(path, MAX_PENDING_SCHEDULE_EVENT_BYTES)
+    try:
+        payload = json.loads(encoded_payload)
+    except (json.JSONDecodeError, UnicodeDecodeError) as error:
+        raise ValueError(f"corrupt pending schedule event at {path}") from error
+    payloads = payload if isinstance(payload, list) else [payload]
+    if not payloads:
+        raise ValueError(f"unexpected pending schedule event schema at {path}")
+    events: list[RecentEvent] = []
+    for event_payload in payloads:
+        if not isinstance(event_payload, dict) or set(event_payload) != set(SCHEDULE_EVENT_FIELDS):
+            raise ValueError(f"unexpected pending schedule event schema at {path}")
+        if not all(isinstance(event_payload[field], str) for field in SCHEDULE_EVENT_FIELDS):
+            raise ValueError(f"unexpected pending schedule event schema at {path}")
+        events.append(RecentEvent(**event_payload))
+    if isinstance(payload, list):
+        if path != _pending_schedule_batch_path(state_dir, alias, encoded_payload):
+            raise ValueError(f"pending schedule event digest mismatch at {path}")
+    elif path != _pending_schedule_path(state_dir, alias, events[0]):
+        raise ValueError(f"pending schedule event digest mismatch at {path}")
+    return events, len(encoded_payload)
 
 
 def load_pending_schedule_events(state_dir: Path, alias: str) -> list[RecentEvent]:
@@ -220,35 +269,35 @@ def load_pending_schedule_events(state_dir: Path, alias: str) -> list[RecentEven
     state_dir = Path(state_dir)
     state_name = _state_path(state_dir, alias).name.removesuffix(".notifications.json")
     paths = islice(
-        state_dir.glob(f"{state_name}.pending-schedule.*.json"), MAX_PENDING_SCHEDULE_EVENTS
+        state_dir.glob(f"{state_name}.pending-schedule*.json"), MAX_PENDING_SCHEDULE_FILES
     )
     events: list[RecentEvent] = []
-    batch_size_bytes = 0
+    event_ids: set[str] = set()
+    batch_size_bytes = 2
     for path in paths:
-        encoded_payload = _read_bounded_bytes(path, MAX_PENDING_SCHEDULE_EVENT_BYTES)
-        next_batch_size_bytes = batch_size_bytes + len(encoded_payload)
-        if next_batch_size_bytes > MAX_PENDING_SCHEDULE_BATCH_BYTES:
-            assert events, "one pending schedule event must fit within the batch limit"
-            break
-        batch_size_bytes = next_batch_size_bytes
-        try:
-            payload = json.loads(encoded_payload)
-        except (json.JSONDecodeError, UnicodeDecodeError) as error:
-            raise ValueError(f"corrupt pending schedule event at {path}") from error
-        if not isinstance(payload, dict) or set(payload) != set(SCHEDULE_EVENT_FIELDS):
-            raise ValueError(f"unexpected pending schedule event schema at {path}")
-        if not all(isinstance(payload[field], str) for field in SCHEDULE_EVENT_FIELDS):
-            raise ValueError(f"unexpected pending schedule event schema at {path}")
-        event = RecentEvent(**payload)
-        if path != _pending_schedule_path(state_dir, alias, event):
-            raise ValueError(f"pending schedule event digest mismatch at {path}")
-        events.append(event)
+        file_events, _ = _pending_events_from_file(path, state_dir, alias)
+        for event in file_events:
+            event_id = schedule_event_id(event)
+            if event_id in event_ids:
+                continue
+            encoded_event_size = len(_encoded_schedule_event(event))
+            separator_size = 1 if events else 0
+            next_batch_size_bytes = batch_size_bytes + separator_size + encoded_event_size
+            if events and (
+                next_batch_size_bytes > MAX_PENDING_SCHEDULE_BATCH_BYTES
+                or len(events) == MAX_PENDING_SCHEDULE_EVENTS
+            ):
+                return events
+            events.append(event)
+            event_ids.add(event_id)
+            batch_size_bytes = next_batch_size_bytes
     return events
 
 
 def clear_pending_schedule_events(state_dir: Path, alias: str, events: list[RecentEvent]) -> None:
     """Delete only events handled by a successful state transaction."""
     state_dir = Path(state_dir)
+    cleared_ids = {schedule_event_id(event) for event in events}
     for event in events:
         try:
             _pending_schedule_path(state_dir, alias, event).unlink(missing_ok=True)
@@ -257,6 +306,27 @@ def clear_pending_schedule_events(state_dir: Path, alias: str, events: list[Rece
             # a duplicate later, while failing here could hide already saved data.
             print(
                 f"librus-mcp: could not clear pending schedule event for '{alias}': {error}",
+                file=sys.stderr,
+            )
+    state_name = _state_path(state_dir, alias).name.removesuffix(".notifications.json")
+    batch_paths = list(
+        islice(
+            state_dir.glob(f"{state_name}.pending-schedule.batch.*.json"),
+            MAX_PENDING_SCHEDULE_FILES,
+        )
+    )
+    for path in batch_paths:
+        try:
+            spooled_events, _ = _pending_events_from_file(path, state_dir, alias)
+            remaining = [
+                event for event in spooled_events if schedule_event_id(event) not in cleared_ids
+            ]
+            if len(remaining) < len(spooled_events):
+                _publish_pending_schedule_batch(state_dir, alias, remaining)
+                path.unlink(missing_ok=True)
+        except (OSError, TypeError, ValueError) as error:
+            print(
+                f"librus-mcp: could not clear pending schedule batch for '{alias}': {error}",
                 file=sys.stderr,
             )
     if events:

@@ -9,7 +9,7 @@ Thank you for your interest in contributing! This document provides guidelines t
     ```bash
     git clone https://github.com/YOUR_USERNAME/librus-mcp.git
     cd librus-mcp
-    uv venv && uv pip install -e .
+    uv sync --locked --python 3.14
     ```
 3. Create a branch for your change:
     ```bash
@@ -31,22 +31,34 @@ The key rules:
 
 ### Linting and Formatting
 
-Before submitting, ensure your code passes:
+Before submitting, run the same checks as CI:
 
 ```bash
-uvx ruff check src/
-uvx ruff format src/
+uv lock --check
+uv sync --locked --python 3.14
+uv run ruff check src/ tests/ release_verification/
+uv run ruff format --check src/ tests/ release_verification/
+uv run bandit -c pyproject.toml -r src/
+uv run pytest -q
+uv build --no-build-isolation
+```
+
+To apply formatting before rerunning the format check:
+
+```bash
+uv run ruff format src/ tests/ release_verification/
 ```
 
 ### Testing
 
-Run the verification script to confirm basic connectivity works:
+The unit suite is self-contained and does not require Librus credentials. If you
+have a test account, you may optionally run the live credential smoke test:
 
 ```bash
-python verify_connection.py
+uv run python verify_connection.py [--all-accounts]
 ```
 
-When adding new functionality, ensure you test it manually against a real Librus account.
+The live test calls Librus and is not required for contributions or CI.
 
 ### Mutation Testing
 
@@ -82,6 +94,15 @@ mutants and 157 of 224 selected local-state mutants. Surviving mutations were
 manually triaged as equivalent comparisons, descriptor edge cases unavailable to
 normal process startup, race-only exception substitutions, or non-host platform
 branches.
+
+The v1.2.4 bounds campaigns use the same workflow with the
+`cosmic-ray-bounds-client.toml`, `cosmic-ray-bounds-optimizations.toml`, and
+`cosmic-ray-bounds-state.toml` configurations. They killed 288 of 297 executable
+client mutants, all 62 executable gateway/fan-out mutants, and 95 of 99 executable
+schedule-spool mutants. The remaining survivors are equivalent over validated
+nonnegative page indexes, capped collection lengths, single-event legacy files,
+redundant per-event size checks, and subset cardinalities, or replace value equality
+with object identity.
 
 ## Submitting Changes
 

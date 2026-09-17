@@ -8,11 +8,13 @@ import stat
 import threading
 import time
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 from librus_apix.notifications import NotificationIds
 from librus_apix.schedule import RecentEvent
 
+from src import notification_state
 from src.notification_state import (
     MAX_IDS_PER_CATEGORY,
     MAX_LEGACY_FILENAME_LENGTH,
@@ -435,6 +437,187 @@ class TestPendingScheduleEvents:
         clear_pending_schedule_events(tmp_path, "primary", [event])
         assert load_pending_schedule_events(tmp_path, "primary") == [later_event]
 
+    def test_event_at_exact_file_size_limit_is_accepted(self, tmp_path, monkeypatch):
+        event = RecentEvent("2026-09-15 08:00", "Sprawdzian", "Matematyka")
+        encoded_size = len(notification_state._encoded_schedule_event(event)) + 2
+        monkeypatch.setattr(notification_state, "MAX_PENDING_SCHEDULE_EVENT_BYTES", encoded_size)
+
+        save_pending_schedule_events(tmp_path, "exact", [event])
+        assert load_pending_schedule_events(tmp_path, "exact") == [event]
+
+        monkeypatch.setattr(
+            notification_state, "MAX_PENDING_SCHEDULE_EVENT_BYTES", encoded_size - 1
+        )
+        with pytest.raises(ValueError, match="too large"):
+            save_pending_schedule_events(tmp_path, "oversize", [event])
+
+    def test_load_batch_byte_limit_accepts_exact_boundary(self, tmp_path, monkeypatch):
+        events = [
+            RecentEvent("2026-09-15 08:00", "Sprawdzian", "Matematyka"),
+            RecentEvent("2026-09-15 09:00", "Sprawdzian", "Fizyka"),
+            RecentEvent("2026-09-15 10:00", "Sprawdzian", "Chemia"),
+        ]
+        exact_size = (
+            2
+            + sum(len(notification_state._encoded_schedule_event(event)) for event in events)
+            + len(events)
+            - 1
+        )
+        monkeypatch.setattr(notification_state, "MAX_PENDING_SCHEDULE_BATCH_BYTES", exact_size)
+
+        save_pending_schedule_events(tmp_path, "primary", events)
+        assert len(list(tmp_path.glob("*.pending-schedule.*.json"))) == 1
+        assert load_pending_schedule_events(tmp_path, "primary") == events
+
+        monkeypatch.setattr(notification_state, "MAX_PENDING_SCHEDULE_BATCH_BYTES", exact_size - 1)
+        loaded = load_pending_schedule_events(tmp_path, "primary")
+        assert len(loaded) == 2
+        assert loaded[0] in events
+
+    def test_load_accepts_exact_event_count_across_files(self, tmp_path, monkeypatch):
+        events = [
+            RecentEvent("2026-09-15 08:00", "Sprawdzian", "Matematyka"),
+            RecentEvent("2026-09-15 09:00", "Sprawdzian", "Fizyka"),
+        ]
+        save_pending_schedule_events(tmp_path, "primary", [events[0]])
+        save_pending_schedule_events(tmp_path, "primary", [events[1]])
+        monkeypatch.setattr(notification_state, "MAX_PENDING_SCHEDULE_EVENTS", 2)
+        exact_size = (
+            2 + sum(len(notification_state._encoded_schedule_event(event)) for event in events) + 1
+        )
+        monkeypatch.setattr(notification_state, "MAX_PENDING_SCHEDULE_BATCH_BYTES", exact_size)
+
+        loaded = load_pending_schedule_events(tmp_path, "primary")
+        assert set(map(schedule_event_id, loaded)) == set(map(schedule_event_id, events))
+
+        monkeypatch.setattr(notification_state, "MAX_PENDING_SCHEDULE_BATCH_BYTES", exact_size - 1)
+        assert len(load_pending_schedule_events(tmp_path, "primary")) == 1
+
+        monkeypatch.setattr(notification_state, "MAX_PENDING_SCHEDULE_BATCH_BYTES", exact_size)
+        monkeypatch.setattr(notification_state, "MAX_PENDING_SCHEDULE_EVENTS", 1)
+        assert len(load_pending_schedule_events(tmp_path, "primary")) == 1
+
+    def test_complete_batch_file_size_boundary(self, tmp_path, monkeypatch):
+        events = [
+            RecentEvent("2026-09-15 08:00", "Sprawdzian", "Matematyka"),
+            RecentEvent("2026-09-15 09:00", "Sprawdzian", "Fizyka"),
+        ]
+        encoded = [notification_state._encoded_schedule_event(event) for event in events]
+        exact_size = 2 + sum(map(len, encoded)) + 1
+        monkeypatch.setattr(notification_state, "MAX_PENDING_SCHEDULE_EVENT_BYTES", exact_size)
+
+        save_pending_schedule_events(tmp_path, "exact", events)
+        path = next(tmp_path.glob("exact*.pending-schedule.batch.*.json"))
+        assert path.stat().st_size == exact_size
+
+        monkeypatch.setattr(notification_state, "MAX_PENDING_SCHEDULE_EVENT_BYTES", exact_size - 1)
+        with pytest.raises(ValueError, match="batch is too large"):
+            save_pending_schedule_events(tmp_path, "oversize", events)
+        assert not list(tmp_path.glob("oversize*.pending-schedule.*.json"))
+
+    def test_batch_publication_failure_exposes_no_partial_checkpoint(self, tmp_path):
+        events = [
+            RecentEvent("2026-09-15 08:00", "Sprawdzian", "Matematyka"),
+            RecentEvent("2026-09-15 09:00", "Sprawdzian", "Fizyka"),
+        ]
+
+        with (
+            patch.object(notification_state, "_atomic_publish", side_effect=OSError("disk full")),
+            pytest.raises(OSError, match="disk full"),
+        ):
+            save_pending_schedule_events(tmp_path, "primary", events)
+
+        assert not list(tmp_path.glob("*.pending-schedule.*.json"))
+
+    def test_legacy_single_event_spool_loads_and_clears(self, tmp_path):
+        event = RecentEvent("2026-09-15 08:00", "Sprawdzian", "Matematyka")
+        path = notification_state._pending_schedule_path(tmp_path, "primary", event)
+        path.write_bytes(notification_state._encoded_schedule_event(event))
+
+        assert load_pending_schedule_events(tmp_path, "primary") == [event]
+        clear_pending_schedule_events(tmp_path, "primary", [event])
+        assert not path.exists()
+
+    def test_spool_encoding_is_canonical_utf8(self):
+        event = RecentEvent("2026-09-15 08:00", "Sprawdzian", "żółć")
+
+        assert notification_state._encoded_schedule_event(event) == (
+            b'{"data":"\xc5\xbc\xc3\xb3\xc5\x82\xc4\x87","date_added":"2026-09-15 08:00",'
+            b'"type":"Sprawdzian"}'
+        )
+
+    def test_clear_without_legacy_file_is_silent(self, tmp_path, capsys):
+        event = RecentEvent("2026-09-15 08:00", "Sprawdzian", "Matematyka")
+
+        clear_pending_schedule_events(tmp_path, "primary", [event])
+
+        assert capsys.readouterr().err == ""
+
+    def test_clear_fsyncs_only_nonempty_cleanup(self, tmp_path):
+        event = RecentEvent("2026-09-15 08:00", "Sprawdzian", "Matematyka")
+
+        with patch.object(notification_state, "_fsync_directory") as fsync:
+            clear_pending_schedule_events(tmp_path, "primary", [])
+            fsync.assert_not_called()
+            clear_pending_schedule_events(tmp_path, "primary", [event])
+            fsync.assert_called_once_with(tmp_path)
+
+    def test_clear_reports_legacy_unlink_error_without_failing(self, tmp_path, capsys):
+        event = RecentEvent("2026-09-15 08:00", "Sprawdzian", "Matematyka")
+
+        with patch.object(Path, "unlink", side_effect=OSError("unlink failed")):
+            clear_pending_schedule_events(tmp_path, "primary", [event])
+
+        assert "unlink failed" in capsys.readouterr().err
+
+    def test_clear_reports_fsync_error_without_failing(self, tmp_path, capsys):
+        event = RecentEvent("2026-09-15 08:00", "Sprawdzian", "Matematyka")
+
+        with patch.object(
+            notification_state, "_fsync_directory", side_effect=OSError("fsync failed")
+        ):
+            clear_pending_schedule_events(tmp_path, "primary", [event])
+
+        assert "fsync failed" in capsys.readouterr().err
+
+    @pytest.mark.parametrize("error", [OSError("io"), TypeError("type"), ValueError("value")])
+    def test_clear_reports_batch_errors_without_failing(self, tmp_path, capsys, error):
+        event = RecentEvent("2026-09-15 08:00", "Sprawdzian", "Matematyka")
+        save_pending_schedule_events(tmp_path, "primary", [event])
+
+        with patch.object(notification_state, "_pending_events_from_file", side_effect=error):
+            clear_pending_schedule_events(tmp_path, "primary", [event])
+
+        assert str(error) in capsys.readouterr().err
+
+    def test_batch_disappearing_during_clear_is_silent(self, tmp_path, capsys):
+        event = RecentEvent("2026-09-15 08:00", "Sprawdzian", "Matematyka")
+        save_pending_schedule_events(tmp_path, "primary", [event])
+
+        original_reader = notification_state._pending_events_from_file
+
+        def removing_reader(batch_path, state_dir, alias):
+            result = original_reader(batch_path, state_dir, alias)
+            batch_path.unlink()
+            return result
+
+        with patch.object(notification_state, "_pending_events_from_file", removing_reader):
+            clear_pending_schedule_events(tmp_path, "primary", [event])
+
+        assert capsys.readouterr().err == ""
+
+    def test_clearing_unrelated_event_preserves_batch(self, tmp_path):
+        spooled = [
+            RecentEvent(f"2026-09-15 08:{index:03}", "Sprawdzian", "Matematyka")
+            for index in range(257)
+        ]
+        unrelated = RecentEvent("2026-09-16 08:00", "Sprawdzian", "Fizyka")
+        save_pending_schedule_events(tmp_path, "primary", spooled)
+
+        clear_pending_schedule_events(tmp_path, "primary", [unrelated])
+
+        assert load_pending_schedule_events(tmp_path, "primary") == spooled
+
     def test_identity_covers_all_visible_fields(self):
         first = RecentEvent("2026-09-15 08:00", "Sprawdzian", "Matematyka")
         second = RecentEvent("2026-09-16 08:00", "Sprawdzian", "Matematyka")
@@ -465,18 +648,13 @@ class TestPendingScheduleEvents:
         with pytest.raises(ValueError, match="too large"):
             load_pending_schedule_events(tmp_path, "primary")
 
-    def test_pending_schedule_batch_size_is_bounded_and_drains_across_loads(self, tmp_path):
+    def test_large_pending_schedule_save_is_preserved_and_drains_across_loads(self, tmp_path):
         data = "x" * (MAX_PENDING_SCHEDULE_BATCH_BYTES // 3)
         events = [
             RecentEvent(f"2026-09-{index + 10} 08:00", "Sprawdzian", data) for index in range(4)
         ]
 
-        with pytest.raises(ValueError, match="batch is too large"):
-            save_pending_schedule_events(tmp_path, "primary", events)
-        assert not list(tmp_path.glob("*.pending-schedule.*.json"))
-
-        for event in events:
-            save_pending_schedule_events(tmp_path, "primary", [event])
+        save_pending_schedule_events(tmp_path, "primary", events)
         first_batch = load_pending_schedule_events(tmp_path, "primary")
         assert 0 < len(first_batch) < len(events)
         clear_pending_schedule_events(tmp_path, "primary", first_batch)
@@ -514,11 +692,26 @@ class TestPendingScheduleEvents:
         ]
 
         save_pending_schedule_events(tmp_path, "primary", events)
+        assert len(list(tmp_path.glob("*.pending-schedule.*.json"))) == 1
         first_batch = load_pending_schedule_events(tmp_path, "primary")
-        assert len(first_batch) == 500
+        assert 0 < len(first_batch) <= 500
 
         clear_pending_schedule_events(tmp_path, "primary", first_batch)
-        assert len(load_pending_schedule_events(tmp_path, "primary")) == 1
+        second_batch = load_pending_schedule_events(tmp_path, "primary")
+        assert set(map(schedule_event_id, first_batch + second_batch)) == set(
+            map(schedule_event_id, events)
+        )
+
+    def test_event_larger_than_processing_batch_is_still_preserved(self, tmp_path):
+        event = RecentEvent(
+            "2026-09-15 08:00",
+            "Sprawdzian",
+            "x" * (MAX_PENDING_SCHEDULE_BATCH_BYTES + 1),
+        )
+
+        save_pending_schedule_events(tmp_path, "primary", [event])
+
+        assert load_pending_schedule_events(tmp_path, "primary") == [event]
 
     def test_rejects_non_string_event_fields(self, tmp_path):
         event = RecentEvent("2026-09-15 08:00", "Sprawdzian", 123)
@@ -531,8 +724,37 @@ class TestPendingScheduleEvents:
         save_pending_schedule_events(tmp_path, "primary", [event])
         path = next(tmp_path.glob("*.pending-schedule.*.json"))
         payload = json.loads(path.read_text(encoding="utf-8"))
-        payload["data"] = "Fizyka"
+        payload[0]["data"] = "Fizyka"
         path.write_text(json.dumps(payload), encoding="utf-8")
+
+        with pytest.raises(ValueError, match="digest mismatch"):
+            load_pending_schedule_events(tmp_path, "primary")
+
+    @pytest.mark.parametrize("replacement_digest", ["0" * 64, "f" * 64])
+    def test_batch_filename_digest_must_match_in_both_sort_directions(
+        self, tmp_path, replacement_digest
+    ):
+        event = RecentEvent("2026-09-15 08:00", "Sprawdzian", "Matematyka")
+        save_pending_schedule_events(tmp_path, "primary", [event])
+        path = next(tmp_path.glob("*.pending-schedule.batch.*.json"))
+        parts = path.name.split(".")
+        parts[-2] = replacement_digest
+        path.rename(path.with_name(".".join(parts)))
+
+        with pytest.raises(ValueError, match="digest mismatch"):
+            load_pending_schedule_events(tmp_path, "primary")
+
+    @pytest.mark.parametrize("replacement_digest", ["0" * 64, "f" * 64])
+    def test_legacy_filename_digest_must_match_in_both_sort_directions(
+        self, tmp_path, replacement_digest
+    ):
+        event = RecentEvent("2026-09-15 08:00", "Sprawdzian", "Matematyka")
+        valid_path = notification_state._pending_schedule_path(tmp_path, "primary", event)
+        parts = valid_path.name.split(".")
+        parts[-2] = replacement_digest
+        valid_path.with_name(".".join(parts)).write_bytes(
+            notification_state._encoded_schedule_event(event)
+        )
 
         with pytest.raises(ValueError, match="digest mismatch"):
             load_pending_schedule_events(tmp_path, "primary")

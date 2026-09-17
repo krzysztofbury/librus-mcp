@@ -22,6 +22,7 @@ src/
   librus_client.py       - LibrusManager class. Handles auth, caching, retry, and data fetching.
   config.py              - Reads secrets.json via Pydantic models (accounts, features, dirs).
   notification_state.py  - Per-alias persistence of seen-notification IDs (JSON files).
+  response_limits.py     - Shared non-attachment upstream response-body limits.
   scraping.py            - Own Synergia scraping: message attachments, behaviour notes (uwagi).
 ```
 
@@ -63,20 +64,24 @@ src/
 9. **Notification state is persisted** per alias as JSON under `state_dir`
    (`LIBRUS_STATE_DIR` > config > `~/.librus-mcp/state`), written atomically.
    State directories use mode `0700`; state, spool, mirror, and lock files use
-   mode `0600` on POSIX. Reads require regular files and are bounded to 4 MiB
-   before JSON parsing; pending schedule events are limited to 64 KiB each and
-   128 KiB per batch. Category size plus notification ID type and length are validated.
+    mode `0600` on POSIX. Reads require regular files and are bounded to 4 MiB
+    before JSON parsing. Schedule spool files are bounded from the accepted
+    response size and normally drain in 128 KiB processing batches, while one
+    larger event can drain alone. Category size plus notification ID type and
+    length are validated.
    Aliases that need filename sanitization get a full SHA-256 suffix so distinct
    aliases cannot share a state file. During compatibility migration, the
-   8-character state mirror and lock are retained so old and new MCP processes
-   cannot lose each other's updates. First run diffs against empty IDs; never use
-   `get_initial_notification_data`, it 403s on `/uczen/index` for parent (rodzic)
-   accounts. Read-once schedule events are checkpointed as independent
-   content-addressed spool files inside the blocking worker before further
-   notification parsing. The spool is cleared only after seen-state commits,
+    8-character state mirror and lock are retained so old and new MCP processes
+    cannot lose each other's updates. First run diffs against empty IDs; never use
+    `get_initial_notification_data`, it 403s on `/uczen/index` for parent (rodzic)
+    accounts. Each complete read-once schedule result is checkpointed as one
+    bounded, content-addressed atomic spool batch inside the blocking worker before
+    further notification parsing. The spool is cleared only after seen-state commits,
    providing at-least-once recovery after interrupted calls once the local
-   checkpoint succeeds. Failures before that checkpoint completes remain
-   ambiguous because the upstream view has already been consumed.
+    checkpoint succeeds. Up to 500 schedule events are processed per call; a
+    larger consumed result remains spooled and drains across later calls. Failures
+    before a record's checkpoint completes remain ambiguous because the upstream
+    view has already been consumed.
 10. **Own scraping lives in `src/scraping.py`** for gaps in librus-apix
     (attachments, uwagi, final grades). Attachment download flow:
     `/wiadomosci/pobierz_zalacznik/{msg}/{file}` → 302 (not followed
@@ -95,13 +100,21 @@ src/
     effective `AppConfig`. Feature modules never read environment settings.
     Implementation safety limits and file modes remain local constants and are
     deliberately not operator-configurable.
+13. **External bodies and collections are bounded.** Ordinary requests and
+    gateway JSON responses stream through one 4 MiB body limit before parsing;
+    redirect chains share one cumulative 4 MiB budget and allow at most 10 hops.
+    Message pages hold at most 50 items and expose truncation, all-pages message
+    reads hold at most 2,000 items, completed lessons hold at most 10,000 items,
+    and attendance fan-out validates record, lesson, and subject counts before
+    constructing tasks. `send_message` enforces the same limits in its MCP schema
+    and runtime validation, including unique numeric recipient IDs.
 
 ## How to Work With This Codebase
 
 ### Setup
 
 ```bash
-uv sync
+uv sync --locked --python 3.14
 export LIBRUS_CONFIG=/absolute/path/to/private/secrets.json
 ```
 
@@ -115,9 +128,12 @@ uv run python verify_connection.py     # Live smoke test (real credentials)
 ### Linting, Formatting, Tests
 
 ```bash
-uv run ruff check src/ tests/
-uv run ruff format src/ tests/
+uv lock --check
+uv run ruff check src/ tests/ release_verification/
+uv run ruff format --check src/ tests/ release_verification/
+uv run bandit -c pyproject.toml -r src/
 uv run pytest -q
+uv build --no-build-isolation
 ```
 
 ### Code Style
