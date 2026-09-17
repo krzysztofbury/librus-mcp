@@ -1,18 +1,26 @@
 """Tests for own-scraping additions: message attachments and behaviour notes (uwagi).
 
-Fixture HTML mirrors real Synergia markup captured on 2026-06-11 (personal data
-replaced with synthetic values).
+Attachment, empty-note, and final-grade HTML mirror Synergia markup captured on
+2026-06-11. Populated behaviour-note examples remain synthetic parser contracts.
 """
 
-from unittest.mock import patch
+import threading
+import time
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from unittest.mock import MagicMock, patch
 
 import pytest
+from librus_apix.exceptions import ParseError
 
 from src.scraping import (
     Attachment,
+    AttachmentDownloadCancelled,
     BehaviourNote,
+    DownloadCancellation,
+    download_attachment,
     parse_attachments,
     parse_behaviour_notes,
+    parse_final_grades,
 )
 
 # Mirrors the real message detail page: "Pliki:" table after message content.
@@ -137,8 +145,12 @@ class TestParseAttachments:
         assert parse_attachments(NO_ATTACHMENT_HTML) == []
 
     def test_empty_html_raises(self):
-        with pytest.raises(AssertionError):
+        with pytest.raises(ParseError, match="empty"):
             parse_attachments("")
+
+    def test_whitespace_only_html_raises(self):
+        with pytest.raises(ParseError, match="empty"):
+            parse_attachments(" \n\t")
 
 
 class TestParseBehaviourNotes:
@@ -166,8 +178,80 @@ class TestParseBehaviourNotes:
         assert notes[1].content == "Reprezentowanie szkoły."
 
     def test_empty_html_raises(self):
-        with pytest.raises(AssertionError):
+        with pytest.raises(ParseError, match="empty"):
             parse_behaviour_notes("")
+
+    @pytest.mark.parametrize(
+        "html",
+        [
+            UWAGI_LABEL_PAIRS_HTML.replace("Data dodania", "Kiedy", 1),
+            UWAGI_LABEL_PAIRS_HTML.replace("Treść", "Opis", 1),
+            UWAGI_COLUMNS_HTML.replace("<td>Data</td>", "<td>Kiedy</td>", 1),
+            UWAGI_COLUMNS_HTML.replace("<td>Treść</td>", "<td>Opis</td>", 1),
+        ],
+    )
+    def test_note_missing_required_date_or_content_raises(self, html):
+        with pytest.raises(ParseError, match="missing required fields"):
+            parse_behaviour_notes(html)
+
+    def test_teacher_and_category_are_optional(self):
+        html = """
+        <table class="decorated">
+          <tr><td>Data</td><td>2026-05-10</td></tr>
+          <tr><td>Treść</td><td>Pomoc podczas lekcji.</td></tr>
+        </table>
+        """
+
+        assert parse_behaviour_notes(html) == [
+            BehaviourNote("2026-05-10", "", "", "Pomoc podczas lekcji.")
+        ]
+
+    @pytest.mark.parametrize(
+        "html",
+        [
+            UWAGI_COLUMNS_HTML.replace(
+                "<td>Bieganie po korytarzu.</td>",
+                "<td>Bieganie po korytarzu.</td><td>unexpected</td>",
+                1,
+            ),
+            UWAGI_COLUMNS_HTML.replace("<td>Kowalski Jan</td>", "", 1),
+        ],
+    )
+    def test_malformed_column_row_does_not_return_partial_notes(self, html):
+        with pytest.raises(ParseError, match="does not match"):
+            parse_behaviour_notes(html)
+
+    def test_column_values_are_trimmed(self):
+        html = UWAGI_COLUMNS_HTML.replace(
+            "<td>Bieganie po korytarzu.</td>",
+            "<td>  Bieganie po korytarzu.  </td>",
+            1,
+        )
+
+        assert parse_behaviour_notes(html)[0].content == "Bieganie po korytarzu."
+
+    def test_nested_rows_do_not_become_notes(self):
+        html = UWAGI_COLUMNS_HTML.replace(
+            "Bieganie po korytarzu.",
+            "Bieganie po korytarzu.<table><tr><td>nested</td></tr></table>",
+            1,
+        )
+
+        notes = parse_behaviour_notes(html)
+        assert len(notes) == 2
+        assert notes[0].date == "2026-05-10"
+
+    def test_nested_markup_in_label_pair_value_is_not_an_extra_cell(self):
+        html = """
+        <table class="decorated">
+          <tr><td>Data</td><td>2026-05-10</td></tr>
+          <tr><td>Treść</td><td>Pomoc<table><tr><td>detail</td></tr></table></td></tr>
+        </table>
+        """
+
+        notes = parse_behaviour_notes(html)
+        assert len(notes) == 1
+        assert notes[0].date == "2026-05-10"
 
 
 # --- download_attachment with mocked HTTP ---
@@ -187,12 +271,16 @@ class FakeStreamResponse:
         self._content = content
         self.headers = headers if headers is not None else {}
         self.iterated = False
+        self.closed = False
 
     def __enter__(self):
         return self
 
     def __exit__(self, *exc_info):
         return False
+
+    def close(self):
+        self.closed = True
 
     def iter_content(self, chunk_size):
         self.iterated = True
@@ -241,6 +329,7 @@ class TestDownloadAttachment:
         second_call = mock.call_args_list[1]
         assert second_call.args[0] == "https://sandbox.librus.pl/GetFile/abc123/get"
         assert "cookies" not in second_call.kwargs
+        assert second_call.kwargs["headers"]["Accept-Encoding"] == "identity"
 
     def test_final_name_appears_only_after_complete_download(self, tmp_path):
         from src.scraping import download_attachment
@@ -396,6 +485,20 @@ class TestDownloadAttachment:
             scraping.download_attachment(FakeClient(), "1", "2", tmp_path)
         assert list(tmp_path.iterdir()) == []
 
+    def test_body_at_exact_size_limit_is_allowed(self, tmp_path, monkeypatch):
+        from src import scraping
+
+        content = b"exact"
+        monkeypatch.setattr(scraping, "MAX_ATTACHMENT_BYTES", len(content))
+        responses = self._responses(content=content)
+        responses[1].headers["Content-Length"] = str(len(content))
+        patcher, _ = _patch_http(responses)
+
+        with patcher:
+            info = scraping.download_attachment(FakeClient(), "1", "2", tmp_path)
+
+        assert info["size"] == len(content)
+
     def test_oversized_content_length_fails_before_streaming(self, tmp_path, monkeypatch):
         from src import scraping
 
@@ -407,6 +510,21 @@ class TestDownloadAttachment:
         patcher, _ = _patch_http([FakeRedirectResponse(), response])
         with patcher, pytest.raises(ValueError, match="byte limit"):
             scraping.download_attachment(FakeClient(), "1", "2", tmp_path)
+        assert response.iterated is False
+        assert list(tmp_path.iterdir()) == []
+
+    def test_encoded_response_is_rejected_before_streaming(self, tmp_path):
+        response = FakeStreamResponse(
+            headers={
+                "Content-Encoding": "gzip",
+                "Content-Disposition": 'filename="encoded.bin"',
+            }
+        )
+        patcher, _ = _patch_http([FakeRedirectResponse(), response])
+
+        with patcher, pytest.raises(ValueError, match="content encoding"):
+            download_attachment(FakeClient(), "1", "2", tmp_path)
+
         assert response.iterated is False
         assert list(tmp_path.iterdir()) == []
 
@@ -441,6 +559,288 @@ class TestDownloadAttachment:
         assert outside_target.read_bytes() == b"outside"
         assert info["filename"] == "raport (1).pdf"
 
+    def test_pre_cancelled_download_makes_no_request(self, tmp_path):
+        cancellation = DownloadCancellation()
+        cancellation.cancel()
+
+        with (
+            patch("src.scraping.requests.get") as get,
+            pytest.raises(AttachmentDownloadCancelled),
+        ):
+            download_attachment(FakeClient(), "1", "2", tmp_path, cancellation)
+
+        get.assert_not_called()
+        assert list(tmp_path.iterdir()) == []
+
+    def test_pre_cancelled_token_immediately_aborts_registered_response(self):
+        cancellation = DownloadCancellation()
+        cancellation.cancel()
+        abort = MagicMock()
+
+        cancellation.set_abort(abort)
+
+        abort.assert_called_once_with()
+
+    def test_live_response_abort_uses_daemon_thread(self):
+        cancellation = DownloadCancellation()
+        cancellation.set_abort(MagicMock())
+
+        with patch("src.scraping.Thread") as thread:
+            cancellation.cancel()
+
+        assert thread.call_args.kwargs["daemon"] is True
+        assert thread.call_args.kwargs["name"] == "librus-attachment-abort"
+        thread.return_value.start.assert_called_once_with()
+
+    def test_abort_failure_does_not_mask_cancellation(self, capsys):
+        cancellation = DownloadCancellation()
+        cancellation.cancel()
+        cancellation._abort_safely(MagicMock(side_effect=OSError("abort failed")))
+
+        with pytest.raises(AttachmentDownloadCancelled):
+            cancellation.raise_if_cancelled()
+        assert "response abort failed" in capsys.readouterr().err
+
+    def test_cancellation_during_stream_removes_temporary_file(self, tmp_path):
+        cancellation = DownloadCancellation()
+
+        class CancellingResponse(FakeStreamResponse):
+            def iter_content(self, chunk_size):
+                yield b"first"
+                cancellation.cancel()
+                yield b"second"
+
+        response = CancellingResponse(headers={"Content-Disposition": 'filename="late.bin"'})
+        patcher, _ = _patch_http([FakeRedirectResponse(), response])
+
+        with patcher, pytest.raises(AttachmentDownloadCancelled):
+            download_attachment(FakeClient(), "1", "2", tmp_path, cancellation)
+
+        assert list(tmp_path.iterdir()) == []
+
+    def test_cleanup_failure_does_not_mask_cancellation(self, tmp_path, capsys):
+        cancellation = DownloadCancellation()
+
+        class CancellingResponse(FakeStreamResponse):
+            def iter_content(self, chunk_size):
+                yield b"first"
+                cancellation.cancel()
+                yield b"second"
+
+        response = CancellingResponse(headers={"Content-Disposition": 'filename="late.bin"'})
+        patcher, _ = _patch_http([FakeRedirectResponse(), response])
+
+        with (
+            patcher,
+            patch("src.scraping.Path.unlink", side_effect=OSError("cleanup failed")),
+            pytest.raises(AttachmentDownloadCancelled),
+        ):
+            download_attachment(FakeClient(), "1", "2", tmp_path, cancellation)
+
+        assert "temporary file cleanup failed" in capsys.readouterr().err
+        [temporary_path] = list(tmp_path.iterdir())
+        temporary_path.unlink()
+
+    def test_concurrent_temporary_file_removal_is_silent(self, tmp_path, capsys):
+        class RemovingResponse(FakeStreamResponse):
+            def iter_content(self, chunk_size):
+                [temporary_path] = list(tmp_path.iterdir())
+                temporary_path.unlink()
+                raise OSError("download failed")
+
+        response = RemovingResponse(headers={"Content-Disposition": 'filename="late.bin"'})
+        patcher, _ = _patch_http([FakeRedirectResponse(), response])
+
+        with patcher, pytest.raises(OSError, match="download failed"):
+            download_attachment(FakeClient(), "1", "2", tmp_path)
+
+        assert capsys.readouterr().err == ""
+
+    def test_cancellation_after_response_close_prevents_publication(self, tmp_path):
+        cancellation = DownloadCancellation()
+
+        class CancelOnCloseResponse(FakeStreamResponse):
+            def __exit__(self, *exc_info):
+                cancellation.cancel()
+                return False
+
+        response = CancelOnCloseResponse(headers={"Content-Disposition": 'filename="late.bin"'})
+        patcher, _ = _patch_http([FakeRedirectResponse(), response])
+
+        with patcher, pytest.raises(AttachmentDownloadCancelled):
+            download_attachment(FakeClient(), "1", "2", tmp_path, cancellation)
+
+        assert list(tmp_path.iterdir()) == []
+
+    def test_cancellation_aborts_blocked_response(self, tmp_path):
+        cancellation = DownloadCancellation()
+        stream_started = threading.Event()
+        response_closed = threading.Event()
+        errors = []
+
+        class BlockingResponse(FakeStreamResponse):
+            def iter_content(self, chunk_size):
+                stream_started.set()
+                assert response_closed.wait(timeout=5)
+                raise OSError("response aborted")
+
+            def close(self):
+                super().close()
+                response_closed.set()
+
+        response = BlockingResponse(headers={"Content-Disposition": 'filename="late.bin"'})
+        patcher, _ = _patch_http([FakeRedirectResponse(), response])
+
+        def run_download():
+            try:
+                download_attachment(FakeClient(), "1", "2", tmp_path, cancellation)
+            except OSError as error:
+                errors.append(error)
+
+        with patcher:
+            worker = threading.Thread(target=run_download)
+            worker.start()
+            assert stream_started.wait(timeout=5)
+            cancellation.cancel()
+            worker.join(timeout=5)
+
+        assert not worker.is_alive()
+        assert response.closed is True
+        assert len(errors) == 1
+        assert isinstance(errors[0], OSError)
+        assert list(tmp_path.iterdir()) == []
+
+    def test_slow_drip_body_obeys_absolute_deadline(self, tmp_path, monkeypatch):
+        from src import scraping
+
+        class SlowDripHandler(BaseHTTPRequestHandler):
+            def do_GET(self):
+                self.send_response(200)
+                self.send_header("Content-Length", "100")
+                self.end_headers()
+                for _ in range(100):
+                    try:
+                        self.wfile.write(b"x")
+                        self.wfile.flush()
+                    except BrokenPipeError, ConnectionResetError:
+                        return
+                    time.sleep(0.02)
+
+            def log_message(self, format, *args):
+                pass
+
+        server = ThreadingHTTPServer(("127.0.0.1", 0), SlowDripHandler)
+        server.daemon_threads = True
+        server_thread = threading.Thread(target=server.serve_forever, daemon=True)
+        server_thread.start()
+        monkeypatch.setattr(scraping, "DOWNLOAD_DEADLINE_SECONDS", 0.05)
+        started = time.monotonic()
+        try:
+            with pytest.raises(ValueError, match="deadline"):
+                scraping._stream_attachment(
+                    f"http://127.0.0.1:{server.server_port}/slow",
+                    {},
+                    tmp_path,
+                    "slow.bin",
+                    DownloadCancellation(),
+                )
+            elapsed = time.monotonic() - started
+        finally:
+            server.shutdown()
+            server.server_close()
+            server_thread.join(timeout=5)
+
+        assert elapsed < 0.5
+        assert list(tmp_path.iterdir()) == []
+
+    def test_deadline_is_checked_before_and_after_each_raw_read(self):
+        from src import scraping
+
+        raw = MagicMock()
+        raw.read1.return_value = b"x"
+        response = type("Response", (), {"raw": raw})()
+
+        for expired_at in (10.0, 11.0):
+            raw.reset_mock()
+            with (
+                patch.object(scraping.time, "monotonic", return_value=expired_at),
+                pytest.raises(ValueError, match="deadline"),
+            ):
+                list(scraping._iter_attachment_chunks(response, 10.0, DownloadCancellation()))
+            raw.read1.assert_not_called()
+
+            with (
+                patch.object(scraping.time, "monotonic", side_effect=[9.0, expired_at]),
+                pytest.raises(ValueError, match="deadline"),
+            ):
+                list(scraping._iter_attachment_chunks(response, 10.0, DownloadCancellation()))
+        raw.read1.assert_called_once_with(scraping.DOWNLOAD_CHUNK_BYTES, decode_content=False)
+
+    def test_raw_read_disables_content_decoding(self):
+        from src import scraping
+
+        class Raw:
+            def __init__(self):
+                self.chunks = iter([b"decoded", b""])
+
+            def read1(self, chunk_size, *, decode_content):
+                assert chunk_size == scraping.DOWNLOAD_CHUNK_BYTES
+                assert decode_content is False
+                return next(self.chunks)
+
+        response = type("Response", (), {"raw": Raw()})()
+
+        assert list(
+            scraping._iter_attachment_chunks(response, float("inf"), DownloadCancellation())
+        ) == [b"decoded"]
+
+    def test_response_without_raw_read1_uses_iter_content(self):
+        from src import scraping
+
+        class Response:
+            raw = object()
+
+            @staticmethod
+            def iter_content(chunk_size):
+                assert chunk_size == scraping.DOWNLOAD_CHUNK_BYTES
+                yield b"fallback"
+
+        assert list(
+            scraping._iter_attachment_chunks(Response(), float("inf"), DownloadCancellation())
+        ) == [b"fallback"]
+
+    def test_publication_and_cancellation_are_ordered(self, tmp_path):
+        from src import scraping
+
+        temporary_path = tmp_path / ".download.tmp"
+        temporary_path.write_bytes(b"complete")
+        cancellation = DownloadCancellation()
+        publication_started = threading.Event()
+        release_publication = threading.Event()
+        real_link = scraping.os.link
+
+        def blocking_link(*args, **kwargs):
+            publication_started.set()
+            assert release_publication.wait(timeout=5)
+            return real_link(*args, **kwargs)
+
+        with patch.object(scraping.os, "link", side_effect=blocking_link):
+            publisher = threading.Thread(
+                target=scraping._publish_unique_file,
+                args=(temporary_path, "complete.bin", cancellation),
+            )
+            publisher.start()
+            assert publication_started.wait(timeout=5)
+            cancellation.cancel()
+            assert cancellation.publication_is_idle() is False
+            assert cancellation._publication_lock.locked()
+            release_publication.set()
+            publisher.join(timeout=5)
+
+        assert not publisher.is_alive()
+        assert cancellation.publication_is_idle() is True
+        assert (tmp_path / "complete.bin").read_bytes() == b"complete"
+
 
 class TestSingleHtmlParse:
     def test_attachment_page_is_parsed_once(self, monkeypatch):
@@ -464,6 +864,32 @@ class TestSingleHtmlParse:
         assert scraping.get_attachments(PageClient(), "1") == []
         assert calls["count"] == 1
 
+    def test_empty_attachment_response_raises(self):
+        from src import scraping
+
+        class PageClient:
+            MESSAGE_URL = "https://synergia.librus.pl/wiadomosci"
+
+            @staticmethod
+            def get(url):
+                return type("Response", (), {"text": ""})()
+
+        with pytest.raises(ParseError, match="empty"):
+            scraping.get_attachments(PageClient(), "1")
+
+    def test_whitespace_only_attachment_response_raises(self):
+        from src import scraping
+
+        class PageClient:
+            MESSAGE_URL = "https://synergia.librus.pl/wiadomosci"
+
+            @staticmethod
+            def get(url):
+                return type("Response", (), {"text": " \n\t"})()
+
+        with pytest.raises(ParseError, match="empty"):
+            scraping.get_attachments(PageClient(), "1")
+
 
 UWAGI_UNRECOGNIZED_HTML = """
 <html><body>
@@ -480,8 +906,18 @@ class TestUnrecognizedUwagiLayout:
     def test_tables_without_parseable_notes_raise(self):
         """A page with neither the empty marker nor parseable notes must fail
         loudly — a silent [] here would read as 'no behaviour notes'."""
-        with pytest.raises(AssertionError, match="unrecognized"):
+        with pytest.raises(ParseError, match="unrecognized"):
             parse_behaviour_notes(UWAGI_UNRECOGNIZED_HTML)
+
+    def test_nested_label_pair_rows_do_not_fabricate_a_note(self):
+        html = """
+        <table class="decorated">
+          <tr><td>Wrapper<table><tr><td>Data</td><td>2026-01-01</td></tr></table></td></tr>
+        </table>
+        """
+
+        with pytest.raises(ParseError, match="unrecognized"):
+            parse_behaviour_notes(html)
 
 
 # --- final grades (przewidywane roczne / roczne) ---
@@ -573,14 +1009,32 @@ class TestParseFinalGrades:
         """Layout drift must fail loudly, not return an empty list."""
         from src.scraping import parse_final_grades
 
-        with pytest.raises(AssertionError, match="header"):
+        with pytest.raises(ParseError, match="header"):
             parse_final_grades(FINAL_GRADES_NO_HEADER_HTML)
 
     def test_empty_html_raises(self):
         from src.scraping import parse_final_grades
 
-        with pytest.raises(AssertionError):
+        with pytest.raises(ParseError, match="empty"):
             parse_final_grades("")
+
+    def test_grade_row_limit_boundary(self):
+        from src.scraping import parse_final_grades
+
+        def grades_html(row_count):
+            rows = "".join(
+                f'<tr class="line0"><td></td><td>Subject {index}</td><td>5</td></tr>'
+                for index in range(row_count)
+            )
+            return (
+                '<table class="decorated stretch"><thead><tr>'
+                '<td title="Ocena roczna">R</td></tr></thead>'
+                f"{rows}</table>"
+            )
+
+        assert len(parse_final_grades(grades_html(200))) == 200
+        with pytest.raises(ParseError, match="row count"):
+            parse_final_grades(grades_html(201))
 
 
 # Preschool layout (captured live): titled header WITHOUT the predicted column.
@@ -681,5 +1135,60 @@ class TestParseFinalGradesVariants:
         from src.scraping import parse_final_grades
 
         html = FINAL_GRADES_HTML.replace("<td>Plastyka</td>", '<td colspan="2">Plastyka</td>', 1)
-        with pytest.raises(AssertionError, match="colspan"):
+        with pytest.raises(ParseError, match="colspan"):
             parse_final_grades(html)
+
+    def test_short_subject_row_does_not_return_partial_grades(self):
+        html = FINAL_GRADES_HTML.replace(
+            "<td>Plastyka</td>",
+            '<td>Plastyka</td></tr><tr class="line0"><td></td><td>Noise</td>',
+            1,
+        )
+
+        with pytest.raises(ParseError, match="shorter than its header"):
+            parse_final_grades(html)
+
+    def test_grade_subject_is_trimmed(self):
+        html = FINAL_GRADES_HTML.replace("<td>Plastyka</td>", "<td>  Plastyka  </td>", 1)
+
+        assert any(grade.subject == "Plastyka" for grade in parse_final_grades(html))
+
+    @pytest.mark.parametrize(
+        "row",
+        [
+            '<tr class="line0"><td></td></tr>',
+            '<tr class="line0"><td></td><td>Historia</td></tr>',
+        ],
+    )
+    def test_grade_rows_at_short_boundaries_raise_parse_error(self, row):
+        html = (
+            '<table class="decorated stretch"><thead><tr>'
+            '<td title="Ocena roczna">R</td></tr></thead>'
+            f"{row}</table>"
+        )
+
+        with pytest.raises(ParseError):
+            parse_final_grades(html)
+
+    def test_non_numeric_header_colspan_raises(self):
+        html = FINAL_GRADES_HTML.replace('colspan="2"', 'colspan="many"', 1)
+
+        with pytest.raises(ParseError, match="non-numeric colspan"):
+            parse_final_grades(html)
+
+    @pytest.mark.parametrize("span", ["0", "100", "9" * 5000])
+    def test_out_of_bounds_header_colspan_raises(self, span):
+        html = FINAL_GRADES_HTML.replace('colspan="2"', f'colspan="{span}"', 1)
+
+        with pytest.raises(ParseError, match="colspan"):
+            parse_final_grades(html)
+
+    def test_grade_column_limit_is_inclusive(self):
+        html = """
+        <table class="decorated stretch">
+          <thead><tr><td title="Ocena roczna" colspan="98">R</td></tr></thead>
+          <tr class="line0"><td></td><td>Historia</td><td>5</td></tr>
+        </table>
+        """
+
+        assert parse_final_grades(html)[0].final == "5"

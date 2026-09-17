@@ -107,6 +107,83 @@ class SequenceSession:
 
 
 class TestSubjectFrequency:
+    @pytest.mark.parametrize(
+        ("payload", "message"),
+        [
+            ([], "must be an object"),
+            ({}, "Attendances must be a list"),
+            ({"Attendances": {}}, "Attendances must be a list"),
+        ],
+    )
+    def test_attendance_envelope_is_validated(self, payload, message):
+        client = SimpleNamespace(
+            GATEWAY_API_ATTENDANCE="https://synergia.librus.pl/gateway",
+            refresh_oauth=MagicMock(),
+            get=MagicMock(return_value=SimpleNamespace(json=lambda: payload)),
+        )
+
+        with pytest.raises(ParseError, match=message):
+            librus_optimizations.get_subject_frequency(client)
+
+    def test_invalid_attendance_json_is_normalized(self):
+        client = SimpleNamespace(
+            GATEWAY_API_ATTENDANCE="https://synergia.librus.pl/gateway",
+            refresh_oauth=MagicMock(),
+            get=MagicMock(
+                return_value=SimpleNamespace(json=MagicMock(side_effect=ValueError("bad JSON")))
+            ),
+        )
+
+        with pytest.raises(ParseError, match="not valid JSON"):
+            librus_optimizations.get_subject_frequency(client)
+
+    def test_malformed_attendance_record_is_normalized(self):
+        client = SimpleNamespace(
+            GATEWAY_API_ATTENDANCE="https://synergia.librus.pl/gateway",
+            refresh_oauth=MagicMock(),
+            get=MagicMock(return_value=SimpleNamespace(json=lambda: {"Attendances": [{}]})),
+        )
+
+        with pytest.raises(ParseError, match="Lesson.Id"):
+            librus_optimizations.get_subject_frequency(client)
+
+    def test_boolean_attendance_id_is_rejected(self):
+        attendance = {"Lesson": {"Id": True}, "Type": {"Id": 100}}
+        client = SimpleNamespace(
+            GATEWAY_API_ATTENDANCE="https://synergia.librus.pl/gateway",
+            refresh_oauth=MagicMock(),
+            get=MagicMock(return_value=SimpleNamespace(json=lambda: {"Attendances": [attendance]})),
+        )
+
+        with pytest.raises(ParseError, match="invalid Lesson.Id"):
+            librus_optimizations.get_subject_frequency(client)
+
+    def test_non_numeric_attendance_id_is_rejected(self):
+        attendance = {"Lesson": {"Id": "abc"}, "Type": {"Id": 100}}
+        client = SimpleNamespace(
+            GATEWAY_API_ATTENDANCE="https://synergia.librus.pl/gateway",
+            refresh_oauth=MagicMock(),
+            get=MagicMock(return_value=SimpleNamespace(json=lambda: {"Attendances": [attendance]})),
+        )
+
+        with pytest.raises(ParseError, match="invalid Lesson.Id"):
+            librus_optimizations.get_subject_frequency(client)
+
+    def test_malformed_attendance_date_is_normalized(self):
+        attendance = {
+            "Date": "not-a-date",
+            "Lesson": {"Id": 1},
+            "Type": {"Id": 100},
+        }
+        client = SimpleNamespace(
+            GATEWAY_API_ATTENDANCE="https://synergia.librus.pl/gateway",
+            refresh_oauth=MagicMock(),
+            get=MagicMock(return_value=SimpleNamespace(json=lambda: {"Attendances": [attendance]})),
+        )
+
+        with pytest.raises(ParseError, match="invalid Date"):
+            librus_optimizations.get_subject_frequency(client, start=date(2026, 1, 1))
+
     def test_deduplicates_lessons_and_subjects(self, monkeypatch):
         monkeypatch.setattr(librus_optimizations, "MAX_ATTENDANCE_RECORDS", 3)
         monkeypatch.setattr(librus_optimizations, "MAX_UNIQUE_LESSON_IDS", 2)
@@ -377,6 +454,36 @@ class TestSubjectFrequency:
         assert request.await_count == 2
 
     @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        ("payloads", "message"),
+        [
+            ([{}], "lesson response"),
+            ([{"Lesson": {"Subject": {"Id": 10}}}, {}], "subject response"),
+            (
+                [
+                    {"Lesson": {"Subject": {"Id": 10}}},
+                    {"Subject": {"Name": 123}},
+                ],
+                "invalid Subject.Name",
+            ),
+        ],
+    )
+    async def test_malformed_resolution_payload_is_normalized(self, payloads, message):
+        client = SimpleNamespace(
+            BASE_URL="https://synergia.librus.pl",
+            proxy={},
+            _session=SimpleNamespace(cookies={}, headers={}),
+        )
+        attendances = [{"Lesson": {"Id": 1}, "Type": {"Id": 100}}]
+
+        with (
+            patch.object(librus_optimizations, "ClientSession", FakeClientSession),
+            patch.object(librus_optimizations, "_request_json", AsyncMock(side_effect=payloads)),
+            pytest.raises(ParseError, match=message),
+        ):
+            await librus_optimizations._resolve_subjects(client, attendances)
+
+    @pytest.mark.asyncio
     async def test_lesson_response_count_must_match_request_count(self):
         client = SimpleNamespace(
             BASE_URL="https://synergia.librus.pl",
@@ -393,6 +500,32 @@ class TestSubjectFrequency:
         with (
             patch.object(librus_optimizations, "ClientSession", FakeClientSession),
             patch.object(librus_optimizations.asyncio, "gather", drop_responses),
+            pytest.raises(ValueError, match=r"zip\(\) argument 2 is shorter"),
+        ):
+            await librus_optimizations._resolve_subjects(client, attendances)
+
+    @pytest.mark.asyncio
+    async def test_subject_response_count_must_match_request_count(self):
+        client = SimpleNamespace(
+            BASE_URL="https://synergia.librus.pl",
+            proxy={},
+            _session=SimpleNamespace(cookies={}, headers={}),
+        )
+        attendances = [{"Lesson": {"Id": 1}, "Type": {"Id": 100}}]
+        gather_calls = 0
+
+        async def drop_subject_responses(*coroutines):
+            nonlocal gather_calls
+            gather_calls += 1
+            for coroutine in coroutines:
+                coroutine.close()
+            if gather_calls == 1:
+                return [{"Lesson": {"Subject": {"Id": 10}}}]
+            return []
+
+        with (
+            patch.object(librus_optimizations, "ClientSession", FakeClientSession),
+            patch.object(librus_optimizations.asyncio, "gather", drop_subject_responses),
             pytest.raises(ValueError, match=r"zip\(\) argument 2 is shorter"),
         ):
             await librus_optimizations._resolve_subjects(client, attendances)

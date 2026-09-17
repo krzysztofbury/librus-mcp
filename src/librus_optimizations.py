@@ -67,13 +67,36 @@ ATTENDANCE_TYPES = {
 }
 
 
+def _gateway_field(payload: Any, path: tuple[str, ...], context: str) -> Any:
+    value = payload
+    for field in path:
+        if not isinstance(value, dict) or field not in value:
+            raise ParseError(f"gateway {context} is missing {'.'.join(path)}")
+        value = value[field]
+    return value
+
+
+def _gateway_id(payload: Any, path: tuple[str, ...], context: str) -> int | str:
+    value = _gateway_field(payload, path, context)
+    if not isinstance(value, (int, str)) or not str(value).isdigit():
+        raise ParseError(f"gateway {context} has invalid {'.'.join(path)}")
+    return value
+
+
 def get_subject_frequency(
     client: Client, start: date | None = None, end: date | None = None
 ) -> dict[str, float]:
     """Resolve each unique lesson and subject once, with bounded concurrency."""
     client.refresh_oauth()
-    attendances = client.get(client.GATEWAY_API_ATTENDANCE).json()["Attendances"]
-    assert isinstance(attendances, list), "gateway Attendances must be a list"
+    try:
+        payload = client.get(client.GATEWAY_API_ATTENDANCE).json()
+    except ValueError as error:
+        raise ParseError("gateway attendance response is not valid JSON") from error
+    if not isinstance(payload, dict):
+        raise ParseError("gateway attendance response must be an object")
+    attendances = payload.get("Attendances")
+    if not isinstance(attendances, list):
+        raise ParseError("gateway Attendances must be a list")
     if len(attendances) > MAX_ATTENDANCE_RECORDS:
         raise ValueError(f"attendance record count exceeds {MAX_ATTENDANCE_RECORDS}")
     filtered = _filter_attendances(attendances, start, end)
@@ -101,7 +124,11 @@ def _filter_attendances(
         return attendances
     filtered: list[dict[str, Any]] = []
     for attendance in attendances:
-        attendance_date = date.fromisoformat(attendance["Date"])
+        raw_date = _gateway_field(attendance, ("Date",), "attendance record")
+        try:
+            attendance_date = date.fromisoformat(raw_date)
+        except (TypeError, ValueError) as error:
+            raise ParseError("gateway attendance record has invalid Date") from error
         if start is not None and attendance_date < start:
             continue
         if end is not None and attendance_date > end:
@@ -113,7 +140,15 @@ def _filter_attendances(
 async def _resolve_subjects(
     client: Client, attendances: list[dict[str, Any]]
 ) -> list[tuple[str, str]]:
-    lesson_ids = list(dict.fromkeys(attendance["Lesson"]["Id"] for attendance in attendances))
+    lesson_ids = list(
+        dict.fromkeys(
+            _gateway_id(attendance, ("Lesson", "Id"), "attendance record")
+            for attendance in attendances
+        )
+    )
+    attendance_type_ids = [
+        _gateway_id(attendance, ("Type", "Id"), "attendance record") for attendance in attendances
+    ]
     if len(lesson_ids) > MAX_UNIQUE_LESSON_IDS:
         raise ValueError(f"unique lesson count exceeds {MAX_UNIQUE_LESSON_IDS}")
     if not lesson_ids:
@@ -140,7 +175,7 @@ async def _resolve_subjects(
             ]
         )
         lesson_subjects = {
-            lesson_id: payload["Lesson"]["Subject"]["Id"]
+            lesson_id: _gateway_id(payload, ("Lesson", "Subject", "Id"), "lesson response")
             for lesson_id, payload in zip(lesson_ids, lesson_payloads, strict=True)
         }
         subject_ids = list(dict.fromkeys(lesson_subjects.values()))
@@ -157,16 +192,20 @@ async def _resolve_subjects(
                 for subject_id in subject_ids
             ]
         )
-    subject_names = {
-        subject_id: payload["Subject"]["Name"]
-        for subject_id, payload in zip(subject_ids, subject_payloads, strict=True)
-    }
+    subject_names: dict[int | str, str] = {}
+    for subject_id, payload in zip(subject_ids, subject_payloads, strict=True):
+        name = _gateway_field(payload, ("Subject", "Name"), "subject response")
+        if not isinstance(name, str) or not name.strip():
+            raise ParseError("gateway subject response has invalid Subject.Name")
+        subject_names[subject_id] = name
     return [
         (
-            subject_names[lesson_subjects[attendance["Lesson"]["Id"]]],
-            ATTENDANCE_TYPES.get(str(attendance["Type"]["Id"]), "unknown"),
+            subject_names[
+                lesson_subjects[_gateway_id(attendance, ("Lesson", "Id"), "attendance record")]
+            ],
+            ATTENDANCE_TYPES.get(str(type_id), "unknown"),
         )
-        for attendance in attendances
+        for attendance, type_id in zip(attendances, attendance_type_ids, strict=True)
     ]
 
 

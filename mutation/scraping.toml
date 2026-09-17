@@ -1,14 +1,14 @@
 [cosmic-ray]
-module-path = "src/config.py"
+module-path = "src/scraping.py"
 timeout = 30.0
-test-command = "uv run pytest -q tests/test_config.py tests/test_server.py"
+test-command = "uv run pytest -q tests/test_scraping.py"
 excluded-modules = []
 
 [cosmic-ray.distributor]
 name = "local"
 
 [cosmic-ray.filters.line-filter.lines]
-"src/config.py" = ["14-107", "116-225", "235-294"]
+"src/scraping.py" = ["80-120", "122-126", "131-132", "168-169", "180", "185-193", "242", "249", "252", "259", "265-272", "282-299", "324", "327-333", "338-360", "364", "369-370", "412-426", "455-456", "476-484", "491-493", "530-538", "549-560", "568-569", "571-583", "611-618"]
 
 [cosmic-ray.filters.operators-filter]
 exclude-operators = [

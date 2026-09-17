@@ -20,8 +20,11 @@ import os
 import re
 import sys
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
+from dataclasses import field as dataclass_field
 from pathlib import Path
+from threading import Event, Lock, Thread
 from urllib.parse import urlparse
 from uuid import uuid4
 
@@ -29,7 +32,7 @@ import requests
 from bs4 import BeautifulSoup, Tag
 from librus_apix import urls as librus_urls
 from librus_apix.client import Client
-from librus_apix.exceptions import TokenError
+from librus_apix.exceptions import ParseError, TokenError
 from librus_apix.helpers import no_access_check
 from requests.cookies import RequestsCookieJar
 
@@ -37,6 +40,7 @@ from requests.cookies import RequestsCookieJar
 ATTACHMENT_PATTERN = re.compile(r"pobierz_zalacznik(?:\\/|/)(\d+)(?:\\/|/)(\d+)")
 MAX_ATTACHMENT_BYTES = 50 * 1024 * 1024
 MAX_ATTACHMENTS_PER_MESSAGE = 20
+MAX_FINAL_GRADE_COLUMNS = 100
 DOWNLOAD_HOST = "sandbox.librus.pl"
 DOWNLOAD_PATH_PREFIX = "/GetFile/"
 REQUEST_TIMEOUT_SECONDS = 30.0
@@ -68,9 +72,64 @@ class BehaviourNote:
     content: str
 
 
+class AttachmentDownloadCancelled(Exception):
+    """Stop a worker after its async caller is cancelled or timed out."""
+
+
+@dataclass
+class DownloadCancellation:
+    _cancelled: Event = dataclass_field(default_factory=Event)
+    _publication_lock: Lock = dataclass_field(default_factory=Lock)
+    _abort_lock: Lock = dataclass_field(default_factory=Lock)
+    _abort: Callable[[], None] | None = None
+
+    def cancel(self) -> None:
+        with self._abort_lock:
+            if self._cancelled.is_set():
+                return
+            self._cancelled.set()
+            abort = self._abort
+        if abort is not None:
+            Thread(
+                target=self._abort_safely,
+                args=(abort,),
+                name="librus-attachment-abort",
+                daemon=True,
+            ).start()
+
+    def publication_is_idle(self) -> bool:
+        acquired = self._publication_lock.acquire(blocking=False)
+        if acquired:
+            self._publication_lock.release()
+        return acquired
+
+    def set_abort(self, abort: Callable[[], None]) -> None:
+        with self._abort_lock:
+            if not self._cancelled.is_set():
+                self._abort = abort
+                return
+        self._abort_safely(abort)
+
+    def clear_abort(self) -> None:
+        with self._abort_lock:
+            self._abort = None
+
+    @staticmethod
+    def _abort_safely(abort: Callable[[], None]) -> None:
+        try:
+            abort()
+        except (OSError, requests.RequestException) as error:
+            print(f"librus-mcp: attachment response abort failed: {error}", file=sys.stderr)
+
+    def raise_if_cancelled(self) -> None:
+        if self._cancelled.is_set():
+            raise AttachmentDownloadCancelled("attachment download was cancelled")
+
+
 def parse_attachments(html: str) -> list[Attachment]:
     """Extract attachment entries from a message detail page."""
-    assert html, "html must not be empty"
+    if not html.strip():
+        raise ParseError("attachment page HTML is empty")
     return _parse_attachments_soup(BeautifulSoup(html, "lxml"))
 
 
@@ -106,20 +165,33 @@ def get_attachments(client: Client, message_id: str) -> list[Attachment]:
     """Fetch the message detail page and list its attachments."""
     _require_bare_id(message_id, "message_id")
     response = client.get(client.MESSAGE_URL + "/" + message_id)
+    if not response.text.strip():
+        raise ParseError("attachment page HTML is empty")
     soup = BeautifulSoup(response.text, "lxml")
     no_access_check(soup)
     return _parse_attachments_soup(soup)
 
 
-def download_attachment(client: Client, message_id: str, file_id: str, download_dir: Path) -> dict:
+def download_attachment(
+    client: Client,
+    message_id: str,
+    file_id: str,
+    download_dir: Path,
+    cancellation: DownloadCancellation | None = None,
+) -> dict:
     """Download one attachment to download_dir. Returns path/filename/size/content_type."""
     _require_bare_id(message_id, "message_id")
     _require_bare_id(file_id, "file_id")
+    cancellation = cancellation or DownloadCancellation()
+    cancellation.raise_if_cancelled()
 
     url = f"{client.BASE_URL}/wiadomosci/pobierz_zalacznik/{message_id}/{file_id}"
     download_url = _resolve_download_url(client, url)
+    cancellation.raise_if_cancelled()
     fallback_filename = f"attachment_{message_id}_{file_id}"
-    return _stream_attachment(download_url, client.proxy, download_dir, fallback_filename)
+    return _stream_attachment(
+        download_url, client.proxy, download_dir, fallback_filename, cancellation
+    )
 
 
 def _require_bare_id(value: str, name: str) -> None:
@@ -163,46 +235,67 @@ def _resolve_download_url(client: Client, url: str) -> str:
 
 
 def _stream_attachment(
-    download_url: str, proxy: dict, download_dir: Path, fallback_filename: str
+    download_url: str,
+    proxy: dict,
+    download_dir: Path,
+    fallback_filename: str,
+    cancellation: DownloadCancellation,
 ) -> dict:
     """Stream a signed sandbox download directly to an exclusive local file."""
     deadline = time.monotonic() + DOWNLOAD_DEADLINE_SECONDS
     received_bytes = 0
     temporary_path: Path | None = None
     try:
+        cancellation.raise_if_cancelled()
         with requests.get(
             download_url + "/get",
-            headers=librus_urls.HEADERS,
+            headers={**librus_urls.HEADERS, "Accept-Encoding": "identity"},
             stream=True,
             allow_redirects=False,
             timeout=REQUEST_TIMEOUT_SECONDS,
             proxies=proxy,
         ) as response:
-            if response.status_code != 200:
-                raise ValueError(f"attachment download failed: HTTP {response.status_code}")
-            content_type = response.headers.get("Content-Type", "")
-            disposition = response.headers.get("Content-Disposition", "")
-            content_length = response.headers.get("Content-Length", "")
-            if content_length.isdigit() and int(content_length) > MAX_ATTACHMENT_BYTES:
-                raise ValueError(f"attachment exceeds the {MAX_ATTACHMENT_BYTES} byte limit")
-            filename = _safe_attachment_filename(disposition, fallback_filename)
-            temporary_path, descriptor = _create_temporary_file(download_dir)
             try:
-                handle = os.fdopen(descriptor, "wb")
-            except BaseException:
+                cancellation.set_abort(response.close)
+                if response.status_code != 200:
+                    raise ValueError(f"attachment download failed: HTTP {response.status_code}")
+                content_type = response.headers.get("Content-Type", "")
+                disposition = response.headers.get("Content-Disposition", "")
+                content_length = response.headers.get("Content-Length", "")
+                content_encoding = response.headers.get("Content-Encoding", "identity").lower()
+                if content_encoding not in ("", "identity"):
+                    raise ValueError(f"unsupported attachment content encoding: {content_encoding}")
+                if content_length.isdigit() and int(content_length) > MAX_ATTACHMENT_BYTES:
+                    raise ValueError(f"attachment exceeds the {MAX_ATTACHMENT_BYTES} byte limit")
+                filename = _safe_attachment_filename(disposition, fallback_filename)
+                cancellation.raise_if_cancelled()
+                temporary_path, descriptor = _create_temporary_file(download_dir)
                 try:
-                    os.close(descriptor)
-                except OSError:
-                    pass
-                raise
-            with handle:
-                received_bytes = _write_attachment_chunks(response, handle, deadline)
-            if received_bytes == 0:
-                raise ValueError("attachment download returned an empty body")
-        target_path = _publish_unique_file(temporary_path, filename)
+                    handle = os.fdopen(descriptor, "wb")
+                except BaseException:
+                    try:
+                        os.close(descriptor)
+                    except OSError:
+                        pass
+                    raise
+                with handle:
+                    received_bytes = _write_attachment_chunks(
+                        response, handle, deadline, cancellation
+                    )
+                if not received_bytes:
+                    raise ValueError("attachment download returned an empty body")
+            finally:
+                cancellation.clear_abort()
+        target_path = _publish_unique_file(temporary_path, filename, cancellation)
     except BaseException:
         if temporary_path is not None:
-            temporary_path.unlink(missing_ok=True)
+            try:
+                temporary_path.unlink(missing_ok=True)
+            except OSError as cleanup_error:
+                print(
+                    f"librus-mcp: attachment temporary file cleanup failed: {cleanup_error}",
+                    file=sys.stderr,
+                )
         raise
     return {
         "path": str(target_path),
@@ -227,48 +320,78 @@ def _create_temporary_file(download_dir: Path) -> tuple[Path, int]:
     return temporary_path, descriptor
 
 
-def _write_attachment_chunks(response, handle, deadline: float) -> int:
+def _write_attachment_chunks(
+    response, handle, deadline: float, cancellation: DownloadCancellation
+) -> int:
     received_bytes = 0
-    for chunk in response.iter_content(DOWNLOAD_CHUNK_BYTES):
+    for chunk in _iter_attachment_chunks(response, deadline, cancellation):
         if not chunk:
             continue
         received_bytes += len(chunk)
         if received_bytes > MAX_ATTACHMENT_BYTES:
             raise ValueError(f"attachment exceeds the {MAX_ATTACHMENT_BYTES} byte limit")
-        if time.monotonic() > deadline:
-            raise ValueError("attachment download exceeded its deadline")
         handle.write(chunk)
     return received_bytes
 
 
-def _publish_unique_file(temporary_path: Path, filename: str) -> Path:
+def _iter_attachment_chunks(response, deadline: float, cancellation: DownloadCancellation):
+    raw = getattr(response, "raw", None)
+    if raw is not None and hasattr(raw, "read1"):
+        # read1 returns available bytes instead of buffering until 64 KiB is full.
+        def read_chunk():
+            return raw.read1(DOWNLOAD_CHUNK_BYTES, decode_content=False)
+
+    else:
+        chunks = iter(response.iter_content(DOWNLOAD_CHUNK_BYTES))
+
+        def read_chunk():
+            return next(chunks, b"")
+
+    while True:
+        cancellation.raise_if_cancelled()
+        if time.monotonic() >= deadline:
+            raise ValueError("attachment download exceeded its deadline")
+        chunk = read_chunk()
+        cancellation.raise_if_cancelled()
+        if time.monotonic() >= deadline:
+            raise ValueError("attachment download exceeded its deadline")
+        if not chunk:
+            return
+        yield chunk
+
+
+def _publish_unique_file(
+    temporary_path: Path, filename: str, cancellation: DownloadCancellation
+) -> Path:
     """Atomically publish a complete file without overwriting an existing path."""
     assert filename not in ("", ".", ".."), "filename must not be empty or a dot component"
     assert filename == Path(filename).name, "filename must be bare, with no path components"
-    download_dir = temporary_path.parent
-    stem = Path(filename).stem
-    suffix = Path(filename).suffix
-    for attempt in range(MAX_FILENAME_ATTEMPTS):
-        candidate = filename if attempt == 0 else f"{stem} ({attempt}){suffix}"
-        target_path = download_dir / candidate
-        try:
-            os.link(temporary_path, target_path, follow_symlinks=False)
-        except FileExistsError:
-            continue
-        except OSError as error:
-            raise ValueError(
-                f"attachment cannot be published atomically in '{download_dir}'; "
-                "the filesystem must support hard links"
-            ) from error
-        try:
-            temporary_path.unlink()
-        except OSError as error:
-            print(
-                f"librus-mcp: attachment saved at {target_path}, but temporary "
-                f"file cleanup failed: {error}",
-                file=sys.stderr,
-            )
-        return target_path
+    with cancellation._publication_lock:
+        cancellation.raise_if_cancelled()
+        download_dir = temporary_path.parent
+        stem = Path(filename).stem
+        suffix = Path(filename).suffix
+        for attempt in range(MAX_FILENAME_ATTEMPTS):
+            candidate = filename if attempt == 0 else f"{stem} ({attempt}){suffix}"
+            target_path = download_dir / candidate
+            try:
+                os.link(temporary_path, target_path, follow_symlinks=False)
+            except FileExistsError:
+                continue
+            except OSError as error:
+                raise ValueError(
+                    f"attachment cannot be published atomically in '{download_dir}'; "
+                    "the filesystem must support hard links"
+                ) from error
+            try:
+                temporary_path.unlink()
+            except OSError as error:
+                print(
+                    f"librus-mcp: attachment saved at {target_path}, but temporary "
+                    f"file cleanup failed: {error}",
+                    file=sys.stderr,
+                )
+            return target_path
     raise ValueError(f"no unique filename for '{filename}' after {MAX_FILENAME_ATTEMPTS} attempts")
 
 
@@ -286,7 +409,8 @@ def parse_behaviour_notes(html: str) -> list[BehaviourNote]:
     Anything else that yields zero notes means the layout is unrecognized —
     failing loudly beats a false "no behaviour notes" for a parent.
     """
-    assert html, "html must not be empty"
+    if not html:
+        raise ParseError("behaviour-notes page HTML is empty")
     return _parse_behaviour_notes_soup(BeautifulSoup(html, "lxml"))
 
 
@@ -297,7 +421,8 @@ def _parse_behaviour_notes_soup(soup: BeautifulSoup) -> list[BehaviourNote]:
     notes: list[BehaviourNote] = []
     for table in soup.select("table.decorated"):
         notes.extend(_notes_from_table(table))
-    assert notes, "unrecognized uwagi page layout: no empty marker and no parseable notes"
+    if not notes:
+        raise ParseError("unrecognized uwagi page layout: no empty marker and no parseable notes")
     return notes
 
 
@@ -327,8 +452,8 @@ def _notes_from_table(table: Tag) -> list[BehaviourNote]:
 def _notes_from_label_pairs(table: Tag) -> list[BehaviourNote]:
     """One detail table = one note: rows of (label, value) cell pairs."""
     fields: dict[str, str] = {}
-    for row in table.find_all("tr"):
-        cells = row.find_all("td")
+    for row in table.find_all("tr", recursive=False):
+        cells = row.find_all("td", recursive=False)
         if len(cells) != 2:
             continue
         field = _field_for_label(cells[0].get_text(strip=True))
@@ -348,25 +473,29 @@ def _notes_from_column_table(table: Tag, thead: Tag) -> list[BehaviourNote]:
     if body is None:
         body = table
     notes: list[BehaviourNote] = []
-    for row in body.find_all("tr"):
-        cells = row.find_all("td")
-        if len(cells) != len(columns):
-            continue
+    for row in body.find_all("tr", recursive=False):
+        cells = row.find_all("td", recursive=False)
         fields: dict[str, str] = {}
-        for field, cell in zip(columns, cells):
-            if field is not None:
-                fields[field] = cell.get_text(strip=True)
+        try:
+            for field, cell in zip(columns, cells, strict=True):
+                if field is not None:
+                    fields[field] = cell.get_text(strip=True)
+        except ValueError as error:
+            raise ParseError("behaviour note row does not match its header") from error
         if fields:
             notes.append(_note_from_fields(fields))
     return notes
 
 
 def _note_from_fields(fields: dict[str, str]) -> BehaviourNote:
+    missing_fields = [field for field in ("date", "content") if not fields.get(field)]
+    if missing_fields:
+        raise ParseError(f"behaviour note is missing required fields: {', '.join(missing_fields)}")
     return BehaviourNote(
-        date=fields.get("date", ""),
+        date=fields["date"],
         teacher=fields.get("teacher", ""),
         category=fields.get("category", ""),
-        content=fields.get("content", ""),
+        content=fields["content"],
     )
 
 
@@ -398,15 +527,16 @@ def parse_final_grades(html: str) -> list[FinalGrade]:
     no annual-grade column at all fails loudly: that is layout drift or the
     wrong page, not an account variant seen so far.
     """
-    assert html, "html must not be empty"
+    if not html:
+        raise ParseError("grades page HTML is empty")
     return _parse_final_grades_soup(BeautifulSoup(html, "lxml"))
 
 
 def _parse_final_grades_soup(soup: BeautifulSoup) -> list[FinalGrade]:
     located = _locate_final_grades_table(soup)
-    assert located is not None, "grades page header not recognized (no annual grade column)"
+    if located is None:
+        raise ParseError("grades page header not recognized (no annual grade column)")
     table, column_map = located
-    assert column_map, "column map must contain at least the annual grade column"
 
     # Expanded grade details nest whole tables inside rows, reusing the
     # line0/line1 classes; count and parse only rows belonging directly
@@ -416,7 +546,8 @@ def _parse_final_grades_soup(soup: BeautifulSoup) -> list[FinalGrade]:
         for row in table.find_all("tr", attrs={"class": ["line0", "line1"]})
         if row.find_parent("table") is table
     ]
-    assert len(rows) <= 200, f"implausible grade row count: {len(rows)}"
+    if len(rows) > 200:
+        raise ParseError(f"implausible grade row count: {len(rows)}")
     grades: list[FinalGrade] = []
     for row in rows:
         grade = _final_grade_from_row(row, table, column_map)
@@ -425,7 +556,8 @@ def _parse_final_grades_soup(soup: BeautifulSoup) -> list[FinalGrade]:
     # A recognized grades table that yields zero rows means the row filters
     # drifted, not that the student has no subjects: the table always lists
     # subjects even when every grade cell is '-'.
-    assert grades, "grades table recognized but no rows parsed"
+    if not grades:
+        raise ParseError("grades table recognized but no rows parsed")
     return grades
 
 
@@ -435,17 +567,20 @@ def _final_grade_from_row(row: Tag, table: Tag, column_map: dict[str, int]) -> F
     # Rows wrapping a nested detail table carry no subject of their own.
     if row.find("table") is not None:
         return None
-    cells = row.find_all("td")
-    if len(cells) <= max(column_map.values()):
+    cells = row.find_all("td", recursive=False)
+    if len(cells) < 2:
         return None
     # Subject is always the second body cell (after the expand checkbox).
     subject = cells[1].get_text(" ", strip=True)
     # Nested detail tables repeat 'Ocena'/'Nauczyciel' label rows; skip them.
     if not subject or subject == "Ocena":
         return None
+    if len(cells) <= max(column_map.values()):
+        raise ParseError(f"grade row for {subject!r} is shorter than its header")
     # Column mapping assumes one td per body column; a spanning cell would
     # silently shift every value past it.
-    assert not any(cell.has_attr("colspan") for cell in cells), "unexpected colspan in grade row"
+    if any(cell.has_attr("colspan") for cell in cells):
+        raise ParseError("unexpected colspan in grade row")
     values = {field: cells[index].get_text(" ", strip=True) for field, index in column_map.items()}
     return FinalGrade(
         subject=subject,
@@ -474,8 +609,13 @@ def _locate_final_grades_table(soup: BeautifulSoup) -> tuple[Tag, dict[str, int]
                 if field is not None:
                     column_map[field] = body_column
                 span = cell.get("colspan", "1")
-                assert str(span).isdigit(), f"non-numeric colspan: {span!r}"
-                body_column += int(span)
+                try:
+                    span_value = int(str(span))
+                except ValueError:
+                    raise ParseError(f"non-numeric colspan: {span!r}")
+                if span_value < 1 or body_column + span_value > MAX_FINAL_GRADE_COLUMNS:
+                    raise ParseError(f"grade header colspan is out of bounds: {span!r}")
+                body_column += span_value
             if "final" in column_map:
                 return table, column_map
     return None

@@ -29,8 +29,15 @@ class TestFeaturesConfig:
         features = FeaturesConfig()
         assert features.notifications is True
         assert features.attachments is True
-        assert features.behaviour_notes is True
+        assert features.behaviour_notes is False
         assert features.send_message is False
+
+    def test_template_matches_feature_defaults(self):
+        template = json.loads(
+            (Path(__file__).parent.parent / "secrets.json.template").read_text(encoding="utf-8")
+        )
+
+        assert template["features"] == FeaturesConfig().model_dump()
 
     def test_app_config_defaults_features(self):
         config = AppConfig(accounts=[{"alias": "a", "username": "u", "password": "p"}])

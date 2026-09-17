@@ -100,8 +100,9 @@ class AccountConfig(BaseModel):
 
 
 class FeaturesConfig(BaseModel):
-    """Feature gates for optional MCP tools. Read tools default on;
-    send_message is a write action against the school, so it defaults off.
+    """Feature gates for optional MCP tools. Verified read tools default on;
+    behaviour notes stay experimental and send_message writes to the school,
+    so both default off.
     Unknown keys are rejected: a typo silently falling back to defaults
     would undermine the write gate."""
 
@@ -109,7 +110,7 @@ class FeaturesConfig(BaseModel):
 
     notifications: bool = True
     attachments: bool = True
-    behaviour_notes: bool = True
+    behaviour_notes: bool = False
     send_message: bool = False
 
 

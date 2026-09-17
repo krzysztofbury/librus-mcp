@@ -1,14 +1,14 @@
 [cosmic-ray]
-module-path = "src/librus_optimizations.py"
+module-path = "src/librus_client.py"
 timeout = 30.0
-test-command = "uv run pytest -q tests/test_optimizations.py"
+test-command = "uv run pytest -q tests/test_client.py"
 excluded-modules = []
 
 [cosmic-ray.distributor]
 name = "local"
 
 [cosmic-ray.filters.line-filter.lines]
-"src/librus_optimizations.py" = ["74-84", "113-120", "142-159", "190-213", "257-258", "290-318"]
+"src/librus_client.py" = ["498-500", "502-508", "510-511", "520", "542-554", "566", "589-597", "606-614", "1189-1198"]
 
 [cosmic-ray.filters.operators-filter]
 exclude-operators = [

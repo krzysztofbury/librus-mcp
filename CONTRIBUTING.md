@@ -62,21 +62,24 @@ The live test calls Librus and is not required for contributions or CI.
 
 ### Mutation Testing
 
-Run the focused authentication campaign:
+Active focused configurations live in `mutation/`, one per source module. For
+example, run the attachment cancellation and parser campaign with:
 
 ```bash
-rm -f cosmic-ray-auth.sqlite
-uv run cosmic-ray init cosmic-ray-auth.toml cosmic-ray-auth.sqlite
-uv run cr-filter-lines --config cosmic-ray-auth.toml cosmic-ray-auth.sqlite
-uv run cr-filter-operators cosmic-ray-auth.sqlite cosmic-ray-auth.toml
-uv run cosmic-ray exec cosmic-ray-auth.toml cosmic-ray-auth.sqlite
-uv run cosmic-ray dump cosmic-ray-auth.sqlite
+rm -f cosmic-ray.sqlite
+uv run cosmic-ray init mutation/scraping.toml cosmic-ray.sqlite
+uv run cr-filter-lines --config mutation/scraping.toml cosmic-ray.sqlite
+uv run cr-filter-operators cosmic-ray.sqlite mutation/scraping.toml
+uv run cosmic-ray exec mutation/scraping.toml cosmic-ray.sqlite
+uv run cosmic-ray dump cosmic-ray.sqlite
 ```
 
-For the configuration and local-state campaigns, use the same commands with
-`auth` replaced by `config` or `state`. The filter steps are required:
-`cosmic-ray init` records all candidates before the focused line and operator
-filters narrow the session.
+Replace `scraping` with `client`, `optimizations`, or `config` for the other
+active campaigns. The filter steps are required: `cosmic-ray init` records all
+candidates before the focused line and operator filters narrow the session.
+Review line filters whenever the corresponding source file changes. Historical
+configurations remain available from their release tags rather than accumulating
+in the current tree.
 
 The v1.2.2 baseline produced this evidence:
 
@@ -95,14 +98,16 @@ manually triaged as equivalent comparisons, descriptor edge cases unavailable to
 normal process startup, race-only exception substitutions, or non-host platform
 branches.
 
-The v1.2.4 bounds campaigns use the same workflow with the
-`cosmic-ray-bounds-client.toml`, `cosmic-ray-bounds-optimizations.toml`, and
-`cosmic-ray-bounds-state.toml` configurations. They killed 288 of 297 executable
-client mutants, all 62 executable gateway/fan-out mutants, and 95 of 99 executable
-schedule-spool mutants. The remaining survivors are equivalent over validated
-nonnegative page indexes, capped collection lengths, single-event legacy files,
-redundant per-event size checks, and subset cardinalities, or replace value equality
-with object identity.
+The v1.2.4 bounds campaigns killed 288 of 297 executable client mutants, all 62
+executable gateway/fan-out mutants, and 95 of 99 executable schedule-spool mutants.
+The remaining survivors are equivalent over validated nonnegative page indexes,
+capped collection lengths, single-event legacy files, redundant per-event size
+checks, and subset cardinalities, or replace value equality with object identity.
+
+The v1.2.5 parser and cancellation campaigns are the active configurations under
+`mutation/`. They killed all 142 selected scraping mutants, all 11 selected client
+mutants, all 23 selected gateway-validation mutants, and the selected
+experimental-feature default mutant.
 
 ## Submitting Changes
 
