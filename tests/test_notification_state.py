@@ -126,16 +126,76 @@ class TestSaveLoadRoundtrip:
                 state_dir.chmod(0o700)
 
     @pytest.mark.skipif(os.name != "posix", reason="POSIX mode bits are not portable")
-    @pytest.mark.parametrize("mode", [0o755, 0o600])
-    def test_rejects_existing_state_directory_with_wrong_mode(self, tmp_path, mode):
+    @pytest.mark.parametrize("mode", [0o755, 0o600, 0o300, 0o000])
+    def test_repairs_existing_owned_state_directory_with_wrong_mode(self, tmp_path, mode):
         state_dir = tmp_path / "state"
         state_dir.mkdir(mode=mode)
         state_dir.chmod(mode)
 
-        with pytest.raises(PermissionError, match="chmod 700"):
+        save_notification_ids(state_dir, "primary", _sample_ids())
+
+        assert stat.S_IMODE(state_dir.stat().st_mode) == 0o700
+        assert load_notification_ids(state_dir, "primary") is not None
+
+    @pytest.mark.skipif(os.name != "posix", reason="POSIX ownership is not portable")
+    @pytest.mark.parametrize("mode", [0o700, 0o755])
+    def test_rejects_state_directory_not_owned_by_current_user(self, tmp_path, monkeypatch, mode):
+        state_dir = tmp_path / "state"
+        state_dir.mkdir(mode=mode)
+        state_dir.chmod(mode)
+        monkeypatch.setattr(os, "geteuid", lambda: state_dir.stat().st_uid + 1)
+
+        with pytest.raises(PermissionError, match="owned by the current user"):
             save_notification_ids(state_dir, "primary", _sample_ids())
 
         assert stat.S_IMODE(state_dir.stat().st_mode) == mode
+
+    @pytest.mark.skipif(os.name != "posix", reason="POSIX mode bits are not portable")
+    def test_reports_when_state_directory_cannot_be_repaired(self, tmp_path):
+        state_dir = tmp_path / "state"
+        state_dir.mkdir(mode=0o755)
+        state_dir.chmod(0o755)
+
+        with (
+            patch("src.notification_state.os.fchmod", side_effect=OSError("denied")),
+            pytest.raises(PermissionError, match="could not be secured automatically"),
+        ):
+            notification_state._ensure_state_directory(state_dir)
+
+        assert stat.S_IMODE(state_dir.stat().st_mode) == 0o755
+
+    @pytest.mark.skipif(os.name != "posix", reason="POSIX mode bits are not portable")
+    def test_reports_when_unreadable_state_directory_cannot_be_repaired(self, tmp_path):
+        state_dir = tmp_path / "state"
+        state_dir.mkdir(mode=0o000)
+        state_dir.chmod(0o000)
+
+        try:
+            with (
+                patch("src.notification_state.os.chmod", side_effect=OSError("denied")),
+                pytest.raises(PermissionError, match="could not be secured automatically"),
+            ):
+                notification_state._ensure_state_directory(state_dir)
+        finally:
+            state_dir.chmod(0o700)
+
+    @pytest.mark.skipif(os.name != "posix", reason="POSIX mode bits are not portable")
+    def test_does_not_repair_unreadable_state_directory_in_shared_parent(self, tmp_path):
+        shared_dir = tmp_path / "shared"
+        shared_dir.mkdir(mode=0o777)
+        shared_dir.chmod(0o777)
+        state_dir = shared_dir / "state"
+        state_dir.mkdir(mode=0o000)
+        state_dir.chmod(0o000)
+
+        try:
+            with pytest.raises(PermissionError, match="could not be secured automatically"):
+                notification_state._ensure_state_directory(state_dir)
+
+            assert stat.S_IMODE(state_dir.stat().st_mode) == 0o000
+        finally:
+            state_dir.chmod(0o700)
+            shared_dir.chmod(0o700)
 
     @pytest.mark.skipif(os.name != "posix", reason="POSIX symlinks are not portable")
     def test_rejects_symlinked_state_directory(self, tmp_path):

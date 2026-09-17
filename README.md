@@ -82,7 +82,7 @@ on macOS or `%APPDATA%\Claude\claude_desktop_config.json` on Windows.
   "mcpServers": {
     "librus": {
       "command": "uvx",
-      "args": ["librus-mcp==1.2.5"],
+      "args": ["librus-mcp==1.2.6"],
       "env": {
         "LIBRUS_CONFIG": "/absolute/path/to/secrets.json"
       }
@@ -98,7 +98,7 @@ Run this once in a terminal:
 ```bash
 claude mcp add --scope user --transport stdio librus \
   -e LIBRUS_CONFIG=/absolute/path/to/secrets.json \
-  -- uvx librus-mcp==1.2.5
+  -- uvx librus-mcp==1.2.6
 ```
 
 #### Gemini CLI
@@ -108,7 +108,7 @@ Run this once in a terminal. User scope keeps school credentials out of project 
 ```bash
 gemini mcp add --scope user --transport stdio \
   -e LIBRUS_CONFIG=/absolute/path/to/secrets.json \
-  librus uvx librus-mcp==1.2.5
+  librus uvx librus-mcp==1.2.6
 ```
 
 #### OpenAI Codex CLI
@@ -118,7 +118,7 @@ Run this once in a terminal:
 ```bash
 codex mcp add librus \
   --env LIBRUS_CONFIG=/absolute/path/to/secrets.json \
-  -- uvx librus-mcp==1.2.5
+  -- uvx librus-mcp==1.2.6
 ```
 
 Never put a Librus password or `LIBRUS_ACCOUNTS` in a project-level MCP

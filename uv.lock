@@ -666,7 +666,7 @@ wheels = [
 
 [[package]]
 name = "librus-mcp"
-version = "1.2.5"
+version = "1.2.6"
 source = { editable = "." }
 dependencies = [
     { name = "aiohttp" },

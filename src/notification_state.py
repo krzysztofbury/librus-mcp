@@ -115,17 +115,60 @@ def _ensure_state_directory(path: Path) -> None:
     if created:
         os.chmod(path, STATE_DIRECTORY_MODE, follow_symlinks=False)
     flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0)
-    descriptor = os.open(path, flags)
+    expected_identity: tuple[int, int] | None = None
+    try:
+        descriptor = os.open(path, flags)
+    except PermissionError:
+        # A private directory may have lost owner-read permission. Inspect it
+        # through a private parent descriptor so another user cannot swap the
+        # path between validation and repair.
+        parent_descriptor = os.open(path.parent, flags)
+        try:
+            parent_status = os.fstat(parent_descriptor)
+            if parent_status.st_uid != os.geteuid() or stat.S_IMODE(parent_status.st_mode) & 0o022:
+                raise PermissionError(
+                    f"notification state directory could not be secured automatically: {path}"
+                )
+            status = os.stat(path.name, dir_fd=parent_descriptor, follow_symlinks=False)
+            if stat.S_ISLNK(status.st_mode):
+                raise ValueError(f"notification state directory must not be a symlink: {path}")
+            if not stat.S_ISDIR(status.st_mode):
+                raise ValueError(f"notification state path must be a directory: {path}")
+            if status.st_uid != os.geteuid():
+                raise PermissionError(
+                    f"notification state directory must be owned by the current user: {path}"
+                )
+            expected_identity = (status.st_dev, status.st_ino)
+            try:
+                os.chmod(path.name, STATE_DIRECTORY_MODE, dir_fd=parent_descriptor)
+            except OSError as exc:
+                raise PermissionError(
+                    f"notification state directory could not be secured automatically: {path}"
+                ) from exc
+            descriptor = os.open(path.name, flags, dir_fd=parent_descriptor)
+        finally:
+            os.close(parent_descriptor)
     try:
         status = os.fstat(descriptor)
         if not stat.S_ISDIR(status.st_mode):
             raise ValueError(f"notification state path must be a directory: {path}")
-        if created:
-            os.fchmod(descriptor, STATE_DIRECTORY_MODE)
-        elif stat.S_IMODE(status.st_mode) != STATE_DIRECTORY_MODE:
+        if expected_identity is not None and (status.st_dev, status.st_ino) != expected_identity:
+            raise RuntimeError(f"notification state directory changed during repair: {path}")
+        if status.st_uid != os.geteuid():
             raise PermissionError(
-                f"notification state directory {path} must use mode 0700; run: chmod 700 {path}"
+                f"notification state directory must be owned by the current user: {path}"
             )
+        if created or stat.S_IMODE(status.st_mode) != STATE_DIRECTORY_MODE:
+            try:
+                os.fchmod(descriptor, STATE_DIRECTORY_MODE)
+            except OSError as exc:
+                raise PermissionError(
+                    f"notification state directory could not be secured automatically: {path}"
+                ) from exc
+            if stat.S_IMODE(os.fstat(descriptor).st_mode) != STATE_DIRECTORY_MODE:
+                raise PermissionError(
+                    f"notification state directory could not be secured automatically: {path}"
+                )
     finally:
         os.close(descriptor)
 
