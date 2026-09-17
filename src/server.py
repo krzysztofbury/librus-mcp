@@ -12,7 +12,13 @@ from pydantic import Field
 
 from src import __version__
 from src.config import ALIAS_PATTERN, MAX_ALIAS_LENGTH, ConfigError
-from src.librus_client import LibrusManager
+from src.librus_client import (
+    MAX_RECIPIENT_ID_LENGTH,
+    MAX_SEND_CONTENT_LENGTH,
+    MAX_SEND_RECIPIENTS,
+    MAX_SEND_TITLE_LENGTH,
+    LibrusManager,
+)
 
 # Passing version explicitly: an unversioned server advertises an empty version
 # in the initialize handshake, so hosts would show no version for this server.
@@ -40,6 +46,35 @@ StudentAlias = Annotated[
 ]
 # Message and file identifiers are bare numeric path segments in Synergia.
 NumericId = Annotated[str, Field(pattern=r"^\d+$")]
+MessageTitle = Annotated[
+    str,
+    Field(
+        min_length=1,
+        max_length=MAX_SEND_TITLE_LENGTH,
+        description="Nonblank subject; the combined UTF-8 message payload is limited to 64 KiB",
+    ),
+]
+MessageContent = Annotated[
+    str,
+    Field(
+        min_length=1,
+        max_length=MAX_SEND_CONTENT_LENGTH,
+        description="Nonblank body; the combined UTF-8 message payload is limited to 64 KiB",
+    ),
+]
+RecipientId = Annotated[
+    str,
+    Field(min_length=1, max_length=MAX_RECIPIENT_ID_LENGTH, pattern=r"^[0-9]+$"),
+]
+RecipientIds = Annotated[
+    list[RecipientId],
+    Field(
+        min_length=1,
+        max_length=MAX_SEND_RECIPIENTS,
+        description="Unique numeric recipient IDs; included in the 64 KiB payload limit",
+        json_schema_extra={"uniqueItems": True},
+    ),
+]
 IsoDate = Annotated[str, Field(pattern=r"^\d{4}-\d{2}-\d{2}$")]
 SortBy = Literal["all", "week", "last_login"]
 
@@ -434,9 +469,9 @@ def _redeem_confirmation(token: str, digest: str) -> None:
 
 async def send_message(
     student_alias: StudentAlias,
-    title: str,
-    content: str,
-    recipient_ids: list[str],
+    title: MessageTitle,
+    content: MessageContent,
+    recipient_ids: RecipientIds,
     confirm_token: str | None = None,
 ) -> Any:
     """

@@ -437,6 +437,50 @@ class TestSendMessageTools:
         with pytest.raises(ValueError, match="recipient"):
             await send_message("test_student", "Temat", "Treść", [])
 
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("recipient_ids", [["abc"], ["1", "1"], ["1" * 21]])
+    async def test_send_message_rejects_malformed_or_duplicate_recipients(self, recipient_ids):
+        with pytest.raises(ValueError, match="recipient"):
+            await send_message("test_student", "Temat", "Treść", recipient_ids)
+
+    @pytest.mark.asyncio
+    async def test_send_message_rejects_oversized_fields(self):
+        from src.librus_client import MAX_SEND_CONTENT_LENGTH, MAX_SEND_TITLE_LENGTH
+
+        with pytest.raises(ValueError, match="title"):
+            await send_message(
+                "test_student", "x" * (MAX_SEND_TITLE_LENGTH + 1), "Treść", ["12345"]
+            )
+        with pytest.raises(ValueError, match="content"):
+            await send_message(
+                "test_student", "Temat", "x" * (MAX_SEND_CONTENT_LENGTH + 1), ["12345"]
+            )
+
+    @pytest.mark.asyncio
+    async def test_send_message_payload_limit_counts_utf8_bytes(self, monkeypatch):
+        from src import librus_client
+
+        content = "😀" * (librus_client.MAX_SEND_PAYLOAD_BYTES // 4)
+        monkeypatch.setattr(librus_client, "MAX_SEND_CONTENT_LENGTH", len(content))
+        with pytest.raises(ValueError, match="payload"):
+            await send_message("test_student", "Temat", content, ["12345"])
+
+    def test_send_message_accepts_exact_runtime_boundaries(self, monkeypatch):
+        from src import librus_client
+
+        title = "t" * librus_client.MAX_SEND_TITLE_LENGTH
+        content = "c" * librus_client.MAX_SEND_CONTENT_LENGTH
+        recipients = [
+            str(index).zfill(librus_client.MAX_RECIPIENT_ID_LENGTH) for index in range(50)
+        ]
+        payload_size = len(title.encode()) + len(content.encode())
+        payload_size += sum(len(recipient.encode()) for recipient in recipients)
+        monkeypatch.setattr(librus_client, "MAX_SEND_PAYLOAD_BYTES", payload_size)
+
+        librus_client.LibrusManager.validate_send_message_args(
+            "test_student", title, content, recipients
+        )
+
 
 # --- feature gating ---
 
@@ -509,6 +553,28 @@ class TestToolOutputSchemas:
         recipients_schema = tools["get_recipients"].output_schema
         assert recipients_schema["type"] == "object"
         assert recipients_schema["additionalProperties"] == {"type": "string"}
+
+    @pytest.mark.asyncio
+    async def test_send_message_schema_advertises_runtime_bounds(self, monkeypatch):
+        from src.librus_client import (
+            MAX_RECIPIENT_ID_LENGTH,
+            MAX_SEND_CONTENT_LENGTH,
+            MAX_SEND_RECIPIENTS,
+            MAX_SEND_TITLE_LENGTH,
+        )
+
+        monkeypatch.setenv("LIBRUS_FEATURES", '{"send_message": true}')
+        register_optional_tools()
+        tools = {tool.name: tool for tool in await mcp.list_tools()}
+        properties = tools["send_message"].input_schema["properties"]
+
+        assert properties["title"]["maxLength"] == MAX_SEND_TITLE_LENGTH
+        assert properties["content"]["maxLength"] == MAX_SEND_CONTENT_LENGTH
+        assert properties["recipient_ids"]["minItems"] == 1
+        assert properties["recipient_ids"]["maxItems"] == MAX_SEND_RECIPIENTS
+        assert properties["recipient_ids"]["uniqueItems"] is True
+        assert properties["recipient_ids"]["items"]["pattern"] == "^[0-9]+$"
+        assert properties["recipient_ids"]["items"]["maxLength"] == MAX_RECIPIENT_ID_LENGTH
 
 
 # --- final grades tool ---

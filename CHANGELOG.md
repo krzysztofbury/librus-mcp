@@ -2,6 +2,40 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.2.4] - 2026-09-17
+
+### Security
+
+- Limit ordinary Librus and gateway response bodies to 4 MiB while streaming,
+  including responses without a trusted `Content-Length`. Attachment downloads
+  retain their separate 50 MiB streaming limit.
+- Process at most 500 recent schedule events per call. Each complete read-once
+  result is checkpointed as one bounded atomic spool batch before the limit is enforced, so an
+  oversized consumed result can drain safely across later calls instead of being
+  discarded when one in-memory batch is too large.
+- Bound message pages to 50 items, all-pages results to 2,000 items, completed
+  lessons to 100 pages and 10,000 items, attendance to 10,000 records, and
+  subject-frequency fan-out to 2,000 lessons and 500 subjects.
+- Constrain `send_message` titles, content, recipient count, recipient ID length,
+  and total UTF-8 payload size. Recipient IDs must be unique ASCII digit strings
+  in both the MCP schema and runtime validation.
+
+### Fixed
+
+- Reject reversed `get_subject_frequency` date ranges before making a request.
+- Treat the completed-lessons limit as 100 pages rather than accepting a
+  zero-based last-page index of 100 and fetching 101 pages.
+- Add `truncated` to single-page message results and truncate malformed upstream
+  pages that contain more than the expected 50 messages.
+
+### Release
+
+- Refuse publication when the release tag, event commit, checked-out tag, and
+  `project.version` disagree.
+- Run lockfile, lint, format, security, test, build, and clean installed-wheel MCP
+  handshake checks before trusted publication to PyPI.
+- Pin every third-party GitHub Action to an immutable commit SHA.
+
 ## [1.2.3] - 2026-09-16
 
 ### Security

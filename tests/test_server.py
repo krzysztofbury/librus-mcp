@@ -383,11 +383,38 @@ class TestGetMessageContent:
 class TestGetAttendance:
     @pytest.mark.asyncio
     async def test_returns_list(self):
-        attendance = [FakeAttendance("Math", "present", "2026-01-01", "Smith")]
+        attendance = [[FakeAttendance("Math", "present", "2026-01-01", "Smith")], []]
         with _mock_execute(attendance):
             result = await get_attendance("test_student")
         assert isinstance(result, list)
-        assert len(result) == 1
+        assert len(result) == 2
+        assert len(result[0]) == 1
+
+    @pytest.mark.asyncio
+    async def test_record_limit_counts_nested_semesters(self, monkeypatch):
+        from src import librus_optimizations
+
+        monkeypatch.setattr(librus_optimizations, "MAX_ATTENDANCE_RECORDS", 1)
+        attendance = [
+            [FakeAttendance("Math", "present", "2026-01-01", "Smith")],
+            [FakeAttendance("English", "present", "2026-01-02", "Jones")],
+        ]
+        with _mock_execute(attendance), pytest.raises(ValueError, match="record count"):
+            await get_attendance("test_student")
+
+    @pytest.mark.asyncio
+    async def test_exact_nested_record_limit_is_accepted(self, monkeypatch):
+        from src import librus_optimizations
+
+        monkeypatch.setattr(librus_optimizations, "MAX_ATTENDANCE_RECORDS", 2)
+        attendance = [
+            [FakeAttendance("Math", "present", "2026-01-01", "Smith")],
+            [FakeAttendance("English", "present", "2026-01-02", "Jones")],
+        ]
+        with _mock_execute(attendance):
+            result = await get_attendance("test_student")
+
+        assert sum(map(len, result)) == 2
 
     @pytest.mark.asyncio
     async def test_empty_alias_raises(self):
@@ -412,14 +439,47 @@ class TestGetSubjectFrequency:
     @pytest.mark.asyncio
     async def test_with_date_range(self):
         freq = {"Math": 100.0}
-        with _mock_execute(freq):
+        with _mock_execute(freq) as execute:
             result = await get_subject_frequency("test_student", "2026-01-01", "2026-03-01")
         assert result["Math"] == 100.0
+        assert execute.call_args.kwargs == {
+            "start": date(2026, 1, 1),
+            "end": date(2026, 3, 1),
+        }
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        ("start", "end", "expected"),
+        [
+            ("2026-01-01", None, {"start": date(2026, 1, 1)}),
+            (None, "2026-03-01", {"end": date(2026, 3, 1)}),
+            (
+                "2026-01-01",
+                "2026-01-01",
+                {"start": date(2026, 1, 1), "end": date(2026, 1, 1)},
+            ),
+        ],
+    )
+    async def test_one_sided_and_equal_date_ranges(self, start, end, expected):
+        with _mock_execute({}) as execute:
+            await get_subject_frequency("test_student", start, end)
+
+        assert execute.call_args.kwargs == expected
 
     @pytest.mark.asyncio
     async def test_empty_alias_raises(self):
         with pytest.raises(ValueError, match="student_alias"):
             await get_subject_frequency("")
+
+    @pytest.mark.asyncio
+    async def test_reversed_date_range_raises_before_request(self):
+        with (
+            patch("src.librus_client.LibrusManager._execute", new_callable=AsyncMock) as execute,
+            pytest.raises(ValueError, match="start .* is after end"),
+        ):
+            await get_subject_frequency("test_student", "2026-03-01", "2026-01-01")
+
+        execute.assert_not_awaited()
 
 
 class TestGetHomework:
@@ -626,6 +686,72 @@ class TestGetCompletedLessons:
             pytest.raises(ValueError, match="narrow the date range"),
         ):
             await get_completed_lessons("test_student", "2026-01-01", "2026-01-31")
+
+    @pytest.mark.asyncio
+    async def test_page_limit_is_a_count_not_last_page_index(self, monkeypatch):
+        from src import librus_client
+
+        monkeypatch.setattr(librus_client, "MAX_COMPLETED_LESSONS_PAGES", 2)
+        mock = AsyncMock(return_value=(2, []))
+        with (
+            patch.object(librus_client.LibrusManager, "_execute", mock),
+            pytest.raises(ValueError, match=r"3 pages.*limit 2"),
+        ):
+            await get_completed_lessons("test_student", "2026-01-01", "2026-01-31")
+
+        assert mock.await_count == 1
+
+    @pytest.mark.asyncio
+    async def test_exact_completed_page_count_is_accepted(self, monkeypatch):
+        from src import librus_client
+
+        monkeypatch.setattr(librus_client, "MAX_COMPLETED_LESSONS_PAGES", 2)
+        mock = AsyncMock(side_effect=[(1, []), []])
+        with patch.object(librus_client.LibrusManager, "_execute", mock):
+            result = await get_completed_lessons("test_student", "2026-01-01", "2026-01-31")
+
+        assert result == []
+        assert mock.await_count == 2
+
+    @pytest.mark.asyncio
+    async def test_completed_lesson_item_count_is_bounded(self, monkeypatch):
+        from src import librus_client
+
+        monkeypatch.setattr(librus_client, "MAX_COMPLETED_LESSONS_ITEMS", 2)
+        mock = AsyncMock(side_effect=[(1, [object(), object()]), [object()]])
+        with (
+            patch.object(librus_client.LibrusManager, "_execute", mock),
+            pytest.raises(ValueError, match="lesson count"),
+        ):
+            await get_completed_lessons("test_student", "2026-01-01", "2026-01-31")
+
+    @pytest.mark.asyncio
+    async def test_exact_completed_lesson_item_count_is_accepted(self, monkeypatch):
+        from src import librus_client
+
+        lessons = [object(), object()]
+        monkeypatch.setattr(librus_client, "MAX_COMPLETED_LESSONS_ITEMS", 2)
+        mock = AsyncMock(return_value=(0, lessons))
+        with patch.object(librus_client.LibrusManager, "_execute", mock):
+            result = await librus_client.LibrusManager.fetch_completed_lessons(
+                "test_student", "2026-01-01", "2026-01-31"
+            )
+
+        assert result == lessons
+
+    @pytest.mark.asyncio
+    async def test_exact_completed_lesson_item_count_across_pages_is_accepted(self, monkeypatch):
+        from src import librus_client
+
+        first, second = object(), object()
+        monkeypatch.setattr(librus_client, "MAX_COMPLETED_LESSONS_ITEMS", 2)
+        mock = AsyncMock(side_effect=[(1, [first]), [second]])
+        with patch.object(librus_client.LibrusManager, "_execute", mock):
+            result = await librus_client.LibrusManager.fetch_completed_lessons(
+                "test_student", "2026-01-01", "2026-01-31"
+            )
+
+        assert result == [first, second]
 
     @pytest.mark.asyncio
     async def test_empty_alias_raises(self):

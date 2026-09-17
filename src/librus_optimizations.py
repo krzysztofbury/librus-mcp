@@ -2,6 +2,7 @@
 
 import asyncio
 import copy
+import json
 import re
 from collections import defaultdict
 from collections.abc import Callable
@@ -36,12 +37,22 @@ from requests.cookies import RequestsCookieJar
 from yarl import URL
 
 from src.notification_state import schedule_event_id
+from src.response_limits import (
+    MAX_RESPONSE_BODY_BYTES,
+    RESPONSE_READ_CHUNK_BYTES,
+    ResponseTooLargeError,
+)
 
 GATEWAY_CONCURRENCY = 5
 GATEWAY_RETRIES = 2
 GATEWAY_REQUEST_TIMEOUT_SECONDS = 15.0
 GATEWAY_RESOLUTION_TIMEOUT_SECONDS = 50.0
 NOTIFICATION_CONCURRENCY = 3
+MAX_GATEWAY_RESPONSE_BYTES = MAX_RESPONSE_BODY_BYTES
+MAX_SCHEDULE_EVENTS_PER_CALL = 500
+MAX_ATTENDANCE_RECORDS = 10_000
+MAX_UNIQUE_LESSON_IDS = 2_000
+MAX_UNIQUE_SUBJECT_IDS = 500
 SCHOOL_TIME_ZONE = ZoneInfo("Europe/Warsaw")
 
 ATTENDANCE_TYPES = {
@@ -63,6 +74,8 @@ def get_subject_frequency(
     client.refresh_oauth()
     attendances = client.get(client.GATEWAY_API_ATTENDANCE).json()["Attendances"]
     assert isinstance(attendances, list), "gateway Attendances must be a list"
+    if len(attendances) > MAX_ATTENDANCE_RECORDS:
+        raise ValueError(f"attendance record count exceeds {MAX_ATTENDANCE_RECORDS}")
     filtered = _filter_attendances(attendances, start, end)
     resolved = asyncio.run(
         asyncio.wait_for(
@@ -101,6 +114,8 @@ async def _resolve_subjects(
     client: Client, attendances: list[dict[str, Any]]
 ) -> list[tuple[str, str]]:
     lesson_ids = list(dict.fromkeys(attendance["Lesson"]["Id"] for attendance in attendances))
+    if len(lesson_ids) > MAX_UNIQUE_LESSON_IDS:
+        raise ValueError(f"unique lesson count exceeds {MAX_UNIQUE_LESSON_IDS}")
     if not lesson_ids:
         return []
     semaphore = asyncio.Semaphore(GATEWAY_CONCURRENCY)
@@ -129,6 +144,8 @@ async def _resolve_subjects(
             for lesson_id, payload in zip(lesson_ids, lesson_payloads, strict=True)
         }
         subject_ids = list(dict.fromkeys(lesson_subjects.values()))
+        if len(subject_ids) > MAX_UNIQUE_SUBJECT_IDS:
+            raise ValueError(f"unique subject count exceeds {MAX_UNIQUE_SUBJECT_IDS}")
         subject_payloads = await asyncio.gather(
             *[
                 _request_json(
@@ -171,8 +188,28 @@ async def _request_json(
                         f"gateway authentication redirect: HTTP {response.status}"
                     )
                 response.raise_for_status()
-                payload = await response.json()
-                assert isinstance(payload, dict), "gateway response must be an object"
+                if (
+                    response.content_length is not None
+                    and response.content_length > MAX_GATEWAY_RESPONSE_BYTES
+                ):
+                    raise ResponseTooLargeError(
+                        "Librus gateway response body is too large "
+                        f"(maximum {MAX_GATEWAY_RESPONSE_BYTES} bytes)"
+                    )
+                encoded_payload = bytearray()
+                async for chunk in response.content.iter_chunked(RESPONSE_READ_CHUNK_BYTES):
+                    encoded_payload.extend(chunk)
+                    if len(encoded_payload) > MAX_GATEWAY_RESPONSE_BYTES:
+                        raise ResponseTooLargeError(
+                            "Librus gateway response body is too large "
+                            f"(maximum {MAX_GATEWAY_RESPONSE_BYTES} bytes)"
+                        )
+                try:
+                    payload = json.loads(encoded_payload)
+                except (json.JSONDecodeError, UnicodeDecodeError) as error:
+                    raise ParseError("gateway response is not valid JSON") from error
+                if not isinstance(payload, dict):
+                    raise ParseError("gateway response must be an object")
                 return payload
         except AuthorizationError:
             raise
@@ -217,9 +254,8 @@ def get_new_notifications(
             for name, (function, args) in calls.items()
         }
         results = {name: future.result() for name, future in futures.items()}
-    schedule = get_recently_added_schedule(client)
-    if schedule_checkpoint is not None:
-        schedule_checkpoint(schedule)
+    schedule = [] if pending_schedule else get_recently_added_schedule(client)
+    _checkpoint_and_bound_schedule(pending_schedule or [], schedule, schedule_checkpoint)
     grades, _, _ = results["grades"]
     homework = results["homework"][::-1]
     new_schedule, seen_schedule = _parse_schedule_notifications(
@@ -258,9 +294,27 @@ def get_recent_schedule_events(
     schedule_checkpoint: Callable[[list[RecentEvent]], None],
 ) -> tuple[list[RecentEvent], list[str]]:
     """Fetch, checkpoint, and diff the upstream read-once schedule view."""
-    schedule = get_recently_added_schedule(client)
-    schedule_checkpoint(schedule)
+    schedule = [] if pending_schedule else get_recently_added_schedule(client)
+    _checkpoint_and_bound_schedule(pending_schedule, schedule, schedule_checkpoint)
     return _parse_schedule_notifications(pending_schedule, schedule, seen_ids)
+
+
+def _checkpoint_and_bound_schedule(
+    pending: list[RecentEvent],
+    fresh: list[RecentEvent],
+    checkpoint: Callable[[list[RecentEvent]], None] | None,
+) -> None:
+    if not isinstance(fresh, list):
+        raise ParseError("recent schedule response must be a list")
+    if checkpoint is not None:
+        checkpoint(fresh)
+    event_count = len(pending) + len(fresh)
+    if event_count > MAX_SCHEDULE_EVENTS_PER_CALL:
+        raise ValueError(
+            f"recent schedule returned {event_count} events, exceeding the per-call "
+            f"limit of {MAX_SCHEDULE_EVENTS_PER_CALL}; consumed events were preserved "
+            "and will drain across later calls"
+        )
 
 
 def _parse_schedule_notifications(

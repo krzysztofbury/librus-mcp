@@ -82,7 +82,7 @@ on macOS or `%APPDATA%\Claude\claude_desktop_config.json` on Windows.
   "mcpServers": {
     "librus": {
       "command": "uvx",
-      "args": ["librus-mcp==1.2.3"],
+      "args": ["librus-mcp==1.2.4"],
       "env": {
         "LIBRUS_CONFIG": "/absolute/path/to/secrets.json"
       }
@@ -98,7 +98,7 @@ Run this once in a terminal:
 ```bash
 claude mcp add --scope user --transport stdio librus \
   -e LIBRUS_CONFIG=/absolute/path/to/secrets.json \
-  -- uvx librus-mcp==1.2.3
+  -- uvx librus-mcp==1.2.4
 ```
 
 #### Gemini CLI
@@ -108,7 +108,7 @@ Run this once in a terminal. User scope keeps school credentials out of project 
 ```bash
 gemini mcp add --scope user --transport stdio \
   -e LIBRUS_CONFIG=/absolute/path/to/secrets.json \
-  librus uvx librus-mcp==1.2.3
+  librus uvx librus-mcp==1.2.4
 ```
 
 #### OpenAI Codex CLI
@@ -118,7 +118,7 @@ Run this once in a terminal:
 ```bash
 codex mcp add librus \
   --env LIBRUS_CONFIG=/absolute/path/to/secrets.json \
-  -- uvx librus-mcp==1.2.3
+  -- uvx librus-mcp==1.2.4
 ```
 
 Never put a Librus password or `LIBRUS_ACCOUNTS` in a project-level MCP
@@ -212,7 +212,7 @@ Contributors can run the credentialed source-tree smoke test with
 | `list_students()` | List configured student aliases |
 | `get_grades(student_alias, sort_by?)` | Get numeric grades, GPA, and descriptive grades (`all`, `week`, or `last_login`) |
 | `get_final_grades(student_alias)` | Get end-of-year summary per subject: midterm, predicted annual (przewidywana roczna), and annual grade |
-| `get_messages(student_alias, page?, folder?, all_pages?)` | Get one page of messages from the `received` or `sent` folder, or the whole folder (bounded at 2000 messages) |
+| `get_messages(student_alias, page?, folder?, all_pages?)` | Get one page of messages from the `received` or `sent` folder, or the whole folder (50 messages per page, 2000 overall, with truncation metadata) |
 | `get_message_content(student_alias, message_id)` | Get a message: author, title, date, and content |
 | `get_attendance(student_alias, sort_by?)` | Get attendance records (`all`, `week`, or `last_login`) |
 | `get_attendance_detail(student_alias, detail_url)` | Get details of one attendance entry by its numeric Librus ID |
@@ -248,14 +248,23 @@ These tools are registered based on the `features` section of the configuration
 
 `send_message` uses a two-step confirmation: the first call sends nothing and
 returns a preview plus a single-use `confirm_token` (valid 5 minutes); only a
-second call with that token delivers the message.
+second call with that token delivers the message. Titles are limited to 200
+characters, content to 15,000 characters, and a call to 50 unique numeric
+recipient IDs. The combined UTF-8 payload is limited to 64 KiB.
 
 Librus exposes recently added schedule events only once. Librus MCP checkpoints
-each event locally before continuing. After that checkpoint succeeds, a cancelled
-call or failed state update can replay the event instead of losing it. Recovery
-uses at-least-once delivery, so a replayed schedule event may appear again. A
-connection failure, parse failure, local storage failure, or machine crash before
-the checkpoint completes can still lose data from this read-once upstream view.
+each complete result locally as one atomic batch before continuing. After that
+checkpoint succeeds, a cancelled call or failed state update can replay the event
+instead of losing it. Recovery uses at-least-once delivery, so a replayed schedule
+event may appear again. A connection failure, parse failure, local storage failure,
+or machine crash before the atomic checkpoint completes can still lose data from
+this read-once upstream view. Calls process at most 500 schedule events; a larger
+consumed result remains in the bounded spool and drains across later calls before
+another read-once schedule request is made.
+
+Non-attachment Librus responses are streamed with a 4 MiB body limit, including
+chunked responses and the cumulative bodies in a redirect chain. Attachment
+downloads use their separate 50 MiB streaming cap.
 
 Example with all options:
 
