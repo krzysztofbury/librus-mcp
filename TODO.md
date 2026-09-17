@@ -2,7 +2,7 @@
 
 This roadmap groups work by release size and compatibility risk. Each work group
 can be delivered independently. Suggested versions assume the current release is
-1.2.5:
+1.2.6:
 
 - Minor work release (`1.2.x`): compatible safety, correctness, and documentation fixes.
 - Medium work release (`1.3.0`): substantial but backward-compatible agent UX and performance work.

@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.2.6] - 2026-09-17
+
+### Fixed
+
+- Automatically restrict an existing POSIX notification-state directory to
+  mode `0700` when ownership and the path can be repaired safely. Default-path
+  upgrades no longer require users to repair permissions manually, while
+  symlinked, foreign-owned, and unsafe shared-parent paths remain rejected.
+
 ## [1.2.5] - 2026-09-17
 
 ### Security
