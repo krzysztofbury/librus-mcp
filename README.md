@@ -81,7 +81,7 @@ on macOS or `%APPDATA%\Claude\claude_desktop_config.json` on Windows.
   "mcpServers": {
     "librus": {
       "command": "uvx",
-      "args": ["librus-mcp==1.3.0", "--config", "/absolute/path/to/secrets.json"]
+      "args": ["librus-mcp==1.3.1", "--config", "/absolute/path/to/secrets.json"]
     }
   }
 }
@@ -93,7 +93,7 @@ Run this once in a terminal:
 
 ```bash
 claude mcp add --scope user --transport stdio librus \
-  -- uvx librus-mcp==1.3.0 --config /absolute/path/to/secrets.json
+  -- uvx librus-mcp==1.3.1 --config /absolute/path/to/secrets.json
 ```
 
 #### Gemini CLI
@@ -102,7 +102,7 @@ Run this once in a terminal. User scope keeps school credentials out of project 
 
 ```bash
 gemini mcp add --scope user --transport stdio \
-  librus uvx librus-mcp==1.3.0 --config /absolute/path/to/secrets.json
+  librus uvx librus-mcp==1.3.1 --config /absolute/path/to/secrets.json
 ```
 
 #### OpenAI Codex CLI
@@ -111,7 +111,7 @@ Run this once in a terminal:
 
 ```bash
 codex mcp add librus \
-  -- uvx librus-mcp==1.3.0 --config /absolute/path/to/secrets.json
+  -- uvx librus-mcp==1.3.1 --config /absolute/path/to/secrets.json
 ```
 
 #### OpenCode
@@ -126,7 +126,7 @@ Add this server to `~/.config/opencode/opencode.json`:
       "type": "local",
       "command": [
         "uvx",
-        "librus-mcp==1.3.0",
+        "librus-mcp==1.3.1",
         "--config",
         "/absolute/path/to/secrets.json"
       ],
@@ -160,9 +160,9 @@ These commands are safe to run in a terminal. Replace the example path with the
 same credentials path used in your MCP configuration.
 
 ```bash
-uvx librus-mcp==1.3.0 --version
-uvx librus-mcp==1.3.0 --config /absolute/path/to/secrets.json --check-config
-uvx librus-mcp==1.3.0 --config /absolute/path/to/secrets.json doctor
+uvx librus-mcp==1.3.1 --version
+uvx librus-mcp==1.3.1 --config /absolute/path/to/secrets.json --check-config
+uvx librus-mcp==1.3.1 --config /absolute/path/to/secrets.json doctor
 ```
 
 `--check-config` validates the file without signing in. `doctor` also prepares
@@ -172,7 +172,7 @@ Neither command prints usernames or passwords.
 For an explicit sign-in and read-only check of every configured account, run:
 
 ```bash
-uvx librus-mcp==1.3.0 --config /absolute/path/to/secrets.json doctor --live
+uvx librus-mcp==1.3.1 --config /absolute/path/to/secrets.json doctor --live
 ```
 
 Live doctor mode reads only the student profile. It does not change grades,
@@ -185,7 +185,7 @@ behavior without your decision. To upgrade, replace the old version number in
 your MCP configuration, completely restart or reconnect the client, and run the
 version and doctor commands above.
 
-To track new releases automatically instead, remove `==1.3.0` and use
+To track new releases automatically instead, remove `==1.3.1` and use
 `librus-mcp` as the `uvx` package argument. This is less predictable because a
 future release may be selected after a restart.
 
