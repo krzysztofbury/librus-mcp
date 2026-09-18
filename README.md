@@ -53,8 +53,7 @@ Replace the empty `password` value with your Librus password. The `alias` is the
 short name you will use when asking your assistant about this student. For more
 than one child, add another account object to the array.
 
-Use the absolute path to this file in the next step. `~` is not expanded in
-`LIBRUS_CONFIG`. Example paths:
+Use the absolute path to this file in the next step. Example paths:
 
 - macOS: `/Users/YOUR_NAME/.config/librus-mcp/secrets.json`
 - Linux: `/home/YOUR_NAME/.config/librus-mcp/secrets.json`
@@ -82,10 +81,7 @@ on macOS or `%APPDATA%\Claude\claude_desktop_config.json` on Windows.
   "mcpServers": {
     "librus": {
       "command": "uvx",
-      "args": ["librus-mcp==1.2.6"],
-      "env": {
-        "LIBRUS_CONFIG": "/absolute/path/to/secrets.json"
-      }
+      "args": ["librus-mcp==1.3.0", "--config", "/absolute/path/to/secrets.json"]
     }
   }
 }
@@ -97,8 +93,7 @@ Run this once in a terminal:
 
 ```bash
 claude mcp add --scope user --transport stdio librus \
-  -e LIBRUS_CONFIG=/absolute/path/to/secrets.json \
-  -- uvx librus-mcp==1.2.6
+  -- uvx librus-mcp==1.3.0 --config /absolute/path/to/secrets.json
 ```
 
 #### Gemini CLI
@@ -107,8 +102,7 @@ Run this once in a terminal. User scope keeps school credentials out of project 
 
 ```bash
 gemini mcp add --scope user --transport stdio \
-  -e LIBRUS_CONFIG=/absolute/path/to/secrets.json \
-  librus uvx librus-mcp==1.2.6
+  librus uvx librus-mcp==1.3.0 --config /absolute/path/to/secrets.json
 ```
 
 #### OpenAI Codex CLI
@@ -117,8 +111,7 @@ Run this once in a terminal:
 
 ```bash
 codex mcp add librus \
-  --env LIBRUS_CONFIG=/absolute/path/to/secrets.json \
-  -- uvx librus-mcp==1.2.6
+  -- uvx librus-mcp==1.3.0 --config /absolute/path/to/secrets.json
 ```
 
 Never put a Librus password or `LIBRUS_ACCOUNTS` in a project-level MCP
@@ -135,12 +128,54 @@ configuration. Project files can be committed, synchronized, or shared.
 For CLI status checks, use `claude mcp list`, `gemini mcp list`, or
 `codex mcp list`. Claude Code and Gemini CLI also expose status through `/mcp`.
 
+Repeat the restart or reconnect step after changing credentials, enabled
+features, storage folders, or the Librus MCP version. A running MCP process does
+not reload configuration changes.
+
+### 5. Diagnose problems
+
+These commands are safe to run in a terminal. Replace the example path with the
+same credentials path used in your MCP configuration.
+
+```bash
+uvx librus-mcp==1.3.0 --version
+uvx librus-mcp==1.3.0 --config /absolute/path/to/secrets.json --check-config
+uvx librus-mcp==1.3.0 --config /absolute/path/to/secrets.json doctor
+```
+
+`--check-config` validates the file without signing in. `doctor` also prepares
+and checks local notification and attachment storage without contacting Librus.
+Neither command prints usernames or passwords.
+
+For an explicit sign-in and read-only check of every configured account, run:
+
+```bash
+uvx librus-mcp==1.3.0 --config /absolute/path/to/secrets.json doctor --live
+```
+
+Live doctor mode reads only the student profile. It does not change grades,
+messages, attendance, or other school data.
+
+### Upgrading
+
+The recommended configuration pins an exact version so an update cannot change
+behavior without your decision. To upgrade, replace the old version number in
+your MCP configuration, completely restart or reconnect the client, and run the
+version and doctor commands above.
+
+To track new releases automatically instead, remove `==1.3.0` and use
+`librus-mcp` as the `uvx` package argument. This is less predictable because a
+future release may be selected after a restart.
+
 ### Troubleshooting
 
 - **`uvx` not found:** run `uvx --version` in a new terminal, then completely
-  restart the AI assistant. GUI applications may require the absolute path to `uvx`.
-- **Config file does not exist:** use an absolute path, not `~`. In JSON on
-  Windows, write each backslash twice, for example `C:\\Users\\...`.
+  restart the AI assistant. GUI applications may require the absolute path to
+  `uvx`. On macOS or Linux, get it with `command -v uvx`. In PowerShell, run
+  `(Get-Command uvx).Source`. Put the returned path in the MCP `command` field.
+- **Config file does not exist:** copy the exact file path and prefer an absolute
+  path. In JSON on Windows, write each backslash twice, for example
+  `C:\\Users\\...`.
 - **Credential file permissions are too open:** on macOS or Linux, run
   `chmod 600 /absolute/path/to/secrets.json`. The server refuses files readable
   or writable by group or other users.
@@ -152,14 +187,18 @@ For CLI status checks, use `claude mcp list`, `gemini mcp list`, or
 
 Credential sources are checked in this order and are not merged:
 
-1. `LIBRUS_ACCOUNTS`, if set.
-2. The absolute file path in `LIBRUS_CONFIG`, if set.
-3. `secrets.json` in the server working directory.
-4. `secrets.json` beside a source checkout.
+1. The explicit `--config PATH` option, if supplied.
+2. `LIBRUS_ACCOUNTS`, if set.
+3. The file path in `LIBRUS_CONFIG`, if set.
+4. `secrets.json` in the server working directory.
+5. `secrets.json` beside a source checkout.
 
 Invalid higher-priority configuration produces an error instead of silently
 falling back. `LIBRUS_FEATURES`, `LIBRUS_STATE_DIR`, and `LIBRUS_DOWNLOAD_DIR`
 provide separate overrides for optional tools and local storage.
+
+The `--config PATH` command-line option has priority over `LIBRUS_ACCOUNTS` and
+`LIBRUS_CONFIG`. It is the recommended path for normal desktop and CLI setup.
 
 All `LIBRUS_*` environment variables, JSON-file values, defaults, and source
 priorities are declared and resolved in `src/config.py` with Pydantic Settings.
@@ -169,6 +208,10 @@ does not read configuration directly from the environment.
 Account aliases must be 1 to 80 printable characters with no surrounding
 whitespace. Unknown account fields are rejected. Passwords are redacted from
 validation and startup errors.
+
+Librus MCP is a local stdio program. It does not open a network port or expose a
+web service. It runs on the same computer as the AI assistant, and attachment
+paths returned by tools refer to files on that computer.
 
 For advanced environments, `LIBRUS_ACCOUNTS` accepts a JSON array directly:
 
@@ -308,6 +351,7 @@ on a filesystem that supports hard links.
 
 ```
 src/
+  cli.py                 # End-user startup, configuration checks, and doctor
   server.py              # MCP server with tool definitions and entry point
   librus_client.py       # Librus API client wrapper with caching and retry
   config.py               # All operator settings, defaults, and source precedence

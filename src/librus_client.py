@@ -636,6 +636,22 @@ class LibrusManager:
         assert len(config.accounts) > 0, "Config must contain at least one account"
         return [acc.alias for acc in config.accounts]
 
+    @classmethod
+    async def check_account_connection(cls, alias: str) -> None:
+        """Authenticate once and perform one profile read without auth retry."""
+        cls._require_account(alias)
+        async with cls._client_lock(alias):
+            client = await cls.get_client(alias)
+            try:
+                information = await cls._run_upstream_call(
+                    alias, client, get_student_information, client
+                )
+            except AUTH_ERRORS:
+                cls._evict_client(alias)
+                raise
+        if information is None:
+            raise RuntimeError("Librus profile check returned no data")
+
     # --- Data Retrieval Methods ---
 
     @classmethod

@@ -924,6 +924,43 @@ class TestUpstreamTimeouts:
         client._session.close.assert_called_once()
 
 
+class TestConnectionCheck:
+    @pytest.mark.asyncio
+    async def test_uses_one_login_and_one_profile_read_without_execute_retry(self):
+        client = MagicMock()
+        get_client = AsyncMock(return_value=client)
+        run_call = AsyncMock(return_value=object())
+
+        with (
+            patch.object(LibrusManager, "get_client", get_client),
+            patch.object(LibrusManager, "_run_upstream_call", run_call),
+            patch.object(LibrusManager, "_execute") as execute,
+        ):
+            await LibrusManager.check_account_connection("test_student")
+
+        get_client.assert_awaited_once_with("test_student")
+        assert run_call.await_count == 1
+        execute.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_read_denial_is_not_retried(self):
+        from librus_apix.exceptions import AuthorizationError
+
+        client = MagicMock()
+        run_call = AsyncMock(side_effect=AuthorizationError("denied"))
+
+        with (
+            patch.object(LibrusManager, "get_client", AsyncMock(return_value=client)),
+            patch.object(LibrusManager, "_run_upstream_call", run_call),
+            patch.object(LibrusManager, "_evict_client") as evict,
+            pytest.raises(AuthorizationError),
+        ):
+            await LibrusManager.check_account_connection("test_student")
+
+        assert run_call.await_count == 1
+        evict.assert_called_once_with("test_student")
+
+
 class TestAuthCooldown:
     @pytest.mark.asyncio
     async def test_confirmed_throttled_login_gets_actionable_error_and_cooldown(self):
