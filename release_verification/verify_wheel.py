@@ -25,6 +25,19 @@ def read_project_version(project_file: Path) -> str:
     return project["version"]
 
 
+def resolve_wheel(path: Path) -> Path:
+    """Resolve a wheel file or a directory containing exactly one wheel."""
+    path = path.resolve()
+    if path.is_dir():
+        wheels = sorted(path.glob("*.whl"))
+        if len(wheels) != 1:
+            raise VerificationError(f"expected exactly one wheel in {path}, found {len(wheels)}")
+        path = wheels[0].resolve()
+    if not path.is_file() or path.suffix != ".whl":
+        raise VerificationError(f"wheel does not exist: {path}")
+    return path
+
+
 def parse_initialize_response(stdout: str) -> dict[str, Any]:
     messages: list[dict[str, Any]] = []
     for line in stdout.splitlines():
@@ -166,9 +179,7 @@ def run_cli_checks(executable: Path, working_directory: Path, expected_version: 
 
 
 def verify_wheel(repository: Path, wheel: Path) -> None:
-    wheel = wheel.resolve()
-    if not wheel.is_file() or wheel.suffix != ".whl":
-        raise VerificationError(f"wheel does not exist: {wheel}")
+    wheel = resolve_wheel(wheel)
     expected_version = read_project_version(repository / "pyproject.toml")
     with tempfile.TemporaryDirectory(prefix="librus-mcp-release-") as temporary_name:
         temporary_directory = Path(temporary_name).resolve()
@@ -226,7 +237,9 @@ def verify_wheel(repository: Path, wheel: Path) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("wheel", type=Path, help="the single built wheel to verify")
+    parser.add_argument(
+        "wheel", type=Path, help="a built wheel or directory containing exactly one wheel"
+    )
     arguments = parser.parse_args()
     repository = Path(__file__).resolve().parents[1]
     try:

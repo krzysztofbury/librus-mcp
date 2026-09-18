@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+### Added
+
+- Verify the installed wheel, local diagnostics, and MCP stdio initialization on
+  Linux, macOS, and Windows in every pull request.
+- Publish an evidence-based operating-system and MCP-client compatibility matrix,
+  including tested client versions and explicit coverage limits.
+- Document OpenCode setup alongside the existing MCP client instructions.
+
 ## [1.3.0] - 2026-09-18
 
 ### Added

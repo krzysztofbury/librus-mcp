@@ -6,6 +6,9 @@ on:
   pull_request:
     branches: [main]
 
+permissions:
+  contents: read
+
 jobs:
   lint:
     name: Lint, test, and build (Python ${{ matrix.python-version }})
@@ -16,6 +19,8 @@ jobs:
         python-version: ["3.14"]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Install uv
         uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
@@ -45,3 +50,32 @@ jobs:
 
       - name: Build package
         run: uv build --no-build-isolation
+
+  compatibility:
+    name: Installed wheel (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
+        with:
+          # The pinned action validates each platform-specific artifact against its manifest.
+          version: "0.12.7"
+
+      - name: Set up Python and install dependencies
+        run: |
+          uv python install 3.14
+          uv sync --locked --python 3.14
+
+      - name: Build package
+        run: uv build --no-build-isolation
+
+      - name: Verify installed wheel and MCP stdio
+        run: uv run python release_verification/verify_wheel.py dist

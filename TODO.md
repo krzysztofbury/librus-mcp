@@ -135,7 +135,7 @@ can be delivered independently. Suggested versions assume the current release is
 - [x] Recommend a version-pinned `uvx librus-mcp==<version>` configuration and
   document deliberate upgrades and a track-latest alternative.
 - [x] Document GUI-client PATH troubleshooting and use of an absolute `uvx` path.
-- [ ] Publish a tested MCP-client and OS compatibility matrix.
+- [x] Publish MCP-client setup evidence and an OS installed-wheel smoke-test matrix.
 - [x] State explicitly that the server is local stdio only and that downloaded
   attachment paths refer to the server process machine.
 - [x] Document reconnect or restart requirements after configuration changes.
