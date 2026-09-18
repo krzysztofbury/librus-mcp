@@ -2,12 +2,17 @@
 
 import re
 import subprocess
+import tomllib
 from pathlib import Path
 
 import pytest
 
 from release_verification.verify_release import VerificationError, verify_release
-from release_verification.verify_wheel import parse_initialize_response
+from release_verification.verify_wheel import VerificationError as WheelVerificationError
+from release_verification.verify_wheel import (
+    parse_initialize_response,
+    resolve_wheel,
+)
 
 REPOSITORY = Path(__file__).resolve().parents[1]
 WORKFLOWS = REPOSITORY / ".github" / "workflows"
@@ -95,6 +100,36 @@ def test_initialize_response_parser_requires_one_json_rpc_response():
     assert response["result"]["serverInfo"]["name"] == "librus-mcp"
 
 
+def test_windows_runtime_timezone_data_is_declared():
+    with (REPOSITORY / "pyproject.toml").open("rb") as file:
+        dependencies = tomllib.load(file)["project"]["dependencies"]
+
+    assert "tzdata>=2025.2; sys_platform == 'win32'" in dependencies
+
+
+def test_wheel_resolver_accepts_directory_with_one_wheel(tmp_path):
+    wheel = tmp_path / "example-1.0-py3-none-any.whl"
+    wheel.touch()
+
+    assert resolve_wheel(tmp_path) == wheel.resolve()
+
+
+def test_wheel_resolver_accepts_direct_wheel_path(tmp_path):
+    wheel = tmp_path / "example-1.0-py3-none-any.whl"
+    wheel.touch()
+
+    assert resolve_wheel(wheel) == wheel.resolve()
+
+
+@pytest.mark.parametrize("wheel_count", [0, 2])
+def test_wheel_resolver_requires_exactly_one_wheel_in_directory(tmp_path, wheel_count):
+    for index in range(wheel_count):
+        (tmp_path / f"example-{index}.whl").touch()
+
+    with pytest.raises(WheelVerificationError, match="exactly one wheel"):
+        resolve_wheel(tmp_path)
+
+
 def test_all_third_party_actions_are_pinned_with_readable_comments():
     action_lines = [
         line
@@ -106,6 +141,18 @@ def test_all_third_party_actions_are_pinned_with_readable_comments():
 
     assert action_lines
     assert all(ACTION_REFERENCE.fullmatch(line) for line in action_lines)
+
+
+def test_ci_verifies_installed_wheel_on_supported_operating_systems():
+    workflow = (WORKFLOWS / "ci.yml").read_text(encoding="utf-8")
+    compatibility_job = workflow.split("  compatibility:\n", maxsplit=1)[1]
+
+    assert "runs-on: ${{ matrix.os }}" in compatibility_job
+    assert "os: [ubuntu-latest, macos-latest, windows-latest]" in compatibility_job
+    assert "uv run python release_verification/verify_wheel.py dist" in compatibility_job
+    assert "checksum:" not in compatibility_job
+    assert "permissions:\n  contents: read" in workflow
+    assert workflow.count("persist-credentials: false") == 2
 
 
 def test_publish_workflow_keeps_all_verification_before_publish():

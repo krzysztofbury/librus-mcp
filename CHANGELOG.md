@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.3.1] - 2026-09-18
+
+### Added
+
+- Verify the installed wheel, local diagnostics, and MCP stdio initialization on
+  Linux, macOS, and Windows in every pull request.
+- Publish an evidence-based operating-system and MCP-client compatibility matrix,
+  including tested client versions and explicit coverage limits.
+- Document OpenCode setup alongside the existing MCP client instructions.
+
+### Fixed
+
+- Install IANA time zone data on Windows so the server can load the
+  `Europe/Warsaw` school time zone during startup.
+
 ## [1.3.0] - 2026-09-18
 
 ### Added

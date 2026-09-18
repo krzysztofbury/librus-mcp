@@ -81,7 +81,7 @@ on macOS or `%APPDATA%\Claude\claude_desktop_config.json` on Windows.
   "mcpServers": {
     "librus": {
       "command": "uvx",
-      "args": ["librus-mcp==1.3.0", "--config", "/absolute/path/to/secrets.json"]
+      "args": ["librus-mcp==1.3.1", "--config", "/absolute/path/to/secrets.json"]
     }
   }
 }
@@ -93,7 +93,7 @@ Run this once in a terminal:
 
 ```bash
 claude mcp add --scope user --transport stdio librus \
-  -- uvx librus-mcp==1.3.0 --config /absolute/path/to/secrets.json
+  -- uvx librus-mcp==1.3.1 --config /absolute/path/to/secrets.json
 ```
 
 #### Gemini CLI
@@ -102,7 +102,7 @@ Run this once in a terminal. User scope keeps school credentials out of project 
 
 ```bash
 gemini mcp add --scope user --transport stdio \
-  librus uvx librus-mcp==1.3.0 --config /absolute/path/to/secrets.json
+  librus uvx librus-mcp==1.3.1 --config /absolute/path/to/secrets.json
 ```
 
 #### OpenAI Codex CLI
@@ -111,7 +111,29 @@ Run this once in a terminal:
 
 ```bash
 codex mcp add librus \
-  -- uvx librus-mcp==1.3.0 --config /absolute/path/to/secrets.json
+  -- uvx librus-mcp==1.3.1 --config /absolute/path/to/secrets.json
+```
+
+#### OpenCode
+
+Add this server to `~/.config/opencode/opencode.json`:
+
+```json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "librus": {
+      "type": "local",
+      "command": [
+        "uvx",
+        "librus-mcp==1.3.1",
+        "--config",
+        "/absolute/path/to/secrets.json"
+      ],
+      "enabled": true
+    }
+  }
+}
 ```
 
 Never put a Librus password or `LIBRUS_ACCOUNTS` in a project-level MCP
@@ -138,9 +160,9 @@ These commands are safe to run in a terminal. Replace the example path with the
 same credentials path used in your MCP configuration.
 
 ```bash
-uvx librus-mcp==1.3.0 --version
-uvx librus-mcp==1.3.0 --config /absolute/path/to/secrets.json --check-config
-uvx librus-mcp==1.3.0 --config /absolute/path/to/secrets.json doctor
+uvx librus-mcp==1.3.1 --version
+uvx librus-mcp==1.3.1 --config /absolute/path/to/secrets.json --check-config
+uvx librus-mcp==1.3.1 --config /absolute/path/to/secrets.json doctor
 ```
 
 `--check-config` validates the file without signing in. `doctor` also prepares
@@ -150,7 +172,7 @@ Neither command prints usernames or passwords.
 For an explicit sign-in and read-only check of every configured account, run:
 
 ```bash
-uvx librus-mcp==1.3.0 --config /absolute/path/to/secrets.json doctor --live
+uvx librus-mcp==1.3.1 --config /absolute/path/to/secrets.json doctor --live
 ```
 
 Live doctor mode reads only the student profile. It does not change grades,
@@ -163,7 +185,7 @@ behavior without your decision. To upgrade, replace the old version number in
 your MCP configuration, completely restart or reconnect the client, and run the
 version and doctor commands above.
 
-To track new releases automatically instead, remove `==1.3.0` and use
+To track new releases automatically instead, remove `==1.3.1` and use
 `librus-mcp` as the `uvx` package argument. This is less predictable because a
 future release may be selected after a restart.
 
@@ -182,6 +204,37 @@ future release may be selected after a restart.
 - **Aliases appear but grades fail:** verify the same parent credentials at
   [synergia.librus.pl](https://synergia.librus.pl/).
 - **Login requires a second factor:** interactive 2FA accounts are not currently supported.
+
+## Compatibility
+
+Every pull request builds and installs the wheel on GitHub-hosted runners, then
+checks `--version`, configuration validation, local doctor storage operations,
+and an MCP `initialize` exchange over stdio. These checks use synthetic
+credentials and do not contact Librus, so they do not cover live authentication
+or upstream network behavior.
+
+| Operating system | Automated check | Status |
+|------------------|-----------------|--------|
+| Linux (`ubuntu-latest`) | Every pull request | Installed-wheel smoke-tested |
+| macOS (`macos-latest`) | Every pull request | Installed-wheel smoke-tested |
+| Windows (`windows-latest`) | Every pull request | Installed-wheel smoke-tested |
+
+Client setup was checked on 2026-09-18. Client and operating-system dimensions
+are tested separately; the table does not claim that every client and OS pair
+has been exercised end to end.
+
+| MCP client | Checked version | Check performed | Status |
+|------------|-----------------|-----------------|--------|
+| Claude Desktop | Current config format | JSON setup reviewed | Runtime check pending |
+| Claude Code | 2.1.270 on Linux | `mcp add` and `mcp get` accepted the documented command | Setup verified |
+| Gemini CLI | 0.59.0 on Linux | `mcp add` and `mcp list` accepted the documented command | Setup verified |
+| OpenAI Codex CLI | 0.154.0 on Linux | `mcp add` and `mcp get` accepted the documented command | Setup verified |
+| OpenCode | 1.18.30 on Linux | Local stdio configuration connected | Connection verified |
+
+All clients use the same local stdio server and require a restart or reconnect
+after configuration changes. A setup-verified entry confirms that the client
+accepted the documented configuration; the cross-platform MCP handshake above
+provides the automated server protocol check.
 
 ## Configuration Reference
 
