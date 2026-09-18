@@ -30,6 +30,7 @@ from src.notification_state import (
     save_notification_ids,
     save_pending_schedule_events,
     schedule_event_id,
+    verify_notification_state_storage,
 )
 
 
@@ -80,6 +81,31 @@ def _empty_state_payload() -> dict[str, list[str]]:
 
 
 class TestSaveLoadRoundtrip:
+    def test_storage_verification_exercises_state_and_lock_without_leaving_files(self, tmp_path):
+        verify_notification_state_storage(tmp_path)
+
+        assert tmp_path.is_dir()
+        assert list(tmp_path.iterdir()) == []
+
+    def test_storage_verification_attempts_file_cleanup_after_lock_release_failure(self, tmp_path):
+        original_release = notification_state.release_notification_state_lock
+
+        def release_then_fail(descriptor):
+            original_release(descriptor)
+            raise OSError("release failed")
+
+        with (
+            patch.object(
+                notification_state,
+                "release_notification_state_lock",
+                side_effect=release_then_fail,
+            ),
+            pytest.raises(OSError, match="release failed"),
+        ):
+            verify_notification_state_storage(tmp_path)
+
+        assert list(tmp_path.iterdir()) == []
+
     def test_roundtrip(self, tmp_path):
         save_notification_ids(tmp_path, "primary", _sample_ids())
         loaded = load_notification_ids(tmp_path, "primary")

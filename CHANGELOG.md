@@ -2,6 +2,22 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.3.0] - 2026-09-18
+
+### Added
+
+- Add `--version`, `--check-config`, `doctor`, and explicit `doctor --live`
+  commands with credential-safe, actionable output for end users.
+- Add a first-class `--config PATH` option shared by MCP startup and diagnostics.
+- Check notification storage, attachment storage, hard-link support, and optional
+  read-only Librus access without exposing credentials or raw upstream errors.
+
+### Documentation
+
+- Use one version-pinned, explicit configuration path across supported clients;
+  document deliberate upgrades, track-latest installs, GUI PATH recovery,
+  reconnect requirements, and the local-only stdio and attachment-path model.
+
 ## [1.2.6] - 2026-09-17
 
 ### Fixed

@@ -116,6 +116,55 @@ def run_handshake(executable: Path, working_directory: Path, expected_version: s
         raise VerificationError(f"unexpected server version: {server_info.get('version')!r}")
 
 
+def run_cli_checks(executable: Path, working_directory: Path, expected_version: str) -> None:
+    credentials = working_directory / "secrets.json"
+    username = "release-cli-private-user"
+    password = "release-cli-private-password"  # pragma: allowlist secret
+    credentials.write_text(
+        json.dumps(
+            {"accounts": [{"alias": "release-smoke", "username": username, "password": password}]}
+        ),
+        encoding="utf-8",
+    )
+    if os.name == "posix":
+        credentials.chmod(0o600)
+    commands = [
+        (["--version"], f"librus-mcp {expected_version}"),
+        (["--config", str(credentials), "--check-config"], "[OK] Configuration is valid."),
+        (["--config", str(credentials), "doctor"], "Result: all local checks passed."),
+    ]
+    for arguments, expected_output in commands:
+        environment = synthetic_environment(working_directory)
+        if arguments[-1] == "doctor":
+            environment["LIBRUS_FEATURES"] = json.dumps(
+                {"notifications": True, "attachments": True}
+            )
+        result = subprocess.run(
+            [str(executable), *arguments],
+            cwd=working_directory,
+            env=environment,
+            capture_output=True,
+            text=True,
+            timeout=HANDSHAKE_TIMEOUT_SECONDS,
+            check=False,
+        )
+        output = result.stdout + result.stderr
+        if result.returncode != 0:
+            raise VerificationError(f"installed CLI exited with code {result.returncode}: {output}")
+        if expected_output not in result.stdout:
+            raise VerificationError(f"installed CLI output is missing {expected_output!r}")
+        if arguments[-1] == "doctor" and not all(
+            marker in result.stdout
+            for marker in (
+                "[OK] Notification storage is ready.",
+                "[OK] Attachment storage is ready.",
+            )
+        ):
+            raise VerificationError("installed doctor did not verify local storage")
+        if username in output or password in output or "Traceback" in output:
+            raise VerificationError("installed CLI exposed private data or a traceback")
+
+
 def verify_wheel(repository: Path, wheel: Path) -> None:
     wheel = wheel.resolve()
     if not wheel.is_file() or wheel.suffix != ".whl":
@@ -171,6 +220,7 @@ def verify_wheel(repository: Path, wheel: Path) -> None:
         executable = virtual_environment / (
             "Scripts/librus-mcp.exe" if os.name == "nt" else "bin/librus-mcp"
         )
+        run_cli_checks(executable, temporary_directory, expected_version)
         run_handshake(executable, temporary_directory, expected_version)
 
 

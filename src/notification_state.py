@@ -442,6 +442,40 @@ def release_notification_state_lock(descriptor: int) -> None:
         os.close(descriptor)
 
 
+def verify_notification_state_storage(state_dir: Path) -> None:
+    """Exercise atomic state persistence and locking with isolated diagnostic files."""
+    state_dir = Path(state_dir)
+    alias = f"doctor-{os.getpid()}-{uuid4().hex}"
+    state_path = _state_path(state_dir, alias)
+    lock_path = state_path.with_name(f"{state_path.name}.lock")
+    descriptor: int | None = None
+    empty_ids = NotificationIds(
+        grades=[], attendance=[], messages=[], announcements=[], schedule=[], homework=[]
+    )
+    try:
+        save_notification_ids(state_dir, alias, empty_ids)
+        if load_notification_ids(state_dir, alias) is None:
+            raise RuntimeError("notification state verification could not read its test data")
+        descriptor = try_acquire_notification_state_lock(state_dir, alias)
+        if descriptor is None:
+            raise RuntimeError("notification state verification could not acquire its test lock")
+    finally:
+        primary_error = sys.exception()
+        cleanup_error: OSError | RuntimeError | None = None
+        if descriptor is not None:
+            try:
+                release_notification_state_lock(descriptor)
+            except (OSError, RuntimeError) as error:
+                cleanup_error = error
+        for path in (lock_path, state_path):
+            try:
+                path.unlink(missing_ok=True)
+            except OSError as error:
+                cleanup_error = cleanup_error or error
+        if primary_error is None and cleanup_error is not None:
+            raise cleanup_error
+
+
 def _try_lock_descriptor(descriptor: int) -> bool:
     if fcntl is not None:
         try:

@@ -147,6 +147,36 @@ class TestAccountValidation:
 
 
 class TestLoadConfigFeatures:
+    def test_explicit_path_overrides_environment_accounts(self, tmp_path, monkeypatch):
+        secrets = tmp_path / "secrets.json"
+        _write_secure_config(
+            secrets,
+            {"accounts": [{"alias": "file", "username": "u", "password": "p"}]},
+        )
+        monkeypatch.setenv(
+            "LIBRUS_ACCOUNTS",
+            json.dumps([{"alias": "environment", "username": "u", "password": "p"}]),
+        )
+
+        config = load_config(secrets)
+
+        assert config.accounts[0].alias == "file"
+
+    @pytest.mark.parametrize("environment_accounts", ["{not-json", "null"])
+    def test_explicit_path_ignores_invalid_environment_accounts(
+        self, tmp_path, monkeypatch, environment_accounts
+    ):
+        secrets = tmp_path / "secrets.json"
+        _write_secure_config(
+            secrets,
+            {"accounts": [{"alias": "file", "username": "u", "password": "p"}]},
+        )
+        monkeypatch.setenv("LIBRUS_ACCOUNTS", environment_accounts)
+
+        config = load_config(secrets)
+
+        assert config.accounts[0].alias == "file"
+
     def test_null_env_accounts_does_not_fall_back_to_file(self, tmp_path, monkeypatch):
         secrets = tmp_path / "secrets.json"
         _write_secure_config(

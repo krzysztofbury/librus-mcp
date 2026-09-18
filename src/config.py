@@ -168,9 +168,22 @@ class EnvironmentSettings(BaseSettings):
     download_dir: Path | None = Field(None, validation_alias="LIBRUS_DOWNLOAD_DIR")
 
 
-def _load_environment_settings() -> EnvironmentSettings:
+class EnvironmentOverrides(BaseSettings):
+    """Non-credential overrides retained with an explicit config path."""
+
+    model_config = SettingsConfigDict(
+        case_sensitive=True, extra="ignore", hide_input_in_errors=True
+    )
+
+    features: dict[str, Any] | None = Field(None, validation_alias="LIBRUS_FEATURES")
+    state_dir: Path | None = Field(None, validation_alias="LIBRUS_STATE_DIR")
+    download_dir: Path | None = Field(None, validation_alias="LIBRUS_DOWNLOAD_DIR")
+
+
+def _load_environment_settings(ignore_credentials: bool = False) -> EnvironmentSettings:
+    settings_model = EnvironmentOverrides if ignore_credentials else EnvironmentSettings
     try:
-        settings = EnvironmentSettings()
+        parsed_settings = settings_model()
     except SettingsError as error:
         message = str(error)
         source = "LIBRUS environment variable"
@@ -183,7 +196,16 @@ def _load_environment_settings() -> EnvironmentSettings:
         raise ConfigError(
             f"invalid environment: {_environment_validation_summary(error)}"
         ) from None
-    if "LIBRUS_ACCOUNTS" in os.environ and settings.accounts is None:
+    if ignore_credentials:
+        settings = EnvironmentSettings.model_construct(
+            accounts=None,
+            config_path=None,
+            **parsed_settings.model_dump(),
+        )
+    else:
+        assert isinstance(parsed_settings, EnvironmentSettings)
+        settings = parsed_settings
+    if not ignore_credentials and "LIBRUS_ACCOUNTS" in os.environ and settings.accounts is None:
         raise ConfigError("LIBRUS_ACCOUNTS must be a JSON array, not null")
     if "LIBRUS_FEATURES" in os.environ and settings.features is None:
         raise ConfigError("LIBRUS_FEATURES must be a JSON object, not null")
@@ -212,7 +234,7 @@ def _resolve_config_path(config_path: Path | None) -> str:
     if config_path is not None:
         path = str(config_path.expanduser())
         if not os.path.exists(path):
-            raise ConfigError(f"LIBRUS_CONFIG points to {path!r}, which does not exist")
+            raise ConfigError(f"credential file path {path!r} does not exist")
         return path
 
     # Try current working directory first (where the user launched the server).
@@ -280,10 +302,17 @@ def _load_from_file(path: str) -> AppConfig:
     return _validated_config(data, f"credential file {path!r}")
 
 
-def load_config() -> AppConfig:
-    """Load config from env var or file. Priority: LIBRUS_ACCOUNTS > LIBRUS_CONFIG > file.
-    Other LIBRUS_* settings override their matching file values."""
-    settings = _load_environment_settings()
+def load_config(config_path: Path | None = None) -> AppConfig:
+    """Load config from an explicit file, environment, or default locations.
+
+    An explicit path takes priority over credential environment variables.
+    Other LIBRUS_* settings still override their matching file values.
+    """
+    settings = _load_environment_settings(ignore_credentials=config_path is not None)
+    if config_path is not None:
+        settings = settings.model_copy(
+            update={"accounts": None, "config_path": config_path.expanduser()}
+        )
     if settings.accounts is not None:
         config = _validated_config({"accounts": settings.accounts}, "LIBRUS_ACCOUNTS")
         return _apply_environment_settings(config, settings)

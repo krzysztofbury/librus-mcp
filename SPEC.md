@@ -18,6 +18,7 @@ This document describes how AI agents and bots should interact with this codebas
 
 ```
 src/
+  cli.py                 - End-user command routing and local/live diagnostics.
   server.py              - MCPServer (mcp 2.x) server. Defines all MCP tools. Entry point.
   librus_client.py       - LibrusManager class. Handles auth, caching, retry, and data fetching.
   config.py              - Reads secrets.json via Pydantic models (accounts, features, dirs).
@@ -122,6 +123,9 @@ export LIBRUS_CONFIG=/absolute/path/to/private/secrets.json
 
 ```bash
 uv run librus-mcp                       # Start the MCP server
+uv run librus-mcp --check-config        # Validate config without network access
+uv run librus-mcp doctor                # Validate config and local storage
+uv run librus-mcp doctor --live         # Add explicit authentication/read checks
 uv run python verify_connection.py     # Live smoke test (real credentials)
 ```
 
@@ -170,9 +174,10 @@ uv build --no-build-isolation
 
 Credentials are loaded by `src/config.py` in this priority order:
 
-1. **`LIBRUS_ACCOUNTS` env var** — a JSON array of `{alias, username, password}` objects. Best for `uvx` users.
-2. **`LIBRUS_CONFIG` env var** — absolute path to a `secrets.json` file. Best for custom locations.
-3. **`secrets.json` in CWD** — then project root as fallback. Best for local development.
+1. **Explicit `--config PATH`** - highest priority for CLI and desktop setup.
+2. **`LIBRUS_ACCOUNTS` env var** - a JSON array of `{alias, username, password}` objects.
+3. **`LIBRUS_CONFIG` env var** - absolute path to a `secrets.json` file.
+4. **`secrets.json` in CWD** - then project root as fallback for local development.
 
 The schema and every supported `LIBRUS_*` environment variable are defined by
 the Pydantic models in `src/config.py`. `load_config()` returns effective paths

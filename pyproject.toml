@@ -1,6 +1,6 @@
 [project]
 name = "librus-mcp"
-version = "1.2.6"
+version = "1.3.0"
 description = "MCP server for Librus Synergia — access grades, messages, attendance, homework, timetables, and announcements from AI assistants"
 authors = [{name = "Krzysztof Bury", email = "contact@datacraze.io"}]
 license = "GPL-3.0-only"
@@ -45,7 +45,7 @@ Repository = "https://github.com/krzysztofbury/librus-mcp"
 Issues = "https://github.com/krzysztofbury/librus-mcp/issues"
 
 [project.scripts]
-librus-mcp = "src.server:main"
+librus-mcp = "src.cli:main"
 
 [build-system]
 requires = ["hatchling==1.27.0"]
