@@ -2,6 +2,7 @@
 
 import re
 import subprocess
+import tomllib
 from pathlib import Path
 
 import pytest
@@ -97,6 +98,13 @@ def test_initialize_response_parser_requires_one_json_rpc_response():
     )
 
     assert response["result"]["serverInfo"]["name"] == "librus-mcp"
+
+
+def test_windows_runtime_timezone_data_is_declared():
+    with (REPOSITORY / "pyproject.toml").open("rb") as file:
+        dependencies = tomllib.load(file)["project"]["dependencies"]
+
+    assert "tzdata>=2025.2; sys_platform == 'win32'" in dependencies
 
 
 def test_wheel_resolver_accepts_directory_with_one_wheel(tmp_path):

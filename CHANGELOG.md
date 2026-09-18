@@ -12,6 +12,11 @@ All notable changes to this project will be documented in this file.
   including tested client versions and explicit coverage limits.
 - Document OpenCode setup alongside the existing MCP client instructions.
 
+### Fixed
+
+- Install IANA time zone data on Windows so the server can load the
+  `Europe/Warsaw` school time zone during startup.
+
 ## [1.3.0] - 2026-09-18
 
 ### Added
