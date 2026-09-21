@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.3.2] - 2026-09-21
+
+### Fixed
+
+- Preserve every subject and teacher/classroom label in split-group timetable
+  cells by upgrading the pinned `librus-apix` parser to 1.5.2.
+
 ## [1.3.1] - 2026-09-18
 
 ### Added

@@ -1,6 +1,6 @@
 [project]
 name = "librus-mcp"
-version = "1.3.1"
+version = "1.3.2"
 description = "MCP server for Librus Synergia — access grades, messages, attendance, homework, timetables, and announcements from AI assistants"
 authors = [{name = "Krzysztof Bury", email = "contact@datacraze.io"}]
 license = "GPL-3.0-only"
@@ -29,7 +29,7 @@ classifiers = [
 # package.
 dependencies = [
     "mcp>=2.1.1,<3",
-    "librus-apix==1.5.1",
+    "librus-apix==1.5.2",
     "pydantic>=2.7,<3",
     "pydantic-settings>=2.7,<3",
     "beautifulsoup4>=4.12,<5",
@@ -70,6 +70,9 @@ dev = [
 # resolution (with a global rolling "30 days" exclude-newer) and CI (with no
 # global config) produce byte-identical lockfiles. Bump when updating deps.
 exclude-newer = "2026-09-01T00:00:00Z"
+# Keep the global quarantine while admitting the reviewed 1.5.2 artifacts,
+# uploaded on 2026-09-16, without exposing unrelated packages to newer uploads.
+exclude-newer-package = { librus-apix = "2026-09-17T00:00:00Z" }
 
 [tool.ruff]
 line-length = 100
