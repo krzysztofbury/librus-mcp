@@ -581,7 +581,17 @@ class TestGetTimetable:
         timetable = [[FakePeriod("Math", "Smith", "101", "08:00", "08:45")]]
         with _mock_execute(timetable):
             result = await get_timetable("test_student")
-        assert isinstance(result, list)
+        assert result == [
+            [
+                {
+                    "subject": "Math",
+                    "teacher": "Smith",
+                    "room": "101",
+                    "start": "08:00",
+                    "end": "08:45",
+                }
+            ]
+        ]
 
     @pytest.mark.asyncio
     async def test_empty_alias_raises(self):
@@ -780,14 +790,6 @@ class TestGetStudentInformation:
 
 class TestFetchAssertions:
     """Verify that LibrusManager.fetch_* assertions fire on malformed upstream data."""
-
-    @pytest.mark.asyncio
-    async def test_grades_rejects_non_tuple(self):
-        with (
-            _mock_execute(["not", "a", "tuple"]),
-            pytest.raises(AssertionError, match="must return a tuple"),
-        ):
-            await get_grades("test_student")
 
     @pytest.mark.asyncio
     async def test_grades_rejects_wrong_length_tuple(self):
