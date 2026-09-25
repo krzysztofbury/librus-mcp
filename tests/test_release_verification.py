@@ -92,12 +92,26 @@ def test_release_identity_rejects_checkout_after_tag(tmp_path):
         verify_release(repository, "v1.2.4", head_commit)
 
 
-def test_initialize_response_parser_requires_one_json_rpc_response():
+def test_initialize_response_parser_accepts_one_json_rpc_response():
     response = parse_initialize_response(
         '{"jsonrpc":"2.0","id":1,"result":{"serverInfo":{"name":"librus-mcp"}}}\n'
     )
 
     assert response["result"]["serverInfo"]["name"] == "librus-mcp"
+
+
+@pytest.mark.parametrize(
+    ("stdout", "count"),
+    [
+        ("", 0),
+        ('{"jsonrpc":"2.0","id":1,"result":{}}\n' * 2, 2),
+    ],
+)
+def test_initialize_response_parser_rejects_missing_or_duplicate_response(stdout, count):
+    with pytest.raises(
+        WheelVerificationError, match=f"expected one initialize response, received {count}"
+    ):
+        parse_initialize_response(stdout)
 
 
 def test_windows_runtime_timezone_data_is_declared():
@@ -178,18 +192,36 @@ def test_publish_workflow_keeps_all_verification_before_publish():
 def test_publish_credentials_are_isolated_from_build_and_test_code():
     workflow = (WORKFLOWS / "publish.yml").read_text(encoding="utf-8")
     verify_job, publish_job = workflow.split("  publish:\n", maxsplit=1)
+    publish_steps = publish_job.split("    steps:\n", maxsplit=1)[1]
 
     assert "id-token: write" not in verify_job
     assert "uses: actions/upload-artifact@" in verify_job
     assert "needs: verify" in publish_job
     assert "id-token: write" in publish_job
+    # Only artifact download, checksum verification, and publication may run
+    # in the job that can request a PyPI publishing token.
+    assert [line.strip() for line in publish_steps.splitlines() if line.startswith("      - ")] == [
+        "- name: Download verified distributions",
+        "- name: Verify distribution checksums",
+        "- name: Publish to PyPI",
+    ]
+    assert publish_steps.count("        run: ") == 1
     assert "uses: actions/download-artifact@" in publish_job
     assert "artifact-ids: ${{ needs.verify.outputs.artifact-id }}" in publish_job
-    assert "EXPECTED_MANIFEST_SHA256" in publish_job
-    assert 'echo "$EXPECTED_MANIFEST_SHA256  dist/SHA256SUMS"' in publish_job
-    assert "sha256sum --check --strict dist/SHA256SUMS" in publish_job
-    assert 'cp -- "$distribution" verified-dist/' in publish_job
+    checksum_step = publish_steps.split("      - name: Verify distribution checksums\n", 1)[1]
+    checksum_step = checksum_step.split("      - name: Publish to PyPI\n", 1)[0]
+    checksum_commands = [
+        line.strip() for line in checksum_step.split("        run: |\n", 1)[1].strip().splitlines()
+    ]
+    assert checksum_commands == [
+        'test -n "$EXPECTED_MANIFEST_SHA256"',
+        'echo "$EXPECTED_MANIFEST_SHA256  dist/SHA256SUMS" | sha256sum --check --strict',
+        "sha256sum --check --strict dist/SHA256SUMS",
+        "mkdir verified-dist",
+        "while read -r _ distribution; do",
+        'cp -- "$distribution" verified-dist/',
+        "done < dist/SHA256SUMS",
+    ]
     assert "uses: pypa/gh-action-pypi-publish@" in publish_job
     assert "packages-dir: verified-dist/" in publish_job
     assert "attestations: true" in publish_job
-    assert "uv run" not in publish_job
