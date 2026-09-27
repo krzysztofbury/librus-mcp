@@ -2,6 +2,23 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.4.0] - 2026-09-27
+
+### Added
+
+- Publish typed MCP output schemas and validated `structuredContent` for all
+  default-on tools and all optional tools except `send_message`, while retaining
+  the existing text response payloads.
+- Document the current input and output contracts, measure the `tools/list`
+  catalog under default and opt-in feature profiles, and bound its size in CI.
+- Exercise representative `tools/call` responses over stdio and verify the
+  installed wheel's tool catalog and a credential-free call on all supported OSes.
+
+### Documentation
+
+- Refresh the post-1.3 roadmap and record remaining output-schema and upstream
+  compatibility work.
+
 ## [1.3.2] - 2026-09-21
 
 ### Fixed
