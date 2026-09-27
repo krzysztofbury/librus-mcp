@@ -209,9 +209,9 @@ future release may be selected after a restart.
 
 Every pull request builds and installs the wheel on GitHub-hosted runners, then
 checks `--version`, configuration validation, local doctor storage operations,
-and an MCP `initialize` exchange over stdio. These checks use synthetic
-credentials and do not contact Librus, so they do not cover live authentication
-or upstream network behavior.
+and MCP `initialize`, `tools/list` and `list_students` calls over stdio. These
+checks use synthetic credentials and do not contact Librus, so they do not
+cover live authentication or upstream network behavior.
 
 | Operating system | Automated check | Status |
 |------------------|-----------------|--------|
@@ -235,6 +235,10 @@ All clients use the same local stdio server and require a restart or reconnect
 after configuration changes. A setup-verified entry confirms that the client
 accepted the documented configuration; the cross-platform MCP handshake above
 provides the automated server protocol check.
+
+On Linux, CI also checks `tools/list` and representative `tools/call` results
+over stdio using synthetic data. The current response shapes and catalog size
+are documented in [MCP_CONTRACT.md](MCP_CONTRACT.md).
 
 ## Configuration Reference
 

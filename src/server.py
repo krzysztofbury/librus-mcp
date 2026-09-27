@@ -19,6 +19,27 @@ from src.librus_client import (
     MAX_SEND_TITLE_LENGTH,
     LibrusManager,
 )
+from src.output_models import (
+    AnnouncementOutput,
+    AttachmentOutput,
+    AttendanceFrequencyOutput,
+    AttendanceOutput,
+    BehaviourNoteOutput,
+    CompletedLessonOutput,
+    DetailFieldsOutput,
+    DownloadOutput,
+    FinalGradeOutput,
+    GradesOutput,
+    HomeworkOutput,
+    MessageContentOutput,
+    MessagesOutput,
+    NotificationsOutput,
+    PeriodOutput,
+    RecentScheduleEventOutput,
+    ScheduleOutput,
+    StudentInformationOutput,
+    SubjectFrequencyOutput,
+)
 
 # Passing version explicitly: an unversioned server advertises an empty version
 # in the initialize handshake, so hosts would show no version for this server.
@@ -78,6 +99,10 @@ RecipientIds = Annotated[
 IsoDate = Annotated[str, Field(pattern=r"^\d{4}-\d{2}-\d{2}$")]
 SortBy = Literal["all", "week", "last_login"]
 
+# MCPServer uses return annotations to publish and validate output schemas.
+# Return the original dictionaries and lists so its legacy text content stays
+# unchanged; the SDK separately validates and emits structuredContent.
+
 
 def to_dict(obj: Any) -> Any:
     """Convert dataclasses to dicts recursively for JSON serialization."""
@@ -102,7 +127,7 @@ async def list_students() -> list[str]:
 
 
 @mcp.tool(annotations=READ_ONLY)
-async def get_grades(student_alias: StudentAlias, sort_by: SortBy = "all") -> Any:
+async def get_grades(student_alias: StudentAlias, sort_by: SortBy = "all") -> GradesOutput:
     """
     Fetches grades for the specified student. Returns numeric grades, GPA, and descriptive grades.
     Args:
@@ -120,7 +145,7 @@ async def get_messages(
     page: Annotated[int, Field(ge=0, le=1000)] = 0,
     folder: Literal["received", "sent"] = "received",
     all_pages: bool = False,
-) -> Any:
+) -> MessagesOutput:
     """
     Fetches one page of messages for the specified student (or the whole folder).
     Args:
@@ -144,7 +169,9 @@ async def get_messages(
 
 
 @mcp.tool(annotations=READ_ONLY)
-async def get_message_content(student_alias: StudentAlias, message_id: NumericId) -> dict[str, str]:
+async def get_message_content(
+    student_alias: StudentAlias, message_id: NumericId
+) -> MessageContentOutput:
     """
     Fetches a specific message: author, title, date, and content.
     Args:
@@ -155,7 +182,9 @@ async def get_message_content(student_alias: StudentAlias, message_id: NumericId
 
 
 @mcp.tool(annotations=READ_ONLY)
-async def get_attendance(student_alias: StudentAlias, sort_by: SortBy = "all") -> Any:
+async def get_attendance(
+    student_alias: StudentAlias, sort_by: SortBy = "all"
+) -> list[list[AttendanceOutput]]:
     """
     Fetches attendance records for the specified student, grouped by semester.
     Args:
@@ -168,7 +197,9 @@ async def get_attendance(student_alias: StudentAlias, sort_by: SortBy = "all") -
 
 
 @mcp.tool(annotations=READ_ONLY)
-async def get_attendance_detail(student_alias: StudentAlias, detail_url: NumericId) -> Any:
+async def get_attendance_detail(
+    student_alias: StudentAlias, detail_url: NumericId
+) -> DetailFieldsOutput:
     """
     Fetches details of one attendance entry (lesson, teacher, trip type, etc.).
     Args:
@@ -180,7 +211,7 @@ async def get_attendance_detail(student_alias: StudentAlias, detail_url: Numeric
 
 
 @mcp.tool(annotations=READ_ONLY)
-async def get_attendance_frequency(student_alias: StudentAlias) -> dict[str, float]:
+async def get_attendance_frequency(student_alias: StudentAlias) -> AttendanceFrequencyOutput:
     """
     Fetches attendance frequency ratios (0..1) for the first semester, second
     semester, and overall school year.
@@ -195,7 +226,7 @@ async def get_subject_frequency(
     student_alias: StudentAlias,
     start: IsoDate | None = None,
     end: IsoDate | None = None,
-) -> Any:
+) -> SubjectFrequencyOutput:
     """
     Fetches per-subject attendance frequency (percentage) for the specified student.
     Optionally filter by date range.
@@ -213,7 +244,7 @@ async def get_homework(
     student_alias: StudentAlias,
     date_from: IsoDate | None = None,
     date_to: IsoDate | None = None,
-) -> Any:
+) -> list[HomeworkOutput]:
     """
     Fetches homework for a date range; defaults to the next 2 weeks.
     Args:
@@ -226,7 +257,9 @@ async def get_homework(
 
 
 @mcp.tool(annotations=READ_ONLY)
-async def get_homework_detail(student_alias: StudentAlias, detail_url: NumericId) -> Any:
+async def get_homework_detail(
+    student_alias: StudentAlias, detail_url: NumericId
+) -> DetailFieldsOutput:
     """
     Fetches full details of a specific homework assignment.
     Args:
@@ -242,7 +275,7 @@ async def get_schedule(
     student_alias: StudentAlias,
     year: Annotated[str, Field(pattern=r"^\d{4}$")],
     month: Annotated[str, Field(pattern=r"^\d{1,2}$")],
-) -> Any:
+) -> ScheduleOutput:
     """
     Fetches the schedule (calendar events, exams) for a specific month and year.
     Args:
@@ -255,7 +288,7 @@ async def get_schedule(
 
 
 @mcp.tool(annotations=READ_ONLY)
-async def get_schedule_detail(student_alias: StudentAlias, href: str) -> Any:
+async def get_schedule_detail(student_alias: StudentAlias, href: str) -> DetailFieldsOutput:
     """
     Fetches details of one schedule event (test scope, room, teacher, etc.).
     Args:
@@ -268,7 +301,9 @@ async def get_schedule_detail(student_alias: StudentAlias, href: str) -> Any:
 
 
 @mcp.tool(annotations=READ_ONLY)
-async def get_timetable(student_alias: StudentAlias, monday: IsoDate | None = None) -> Any:
+async def get_timetable(
+    student_alias: StudentAlias, monday: IsoDate | None = None
+) -> list[list[PeriodOutput]]:
     """
     Fetches the timetable (lessons) for one week.
     Args:
@@ -281,7 +316,7 @@ async def get_timetable(student_alias: StudentAlias, monday: IsoDate | None = No
 
 
 @mcp.tool(annotations=READ_ONLY)
-async def get_announcements(student_alias: StudentAlias) -> Any:
+async def get_announcements(student_alias: StudentAlias) -> list[AnnouncementOutput]:
     """
     Fetches school announcements for the specified student.
     Args:
@@ -294,7 +329,7 @@ async def get_announcements(student_alias: StudentAlias) -> Any:
 @mcp.tool(annotations=READ_ONLY)
 async def get_completed_lessons(
     student_alias: StudentAlias, date_from: IsoDate, date_to: IsoDate
-) -> Any:
+) -> list[CompletedLessonOutput]:
     """
     Fetches completed lessons (subject, teacher, topic) for a date range.
     Args:
@@ -307,7 +342,7 @@ async def get_completed_lessons(
 
 
 @mcp.tool(annotations=READ_ONLY)
-async def get_student_information(student_alias: StudentAlias) -> Any:
+async def get_student_information(student_alias: StudentAlias) -> StudentInformationOutput:
     """
     Fetches student profile information (name, class, tutor, school, lucky number).
     Args:
@@ -318,7 +353,7 @@ async def get_student_information(student_alias: StudentAlias) -> Any:
 
 
 @mcp.tool(annotations=READ_ONLY)
-async def get_final_grades(student_alias: StudentAlias) -> Any:
+async def get_final_grades(student_alias: StudentAlias) -> list[FinalGradeOutput]:
     """
     Fetches end-of-year grade summary per subject: midterm grade, predicted
     annual grade (przewidywana roczna), and the annual grade once issued.
@@ -331,7 +366,9 @@ async def get_final_grades(student_alias: StudentAlias) -> Any:
 
 
 @mcp.tool(annotations=LOCAL_STATE_WRITE)
-async def get_recent_schedule_events(student_alias: StudentAlias) -> Any:
+async def get_recent_schedule_events(
+    student_alias: StudentAlias,
+) -> list[RecentScheduleEventOutput]:
     """
     Fetches schedule events added since the last Librus login (new tests, trips,
     meetings). Librus exposes this view only once, so events are checkpointed
@@ -346,7 +383,7 @@ async def get_recent_schedule_events(student_alias: StudentAlias) -> Any:
 # --- Optional tools, registered by register_optional_tools() based on config features ---
 
 
-async def get_new_notifications(student_alias: StudentAlias) -> Any:
+async def get_new_notifications(student_alias: StudentAlias) -> NotificationsOutput:
     """
     Returns what is new since the previous call: grades, attendance, messages,
     announcements, schedule events, and homework. Seen-state is persisted per
@@ -360,7 +397,9 @@ async def get_new_notifications(student_alias: StudentAlias) -> Any:
     return to_dict(result)
 
 
-async def get_message_attachments(student_alias: StudentAlias, message_id: NumericId) -> Any:
+async def get_message_attachments(
+    student_alias: StudentAlias, message_id: NumericId
+) -> list[AttachmentOutput]:
     """
     Lists attachments (filename, message_id, file_id) of a specific message.
     Args:
@@ -373,7 +412,7 @@ async def get_message_attachments(student_alias: StudentAlias, message_id: Numer
 
 async def download_attachment(
     student_alias: StudentAlias, message_id: NumericId, file_id: NumericId
-) -> Any:
+) -> DownloadOutput:
     """
     Downloads a message attachment to the configured download directory
     (LIBRUS_DOWNLOAD_DIR env, 'download_dir' in secrets.json, or ~/.librus-mcp/downloads).
@@ -388,7 +427,7 @@ async def download_attachment(
     return to_dict(info)
 
 
-async def get_behaviour_notes(student_alias: StudentAlias) -> Any:
+async def get_behaviour_notes(student_alias: StudentAlias) -> list[BehaviourNoteOutput]:
     """
     Fetches behaviour notes (uwagi) for the specified student: date, teacher,
     category, and content. Returns an empty list when there are no notes.

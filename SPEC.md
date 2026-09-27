@@ -138,6 +138,7 @@ uv run ruff format --check src/ tests/ release_verification/
 uv run bandit -c pyproject.toml -r src/
 uv run pytest -q
 uv build --no-build-isolation
+uv run python release_verification/measure_tools.py
 ```
 
 ### Code Style
@@ -190,6 +191,9 @@ POSIX systems it must not grant any group or other permissions; use `chmod 600`.
 ## Testing
 
 - **Unit tests:** `uv run pytest -q` — mocked, no network. CI runs them on every push/PR.
+- **MCP protocol contract:** `tests/test_mcp_stdio_contract.py` starts a real
+  subprocess with synthetic credentials and exercises initialize, tools/list,
+  and representative tools/call responses; see [MCP_CONTRACT.md](MCP_CONTRACT.md).
 - **Live smoke test:** `uv run python verify_connection.py [--all-accounts]` —
   requires real credentials; exercises auth, grades, messages, and timetable.
 

@@ -1,14 +1,33 @@
 # TODO
 
-This roadmap groups work by release size and compatibility risk. Each work group
-can be delivered independently. Suggested versions assume the current release is
-1.2.6:
+This roadmap tracks remaining work after 1.3.2. Each work group can be
+delivered independently. Version numbers below indicate compatibility risk,
+not a release commitment:
 
-- Minor work release (`1.2.x`): compatible safety, correctness, and documentation fixes.
-- Medium work release (`1.3.0`): substantial but backward-compatible agent UX and performance work.
+- Compatible work (`1.3.x` or `1.4.x`): additive response schemas, bounded UX,
+  resource controls, safety fixes, and documentation.
 - Major release (`2.0.0`): deliberate tool, response, package, or configuration contract changes.
 
-## Minor Work Releases (1.2.x)
+## Remaining Work After 1.3.2
+
+Prioritize output contracts and the measured tool catalog first, then bounded
+collection UX and runtime resource control. Preserve the existing text response
+shapes and feature gates until a documented 2.0 migration. The `send_message`
+write result needs its own review before advertising a discriminated schema.
+
+Next independent batches:
+
+1. Review `send_message` preview, sent, failed and uncertain-delivery states;
+   publish a schema only when it reflects all outcomes without altering the
+   two-step confirmation contract.
+2. Capture per-tool input/output schemas and annotations for review, then
+   shorten tool descriptions against the measured catalog-size budget.
+3. Introduce bounded pagination and whole-operation deadlines without removing
+   the current `all_pages` entry point.
+4. Bound aggregate cross-account work and move state I/O off the event loop.
+5. Anonymize a populated behaviour-note page before enabling the feature by default.
+
+## Completed Safety Foundations (1.2.x)
 
 ### Release Compliance
 
@@ -76,7 +95,6 @@ can be delivered independently. Suggested versions assume the current release is
 - [x] Replace assertions that validate external HTML or JSON with explicit parse errors.
 - [x] Require a minimum populated behaviour-note field set instead of producing
   notes with empty date or content fields.
-- [ ] Add an anonymized integration fixture for a populated behaviour-notes page.
 - [x] Decide whether behaviour notes remain default-on; otherwise mark the feature
   experimental and default it off until the populated fixture is verified.
 - [x] Add cooperative cancellation to attachment downloads and check it before
@@ -91,18 +109,26 @@ can be delivered independently. Suggested versions assume the current release is
 - [x] Pin third-party GitHub Actions to commit SHAs.
 - [x] Align CONTRIBUTING setup and verification commands with CI and SPEC.
 
-## Medium Work Releases (1.3.0)
+## Compatible Follow-ups (1.3.x or 1.4.x)
+
+### Parser And Download Safety
+
+- [ ] Add an anonymized integration fixture for a populated behaviour-notes page.
+- [ ] Reproduce `get_final_grades` parse failures with an anonymized populated
+  grades-page fixture before changing its parser.
+- [ ] Reproduce the `get_subject_frequency` `CookieConflictError` with synthetic
+  session cookies and restore read-only access without weakening cookie isolation.
 
 ### Typed MCP Output Contracts
 
-- [ ] Add server-owned Pydantic output models for every collection tool that
-  currently returns `Any`.
-- [ ] Model existing response shapes first so adding schemas does not silently
-  become a breaking response redesign.
-- [ ] Require known fields in message content and attendance-frequency outputs.
+- [x] Add server-owned Pydantic output models for collection tools that
+  previously returned `Any`, including optional read and download tools.
+- [x] Document the existing response shapes before publishing schemas, retaining
+  legacy text content and recording the SDK's new structuredContent shape.
+- [x] Require known fields in message content and attendance-frequency outputs.
 - [ ] Add discriminated outputs for send preview, sent, failed, and delivery-unknown states.
 - [ ] Snapshot every tool input schema, output schema, and annotation.
-- [ ] Add stdio integration tests for `initialize`, `tools/list`, and representative
+- [x] Add stdio integration tests for `initialize`, `tools/list`, and representative
   `tools/call` responses, including `structuredContent`.
 
 ### Bounded Collection UX
@@ -144,8 +170,8 @@ can be delivered independently. Suggested versions assume the current release is
 
 - [ ] Shorten repetitive tool descriptions while preserving constraints and
   actionable usage guidance in schemas.
-- [ ] Measure and snapshot total `tools/list` size so schema improvements do not
-  create uncontrolled agent-context growth.
+- [x] Measure and record default and opt-in `tools/list` sizes, with a CI context
+  budget to catch uncontrolled growth; see `MCP_CONTRACT.md`.
 - [ ] Evaluate optional feature profiles that expose only the tools a deployment uses.
 
 ## Major Release (2.0.0)
