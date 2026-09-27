@@ -1,6 +1,6 @@
 # TODO
 
-This roadmap tracks remaining work after 1.4.0. Each work group can be
+This roadmap tracks remaining work after 1.4.1. Each work group can be
 delivered independently. Version numbers below indicate compatibility risk,
 not a release commitment:
 
@@ -8,7 +8,7 @@ not a release commitment:
   resource controls, safety fixes, and documentation.
 - Major release (`2.0.0`): deliberate tool, response, package, or configuration contract changes.
 
-## Remaining Work After 1.4.0
+## Remaining Work After 1.4.1
 
 Prioritize output contracts and the measured tool catalog first, then bounded
 collection UX and runtime resource control. Preserve the existing text response
@@ -114,9 +114,9 @@ Next independent batches:
 ### Parser And Download Safety
 
 - [ ] Add an anonymized integration fixture for a populated behaviour-notes page.
-- [ ] Reproduce `get_final_grades` parse failures with an anonymized populated
-  grades-page fixture before changing its parser.
-- [ ] Reproduce the `get_subject_frequency` `CookieConflictError` with synthetic
+- [x] Reproduce `get_final_grades` parse failures with a grades-table fixture
+  containing synthetic values and restore merged behaviour-summary parsing.
+- [x] Reproduce the `get_subject_frequency` `CookieConflictError` with synthetic
   session cookies and restore read-only access without weakening cookie isolation.
 
 ### Typed MCP Output Contracts

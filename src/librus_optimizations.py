@@ -8,6 +8,8 @@ from collections import defaultdict
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from datetime import date, datetime, timedelta
+from email.utils import formatdate
+from http.cookies import SimpleCookie
 from typing import Any
 from zoneinfo import ZoneInfo
 
@@ -156,8 +158,7 @@ async def _resolve_subjects(
     semaphore = asyncio.Semaphore(GATEWAY_CONCURRENCY)
     proxy = client.proxy.get("https") or client.proxy.get("http")
     timeout = ClientTimeout(total=GATEWAY_REQUEST_TIMEOUT_SECONDS)
-    cookie_jar = CookieJar()
-    cookie_jar.update_cookies(dict(client._session.cookies), response_url=URL(client.BASE_URL))
+    cookie_jar = _gateway_cookie_jar(client._session.cookies, client.BASE_URL)
     async with ClientSession(
         cookie_jar=cookie_jar,
         headers=dict(client._session.headers),
@@ -207,6 +208,29 @@ async def _resolve_subjects(
         )
         for attendance, type_id in zip(attendances, attendance_type_ids, strict=True)
     ]
+
+
+def _gateway_cookie_jar(cookies: RequestsCookieJar, base_url: str) -> CookieJar:
+    """Copy session cookies without flattening duplicate names or broadening scope."""
+    jar = CookieJar()
+    response_url = URL(base_url)
+    for cookie in cookies:
+        if cookie.is_expired():
+            continue
+        if cookie.domain and not cookie.domain_specified and cookie.domain != response_url.raw_host:
+            continue
+        # Upstream token cookies have no domain. Bind them to the Librus host;
+        # leaving them unbound in aiohttp would send them to unrelated hosts.
+        encoded = SimpleCookie()
+        encoded[cookie.name] = cookie.value
+        morsel = encoded[cookie.name]
+        morsel["domain"] = cookie.domain if cookie.domain_specified else ""
+        morsel["path"] = cookie.path or "/"
+        morsel["secure"] = cookie.secure
+        if cookie.expires is not None:
+            morsel["expires"] = formatdate(cookie.expires, usegmt=True)
+        jar.update_cookies(encoded, response_url=response_url)
+    return jar
 
 
 async def _request_json(

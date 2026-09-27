@@ -7,6 +7,8 @@ Attachment, empty-note, and final-grade HTML mirror Synergia markup captured on
 import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -1060,6 +1062,21 @@ FINAL_GRADES_NO_PREDICTED_HTML = """
 
 
 class TestParseFinalGradesVariants:
+    def test_current_grades_page_preserves_spanning_behaviour_summary(self):
+        from src.scraping import FinalGrade, get_final_grades
+
+        fixture = Path(__file__).with_name("fixtures") / "final_grades_spanning_behaviour.html"
+        client = SimpleNamespace(
+            GRADES_URL="https://synergia.librus.pl/grades",
+            get=MagicMock(return_value=SimpleNamespace(text=fixture.read_text())),
+        )
+
+        assert get_final_grades(client) == [
+            FinalGrade("Subject One", "5", "-", "6"),
+            FinalGrade("Subject Two", "-", "-", "-"),
+            FinalGrade("Zachowanie", "good", "-", "very good"),
+        ]
+
     def test_layout_without_predicted_column_defaults_to_dash(self):
         from src.scraping import parse_final_grades
 
@@ -1129,14 +1146,40 @@ class TestParseFinalGradesVariants:
         grades = parse_final_grades(html)
         assert any(g.final == "6" for g in grades)  # Plastyka still parsed
 
-    def test_colspan_in_grade_row_raises(self):
+    @pytest.mark.parametrize("subject", ["Plastyka", "Zoology"])
+    def test_colspan_in_grade_row_raises(self, subject):
         """Body-side alignment contract: one td per column. A spanning cell in
         a parsed row must fail loudly, not shift values silently."""
         from src.scraping import parse_final_grades
 
-        html = FINAL_GRADES_HTML.replace("<td>Plastyka</td>", '<td colspan="2">Plastyka</td>', 1)
+        html = FINAL_GRADES_HTML.replace("<td>Plastyka</td>", f'<td colspan="2">{subject}</td>', 1)
         with pytest.raises(ParseError, match="colspan"):
             parse_final_grades(html)
+
+    @pytest.mark.parametrize("span", ["many", "0", "-1", "100", "9" * 5000])
+    def test_invalid_behaviour_row_spans_raise(self, span):
+        fixture = Path(__file__).with_name("fixtures") / "final_grades_spanning_behaviour.html"
+        html = fixture.read_text().replace(
+            '<td colspan="3">very good</td>', f'<td colspan="{span}">very good</td>'
+        )
+
+        with pytest.raises(ParseError, match="colspan"):
+            parse_final_grades(html)
+
+    @pytest.mark.parametrize("span", [98, 99])
+    def test_behaviour_row_column_limit_is_inclusive(self, span):
+        html = (
+            '<table class="decorated stretch"><thead><tr>'
+            '<td title="Ocena roczna" colspan="98">R</td></tr></thead>'
+            '<tr class="line0"><td></td><td>Zachowanie</td>'
+            f'<td colspan="{span}">good</td></tr></table>'
+        )
+
+        if span == 98:
+            assert parse_final_grades(html)[0].final == "good"
+        else:
+            with pytest.raises(ParseError, match="colspan"):
+                parse_final_grades(html)
 
     def test_short_subject_row_does_not_return_partial_grades(self):
         html = FINAL_GRADES_HTML.replace(

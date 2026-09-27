@@ -109,6 +109,11 @@ The v1.2.5 parser and cancellation campaigns are the active configurations under
 mutants, all 23 selected gateway-validation mutants, and the selected
 experimental-feature default mutant.
 
+The v1.4.1 read-tool fixes killed all 27 selected behaviour-column mutants and
+16 of 17 selected cookie-transfer mutants. The remaining mutation changes the
+expiry date's timezone spelling from `GMT` to `-0000`; both forms parse to the
+same deadline in the pinned aiohttp cookie jar.
+
 ## Submitting Changes
 
 1. Commit your changes with a clear, descriptive message

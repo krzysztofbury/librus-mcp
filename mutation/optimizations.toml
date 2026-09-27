@@ -8,7 +8,7 @@ excluded-modules = []
 name = "local"
 
 [cosmic-ray.filters.line-filter.lines]
-"src/librus_optimizations.py" = ["70-83", "91-101", "127-131", "143-151", "177-180", "195-200"]
+"src/librus_optimizations.py" = ["72-85", "93-103", "129-133", "145-153", "178-181", "196-201", "215-233"]
 
 [cosmic-ray.filters.operators-filter]
 exclude-operators = [

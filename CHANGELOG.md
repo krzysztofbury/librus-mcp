@@ -2,6 +2,25 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.4.1] - 2026-09-27
+
+### Fixed
+
+- Parse the merged cells in the behaviour summary on current grades pages,
+  restoring `get_final_grades` without omitting behaviour or changing the
+  response fields. Ordinary subject rows still reject unexpected cell spans.
+- Preserve cookie domain, path, host-only, secure, and expiry restrictions when
+  transferring a session to the attendance gateway. `get_subject_frequency`
+  now accepts duplicate cookie names without flattening their scope or
+  mutating the original account session.
+
+### Testing
+
+- Add a grades-table fixture with synthetic values and the current merged-cell
+  layout; cover invalid spans and the inclusive column limit.
+- Extend the bounded attendance-resolution test with scoped duplicate cookies,
+  host isolation, secure transport, expiry, and session-preservation checks.
+
 ## [1.4.0] - 2026-09-27
 
 ### Added

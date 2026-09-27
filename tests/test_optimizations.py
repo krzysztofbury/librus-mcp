@@ -12,6 +12,7 @@ from aiohttp import ClientResponseError
 from librus_apix.exceptions import AuthorizationError, ParseError
 from librus_apix.notifications import NotificationIds
 from librus_apix.schedule import RecentEvent
+from requests.cookies import RequestsCookieJar, create_cookie
 from yarl import URL
 
 from src import librus_optimizations
@@ -106,6 +107,27 @@ class SequenceSession:
         return SequenceResponse(next(self.statuses))
 
 
+@pytest.fixture
+def scoped_gateway_cookies():
+    cookies = RequestsCookieJar()
+    cookies.set("DZIENNIKSID", "secret")
+    cookies.set("oauth_token", "root-token", domain="synergia.librus.pl", path="/")
+    cookies.set("oauth_token", "gateway-token", domain="synergia.librus.pl", path="/gateway")
+    cookies.set("oauth_token", "other-host-token", domain="other.librus.pl", path="/")
+    cookies.set("secure_only", "secure", domain="synergia.librus.pl", secure=True)
+    cookies.set("expired", "expired", domain="synergia.librus.pl", expires=1)
+    cookies.set("expires_later", "temporary", domain="synergia.librus.pl", expires=2_000_000_000)
+    for domain, name in [
+        ("synergia.librus.pl", "host_only"),
+        ("other.librus.pl", "foreign_host_only"),
+        ("z.librus.pl", "another_foreign_host_only"),
+    ]:
+        cookie = create_cookie(name, "local", domain=domain)
+        cookie.domain_specified = False
+        cookies.set_cookie(cookie)
+    return cookies
+
+
 class TestSubjectFrequency:
     @pytest.mark.parametrize(
         ("payload", "message"),
@@ -184,7 +206,7 @@ class TestSubjectFrequency:
         with pytest.raises(ParseError, match="invalid Date"):
             librus_optimizations.get_subject_frequency(client, start=date(2026, 1, 1))
 
-    def test_deduplicates_lessons_and_subjects(self, monkeypatch):
+    def test_deduplicates_lessons_and_subjects(self, monkeypatch, scoped_gateway_cookies):
         monkeypatch.setattr(librus_optimizations, "MAX_ATTENDANCE_RECORDS", 3)
         monkeypatch.setattr(librus_optimizations, "MAX_UNIQUE_LESSON_IDS", 2)
         monkeypatch.setattr(librus_optimizations, "MAX_UNIQUE_SUBJECT_IDS", 1)
@@ -201,11 +223,16 @@ class TestSubjectFrequency:
         }
         FakeClientSession.requested_urls = []
         FakeClientSession.activity = {"active": 0, "max": 0}
+        cookies = scoped_gateway_cookies
+        original_cookies = [
+            (cookie.name, cookie.value, cookie.domain, cookie.path, cookie.expires)
+            for cookie in cookies
+        ]
         client = SimpleNamespace(
             BASE_URL=base_url,
             GATEWAY_API_ATTENDANCE=f"{base_url}/gateway/api/2.0/Attendances",
             proxy={},
-            _session=SimpleNamespace(cookies={"DZIENNIKSID": "secret"}, headers={}),
+            _session=SimpleNamespace(cookies=cookies, headers={}),
             refresh_oauth=MagicMock(),
             get=MagicMock(return_value=SimpleNamespace(json=lambda: {"Attendances": attendances})),
         )
@@ -218,8 +245,27 @@ class TestSubjectFrequency:
         assert FakeClientSession.requested_urls.count(f"{base_url}/gateway/api/2.0/Subjects/9") == 1
         assert FakeClientSession.activity["max"] == 2
         cookie_jar = FakeClientSession.init_kwargs["cookie_jar"]
-        assert cookie_jar.filter_cookies(URL(base_url))
+        gateway_cookies = cookie_jar.filter_cookies(URL(f"{base_url}/gateway/api/2.0/Lessons/1"))
+        assert gateway_cookies["DZIENNIKSID"].value == "secret"
+        assert gateway_cookies["oauth_token"].value == "gateway-token"
+        assert cookie_jar.filter_cookies(URL(base_url))["oauth_token"].value == "root-token"
+        assert gateway_cookies["host_only"].value == "local"
+        subdomain_cookies = cookie_jar.filter_cookies(URL("https://sub.synergia.librus.pl"))
+        assert subdomain_cookies["oauth_token"].value == "root-token"
+        assert "host_only" not in subdomain_cookies
+        assert "DZIENNIKSID" not in subdomain_cookies
+        assert "foreign_host_only" not in gateway_cookies
+        assert "another_foreign_host_only" not in gateway_cookies
+        assert "secure_only" not in cookie_jar.filter_cookies(URL("http://synergia.librus.pl"))
+        assert "expired" not in gateway_cookies
+        assert gateway_cookies["expires_later"].value == "temporary"
+        monkeypatch.setattr("aiohttp.cookiejar.time.time", lambda: 2_000_000_001)
+        assert "expires_later" not in cookie_jar.filter_cookies(URL(base_url))
         assert not cookie_jar.filter_cookies(URL("https://evil.example"))
+        assert original_cookies == [
+            (cookie.name, cookie.value, cookie.domain, cookie.path, cookie.expires)
+            for cookie in cookies
+        ]
 
     @pytest.mark.asyncio
     async def test_redirect_is_not_followed_and_triggers_auth_retry(self):
