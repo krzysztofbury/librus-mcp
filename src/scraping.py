@@ -575,12 +575,9 @@ def _final_grade_from_row(row: Tag, table: Tag, column_map: dict[str, int]) -> F
     # Nested detail tables repeat 'Ocena'/'Nauczyciel' label rows; skip them.
     if not subject or subject == "Ocena":
         return None
+    cells = _final_grade_body_columns(cells, subject)
     if len(cells) <= max(column_map.values()):
         raise ParseError(f"grade row for {subject!r} is shorter than its header")
-    # Column mapping assumes one td per body column; a spanning cell would
-    # silently shift every value past it.
-    if any(cell.has_attr("colspan") for cell in cells):
-        raise ParseError("unexpected colspan in grade row")
     values = {field: cells[index].get_text(" ", strip=True) for field, index in column_map.items()}
     return FinalGrade(
         subject=subject,
@@ -588,6 +585,24 @@ def _final_grade_from_row(row: Tag, table: Tag, column_map: dict[str, int]) -> F
         predicted_final=values.get("predicted_final", "-"),
         final=values.get("final", "-"),
     )
+
+
+def _final_grade_body_columns(cells: list[Tag], subject: str) -> list[Tag]:
+    # Behaviour summaries deliberately merge unused columns. Ordinary subject
+    # rows still require one cell per column so layout drift cannot shift grades.
+    columns: list[Tag] = []
+    for cell in cells:
+        if cell.has_attr("colspan") and subject != "Zachowanie":
+            raise ParseError("unexpected colspan in grade row")
+        span = cell.get("colspan", "1")
+        try:
+            span_value = int(str(span))
+        except ValueError:
+            raise ParseError(f"non-numeric grade row colspan: {span!r}") from None
+        if span_value < 1 or len(columns) + span_value > MAX_FINAL_GRADE_COLUMNS:
+            raise ParseError(f"grade row colspan is out of bounds: {span!r}")
+        columns.extend([cell] * span_value)
+    return columns
 
 
 def _locate_final_grades_table(soup: BeautifulSoup) -> tuple[Tag, dict[str, int]] | None:

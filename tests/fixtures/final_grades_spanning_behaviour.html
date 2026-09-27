@@ -1,0 +1,47 @@
+<!-- Current grades-table structure with synthetic subjects and grade values.
+     Keep the behaviour row's 2/1/2/3 cell spans and nested detail rows: these
+     distinguish this layout from the older one-cell-per-column fixture. -->
+<html><body>
+<table class="decorated stretch">
+  <thead>
+    <tr>
+      <th rowspan="2"></th><td rowspan="2">Przedmiot</td>
+      <td colspan="3">Okres 1</td><td colspan="3">Okres 2</td>
+      <td colspan="2">Koniec roku</td>
+    </tr>
+    <tr>
+      <td>Oceny bieżące</td>
+      <td title="Średnia ocen<br> z pierwszego okresu">Śr.I</td>
+      <td title="Ocena śródroczna z pierwszego okresu">I</td>
+      <td>Oceny bieżące</td>
+      <td title="Średnia ocen z drugiego okresu">Śr.II</td>
+      <td title="Ocena śródroczna z drugiego okresu">II</td>
+      <td title="Średnia roczna">Śr.R</td>
+      <td title="Ocena roczna">R</td>
+    </tr>
+  </thead>
+  <tbody>
+    <tr class="line0">
+      <td class="center micro screen-only"></td><td>Subject One</td>
+      <td>4 5</td><td>4.5</td><td>5</td>
+      <td>5 6</td><td>5.5</td><td>6</td><td>5</td><td>6</td>
+    </tr>
+    <tr class="line0"><td colspan="14"><table class="decorated">
+      <tr class="line1"><td>Category</td><td>Teacher</td><td>Grade</td></tr>
+    </table></td></tr>
+    <tr class="line1">
+      <td class="center micro screen-only"></td><td>Subject Two</td>
+      <td>Brak ocen</td><td></td><td>-</td>
+      <td>Brak ocen</td><td></td><td>-</td><td></td><td>-</td>
+    </tr>
+    <tr class="line0">
+      <td class="center micro screen-only"></td><td>Zachowanie</td>
+      <td colspan="2"></td><td>good</td><td colspan="2"></td>
+      <td colspan="3">very good</td>
+    </tr>
+    <tr class="line1"><td></td><td colspan="14"><table class="decorated">
+      <tr class="line0"><td>Category</td><td>Teacher</td><td>Grade</td></tr>
+    </table></td></tr>
+  </tbody>
+</table>
+</body></html>
