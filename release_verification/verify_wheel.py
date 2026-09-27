@@ -2,6 +2,7 @@
 """Install a wheel outside the checkout and verify its MCP stdio identity."""
 
 import argparse
+import asyncio
 import json
 import os
 import subprocess
@@ -9,6 +10,10 @@ import tempfile
 import tomllib
 from pathlib import Path
 from typing import Any
+
+import anyio
+from mcp.client import ClientSession
+from mcp.client.stdio import StdioServerParameters, stdio_client
 
 HANDSHAKE_TIMEOUT_SECONDS = 30
 
@@ -129,6 +134,35 @@ def run_handshake(executable: Path, working_directory: Path, expected_version: s
         raise VerificationError(f"unexpected server version: {server_info.get('version')!r}")
 
 
+async def run_tool_checks(executable: Path, working_directory: Path) -> None:
+    """Check the installed server's catalog and a credential-free tool call."""
+    server = StdioServerParameters(
+        command=str(executable),
+        cwd=working_directory,
+        env=synthetic_environment(working_directory),
+    )
+    try:
+        with anyio.fail_after(HANDSHAKE_TIMEOUT_SECONDS):
+            async with stdio_client(server) as streams:
+                async with ClientSession(*streams) as session:
+                    await session.initialize()
+                    tools = {tool.name: tool for tool in (await session.list_tools()).tools}
+                    grades_tool = tools.get("get_grades")
+                    if grades_tool is None or grades_tool.output_schema is None:
+                        raise VerificationError("installed get_grades has no output schema")
+                    result = await session.call_tool("list_students", {})
+                    if result.is_error or result.structured_content != {
+                        "result": ["release-smoke"]
+                    }:
+                        raise VerificationError(
+                            "installed list_students returned an invalid result"
+                        )
+    except Exception as error:  # noqa: BLE001 - redact SDK and subprocess failures at this boundary
+        raise VerificationError(
+            f"installed MCP tool check failed: {type(error).__name__}"
+        ) from None
+
+
 def run_cli_checks(executable: Path, working_directory: Path, expected_version: str) -> None:
     credentials = working_directory / "secrets.json"
     username = "release-cli-private-user"
@@ -233,6 +267,7 @@ def verify_wheel(repository: Path, wheel: Path) -> None:
         )
         run_cli_checks(executable, temporary_directory, expected_version)
         run_handshake(executable, temporary_directory, expected_version)
+        asyncio.run(run_tool_checks(executable, temporary_directory))
 
 
 def main() -> None:
