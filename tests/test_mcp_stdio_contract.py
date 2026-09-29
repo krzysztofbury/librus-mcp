@@ -9,7 +9,7 @@ import pytest
 from mcp.client import ClientSession
 from mcp.client.stdio import StdioServerParameters, stdio_client
 
-from release_verification.measure_tools import measure_tools
+from release_verification.measure_tools import list_tools, measure_tools, tool_contracts
 
 REPOSITORY = Path(__file__).resolve().parents[1]
 GRADE_RESPONSE = {
@@ -59,6 +59,26 @@ async def test_tool_catalog_fits_context_budget():
     assert all_features["with_output_schema"] == all_features["tools"]
     assert default["bytes"] <= 48 * 1024
     assert all_features["bytes"] <= 64 * 1024
+
+
+@pytest.mark.asyncio
+async def test_stdio_tool_schemas_and_annotations_match_reviewed_snapshot():
+    snapshot = json.loads(
+        (REPOSITORY / "tests/snapshots/tool_contracts_all.json").read_text(encoding="utf-8")
+    )
+    all_tools = tool_contracts(await list_tools(True))
+    default_tools = tool_contracts(await list_tools(False))
+
+    assert len(snapshot) == 25
+    assert all_tools == snapshot
+    assert len(default_tools) == 21
+    assert default_tools == {name: snapshot[name] for name in default_tools}
+    assert set(all_tools) - set(default_tools) == {
+        "get_behaviour_notes",
+        "get_recipient_groups",
+        "get_recipients",
+        "send_message",
+    }
 
 
 @pytest.mark.asyncio

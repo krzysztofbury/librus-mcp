@@ -122,21 +122,13 @@ def to_dict(obj: Any) -> Any:
 
 @mcp.tool(annotations=READ_ONLY)
 async def list_students() -> list[str]:
-    """
-    Lists the aliases of configured students/accounts.
-    """
+    """List configured student aliases."""
     return LibrusManager.list_accounts()
 
 
 @mcp.tool(annotations=READ_ONLY)
 async def get_grades(student_alias: StudentAlias, sort_by: SortBy = "all") -> GradesOutput:
-    """
-    Fetches grades for the specified student. Returns numeric grades, GPA, and descriptive grades.
-    Args:
-        student_alias: The alias of the student (e.g., 'daughter', 'son').
-        sort_by: 'all' (default), 'week' (current week only), or 'last_login'
-            (grades added since the last Librus login).
-    """
+    """Get numeric, GPA and descriptive grades. sort_by filters to all, this week or since last login."""
     grades = await LibrusManager.fetch_grades(student_alias, sort_by)
     return to_dict(grades)
 
@@ -148,20 +140,10 @@ async def get_messages(
     folder: Literal["received", "sent"] = "received",
     all_pages: bool = False,
 ) -> MessagesOutput:
-    """
-    Fetches one page of messages for the specified student (or the whole folder).
-    Args:
-        student_alias: The alias of the student.
-        page: 0-based page number; page 0 holds the newest messages. The response
-            includes max_page (last valid index) for the received folder. For the
-            sent folder max_page is null because Librus exposes no page counter
-            there — null does NOT mean the current page is the last one. Pages
-            hold 50 messages; a page with fewer than 50 is the last one (Librus
-            clamps out-of-range pages to the last page instead of returning empty).
-        folder: Message folder, 'received' or 'sent'. Defaults to 'received'.
-        all_pages: When true, ignores `page` and fetches the whole folder
-            (newest first), bounded at 2000 messages; the response then has
-            pages_fetched and truncated instead of page/max_page.
+    """Get received or sent messages, newest first. Page 0 is newest; pages hold
+    50. Sent max_page=null does not mean last page. Librus clamps out-of-range
+    pages, so a short page signals the end. all_pages ignores page, fetches up
+    to 2000 messages and reports pages_fetched and truncated.
     """
     if all_pages:
         messages = await LibrusManager.fetch_all_messages(student_alias, folder)
@@ -174,12 +156,7 @@ async def get_messages(
 async def get_message_content(
     student_alias: StudentAlias, message_id: NumericId
 ) -> MessageContentOutput:
-    """
-    Fetches a specific message: author, title, date, and content.
-    Args:
-        student_alias: The alias of the student.
-        message_id: The numeric ID of the message (from the 'href' field in message list).
-    """
+    """Get full message content by numeric ID from get_messages.href."""
     return await LibrusManager.fetch_message_content(student_alias, message_id)
 
 
@@ -187,13 +164,7 @@ async def get_message_content(
 async def get_attendance(
     student_alias: StudentAlias, sort_by: SortBy = "all"
 ) -> list[list[AttendanceOutput]]:
-    """
-    Fetches attendance records for the specified student, grouped by semester.
-    Args:
-        student_alias: The alias of the student.
-        sort_by: 'all' (default), 'week' (current week only), or 'last_login'
-            (records added since the last Librus login).
-    """
+    """Get attendance by semester. sort_by filters to all, this week or since last login."""
     attendance = await LibrusManager.fetch_attendance(student_alias, sort_by)
     return to_dict(attendance)
 
@@ -202,24 +173,14 @@ async def get_attendance(
 async def get_attendance_detail(
     student_alias: StudentAlias, detail_url: NumericId
 ) -> DetailFieldsOutput:
-    """
-    Fetches details of one attendance entry (lesson, teacher, trip type, etc.).
-    Args:
-        student_alias: The alias of the student.
-        detail_url: The numeric 'href' identifier from an attendance record.
-    """
+    """Get attendance entry details by numeric ID from get_attendance.href."""
     detail = await LibrusManager.fetch_attendance_detail(student_alias, detail_url)
     return to_dict(detail)
 
 
 @mcp.tool(annotations=READ_ONLY)
 async def get_attendance_frequency(student_alias: StudentAlias) -> AttendanceFrequencyOutput:
-    """
-    Fetches attendance frequency ratios (0..1) for the first semester, second
-    semester, and overall school year.
-    Args:
-        student_alias: The alias of the student.
-    """
+    """Get first-semester, second-semester and overall attendance ratios (0 to 1)."""
     return await LibrusManager.fetch_attendance_frequency(student_alias)
 
 
@@ -229,14 +190,7 @@ async def get_subject_frequency(
     start: IsoDate | None = None,
     end: IsoDate | None = None,
 ) -> SubjectFrequencyOutput:
-    """
-    Fetches per-subject attendance frequency (percentage) for the specified student.
-    Optionally filter by date range.
-    Args:
-        student_alias: The alias of the student.
-        start: Optional start date in YYYY-MM-DD format.
-        end: Optional end date in YYYY-MM-DD format.
-    """
+    """Get per-subject attendance percentages (0 to 100), optionally by date range."""
     frequency = await LibrusManager.fetch_subject_frequency(student_alias, start, end)
     return to_dict(frequency)
 
@@ -247,13 +201,7 @@ async def get_homework(
     date_from: IsoDate | None = None,
     date_to: IsoDate | None = None,
 ) -> list[HomeworkOutput]:
-    """
-    Fetches homework for a date range; defaults to the next 2 weeks.
-    Args:
-        student_alias: The alias of the student.
-        date_from: Optional start date in YYYY-MM-DD format (provide both dates or neither).
-        date_to: Optional end date in YYYY-MM-DD format, at most 370 days after date_from.
-    """
+    """Get homework for the next two weeks, or supply both dates (at most 370 days apart)."""
     homework = await LibrusManager.fetch_homework(student_alias, date_from, date_to)
     return to_dict(homework)
 
@@ -262,12 +210,7 @@ async def get_homework(
 async def get_homework_detail(
     student_alias: StudentAlias, detail_url: NumericId
 ) -> DetailFieldsOutput:
-    """
-    Fetches full details of a specific homework assignment.
-    Args:
-        student_alias: The alias of the student.
-        detail_url: The numeric detail identifier from the homework list.
-    """
+    """Get homework details by numeric ID from get_homework.href."""
     detail = await LibrusManager.fetch_homework_detail(student_alias, detail_url)
     return to_dict(detail)
 
@@ -278,26 +221,14 @@ async def get_schedule(
     year: Annotated[str, Field(pattern=r"^\d{4}$")],
     month: Annotated[str, Field(pattern=r"^\d{1,2}$")],
 ) -> ScheduleOutput:
-    """
-    Fetches the schedule (calendar events, exams) for a specific month and year.
-    Args:
-        student_alias: The alias of the student.
-        year: The year (e.g., '2026').
-        month: The month (e.g., '1' or '01').
-    """
+    """Get calendar events and exams for a year and month."""
     schedule = await LibrusManager.fetch_schedule(student_alias, month, year)
     return to_dict(schedule)
 
 
 @mcp.tool(annotations=READ_ONLY)
 async def get_schedule_detail(student_alias: StudentAlias, href: str) -> DetailFieldsOutput:
-    """
-    Fetches details of one schedule event (test scope, room, teacher, etc.).
-    Args:
-        student_alias: The alias of the student.
-        href: The 'href' field of an event from get_schedule or
-            get_recent_schedule_events, e.g. 'szczegoly/12345'.
-    """
+    """Get event details by href from get_schedule or get_recent_schedule_events."""
     detail = await LibrusManager.fetch_schedule_detail(student_alias, href)
     return to_dict(detail)
 
@@ -306,24 +237,14 @@ async def get_schedule_detail(student_alias: StudentAlias, href: str) -> DetailF
 async def get_timetable(
     student_alias: StudentAlias, monday: IsoDate | None = None
 ) -> list[list[PeriodOutput]]:
-    """
-    Fetches the timetable (lessons) for one week.
-    Args:
-        student_alias: The alias of the student.
-        monday: Optional week start in YYYY-MM-DD format; must be a Monday.
-            Defaults to the current week.
-    """
+    """Get one week's lessons; monday defaults to this week and must be a Monday."""
     timetable = await LibrusManager.fetch_timetable(student_alias, monday)
     return to_dict(timetable)
 
 
 @mcp.tool(annotations=READ_ONLY)
 async def get_announcements(student_alias: StudentAlias) -> list[AnnouncementOutput]:
-    """
-    Fetches school announcements for the specified student.
-    Args:
-        student_alias: The alias of the student.
-    """
+    """Get school announcements."""
     announcements = await LibrusManager.fetch_announcements(student_alias)
     return to_dict(announcements)
 
@@ -332,37 +253,21 @@ async def get_announcements(student_alias: StudentAlias) -> list[AnnouncementOut
 async def get_completed_lessons(
     student_alias: StudentAlias, date_from: IsoDate, date_to: IsoDate
 ) -> list[CompletedLessonOutput]:
-    """
-    Fetches completed lessons (subject, teacher, topic) for a date range.
-    Args:
-        student_alias: The alias of the student.
-        date_from: Start date in YYYY-MM-DD format.
-        date_to: End date in YYYY-MM-DD format.
-    """
+    """Get completed lesson subjects, teachers and topics within a date range."""
     lessons = await LibrusManager.fetch_completed_lessons(student_alias, date_from, date_to)
     return to_dict(lessons)
 
 
 @mcp.tool(annotations=READ_ONLY)
 async def get_student_information(student_alias: StudentAlias) -> StudentInformationOutput:
-    """
-    Fetches student profile information (name, class, tutor, school, lucky number).
-    Args:
-        student_alias: The alias of the student.
-    """
+    """Get student name, class, tutor, school and lucky number."""
     info = await LibrusManager.fetch_student_information(student_alias)
     return to_dict(info)
 
 
 @mcp.tool(annotations=READ_ONLY)
 async def get_final_grades(student_alias: StudentAlias) -> list[FinalGradeOutput]:
-    """
-    Fetches end-of-year grade summary per subject: midterm grade, predicted
-    annual grade (przewidywana roczna), and the annual grade once issued.
-    A '-' value means the grade has not been issued yet.
-    Args:
-        student_alias: The alias of the student.
-    """
+    """Get midterm, predicted annual and final grades per subject; '-' means not issued."""
     grades = await LibrusManager.fetch_final_grades(student_alias)
     return to_dict(grades)
 
@@ -371,12 +276,8 @@ async def get_final_grades(student_alias: StudentAlias) -> list[FinalGradeOutput
 async def get_recent_schedule_events(
     student_alias: StudentAlias,
 ) -> list[RecentScheduleEventOutput]:
-    """
-    Fetches schedule events added since the last Librus login (new tests, trips,
-    meetings). Librus exposes this view only once, so events are checkpointed
-    locally before they are returned.
-    Args:
-        student_alias: The alias of the student.
+    """Get events added since last login. Reading consumes Librus's one-time
+    view; events are checkpointed locally and may replay after interruption.
     """
     events = await LibrusManager.fetch_recent_schedule_events(student_alias)
     return to_dict(events)
@@ -386,14 +287,9 @@ async def get_recent_schedule_events(
 
 
 async def get_new_notifications(student_alias: StudentAlias) -> NotificationsOutput:
-    """
-    Returns what is new since the previous call: grades, attendance, messages,
-    announcements, schedule events, and homework. Seen-state is persisted per
-    student. If an earlier call was interrupted, a read-once schedule event may
-    be replayed rather than lost. On the first call for a student it returns the
-    baseline (items since last Librus login) with first_run=true.
-    Args:
-        student_alias: The alias of the student.
+    """Get new grades, attendance, messages, announcements, events and homework.
+    Advances local seen state; first_run returns the baseline since last login.
+    Interrupted read-once schedule events may replay.
     """
     result = await LibrusManager.fetch_new_notifications(student_alias)
     return to_dict(result)
@@ -402,12 +298,7 @@ async def get_new_notifications(student_alias: StudentAlias) -> NotificationsOut
 async def get_message_attachments(
     student_alias: StudentAlias, message_id: NumericId
 ) -> list[AttachmentOutput]:
-    """
-    Lists attachments (filename, message_id, file_id) of a specific message.
-    Args:
-        student_alias: The alias of the student.
-        message_id: The numeric ID of the message (from the 'href' field in message list).
-    """
+    """List message attachments and file IDs by numeric message ID."""
     attachments = await LibrusManager.fetch_message_attachments(student_alias, message_id)
     return to_dict(attachments)
 
@@ -415,48 +306,27 @@ async def get_message_attachments(
 async def download_attachment(
     student_alias: StudentAlias, message_id: NumericId, file_id: NumericId
 ) -> DownloadOutput:
-    """
-    Downloads a message attachment to the configured download directory
-    (LIBRUS_DOWNLOAD_DIR env, 'download_dir' in secrets.json, or ~/.librus-mcp/downloads).
-    Never overwrites: a name collision gets a ' (n)' suffix. Returns the saved
-    path, filename, size, and content type.
-    Args:
-        student_alias: The alias of the student.
-        message_id: The numeric ID of the message.
-        file_id: The numeric ID of the file (from get_message_attachments).
+    """Download a message file by numeric IDs. Returns a server-local path,
+    filename, size and content type; never overwrites an existing file.
     """
     info = await LibrusManager.download_message_attachment(student_alias, message_id, file_id)
     return to_dict(info)
 
 
 async def get_behaviour_notes(student_alias: StudentAlias) -> list[BehaviourNoteOutput]:
-    """
-    Fetches behaviour notes (uwagi) for the specified student: date, teacher,
-    category, and content. Returns an empty list when there are no notes.
-    Args:
-        student_alias: The alias of the student.
-    """
+    """Get experimental behaviour notes (uwagi), or [] when none exist."""
     notes = await LibrusManager.fetch_behaviour_notes(student_alias)
     return to_dict(notes)
 
 
 async def get_recipient_groups(student_alias: StudentAlias) -> list[str]:
-    """
-    Lists recipient group identifiers available for sending messages.
-    Args:
-        student_alias: The alias of the student.
-    """
+    """List messaging recipient group IDs."""
     groups = await LibrusManager.fetch_recipient_groups(student_alias)
     return to_dict(groups)
 
 
 async def get_recipients(student_alias: StudentAlias, group: str) -> dict[str, str]:
-    """
-    Lists recipients (name -> recipient ID) in a recipient group.
-    Args:
-        student_alias: The alias of the student.
-        group: A group identifier from get_recipient_groups.
-    """
+    """List recipient names and IDs in a group from get_recipient_groups."""
     recipients = await LibrusManager.fetch_recipients(student_alias, group)
     return to_dict(recipients)
 
@@ -515,22 +385,11 @@ async def send_message(
     recipient_ids: RecipientIds,
     confirm_token: str | None = None,
 ) -> SendMessageOutput:
-    """
-    Sends a message to school staff via the Librus messaging system.
-    WRITE ACTION: this delivers a real message to teachers. Disabled by default;
-    enable with features.send_message in the configuration.
-
-    Two-step confirmation: call WITHOUT confirm_token first — nothing is sent
-    and you receive a preview plus a confirm_token (valid 5 minutes). Show the
-    preview to the human, then call again with the exact same arguments plus
-    confirm_token to actually send.
-    Args:
-        student_alias: The alias of the student.
-        title: Message subject.
-        content: Message body.
-        recipient_ids: Recipient IDs from get_recipients.
-        confirm_token: Token from the preview step; sending only happens when
-            this is provided and matches.
+    """WRITE ACTION, disabled by default. First call without confirm_token
+    sends nothing: show the preview to the human. Only a second call with the
+    same payload and single-use token (valid 5 minutes) sends to recipient_ids
+    from get_recipients. If delivery is uncertain, check the sent folder;
+    never blindly retry.
     """
     LibrusManager.validate_send_message_args(student_alias, title, content, recipient_ids)
     digest = _confirmation_digest(student_alias, title, content, recipient_ids)
