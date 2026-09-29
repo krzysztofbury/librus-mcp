@@ -17,12 +17,14 @@ not contact Librus or invoke tools that consume read-once events or send message
 
 | Profile | Tools | Before typing | Before shortening | Current | Typed output schemas | Context budget |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| Default | 21 | 16,728 B | 32,219 B | 29,153 B | 21 | 48 KiB |
-| All feature gates enabled | 25 | 20,763 B | 38,981 B | 35,150 B | 25 | 64 KiB |
+| Default | 22 | 16,728 B | 32,219 B | 31,732 B | 22 | 48 KiB |
+| All feature gates enabled | 26 | 20,763 B | 38,981 B | 37,729 B | 26 | 64 KiB |
 
 Measurements use the `uv.lock` dependency set. The before-typing and default
 before-shortening values were recorded on 2026-09-27; the all-features
 before-shortening and both current values were measured on 2026-09-29.
+The before-typing and before-shortening columns describe the earlier 21/25-tool
+catalog; the current 22/26-tool catalog includes `get_completed_lessons_page`.
 Default gates include notifications and attachments; behaviour notes and
 sending messages require opt-in. The CI budget guards total catalog growth,
 not the exact bytes of every SDK-generated schema.
@@ -59,6 +61,7 @@ in `structuredContent`; this is not a new envelope in the text content.
 | `get_timetable` | `result`: seven weekday lists of periods. A period retains subject, teacher_and_classroom, date, date_from, date_to, weekday, info, number and nullable recess times. Split groups remain joined inside the subject and teacher fields. |
 | `get_announcements` | `result`: title, author, description and date per announcement. |
 | `get_completed_lessons` | `result`: subject, teacher, topic, z_value, attendance_symbol, attendance_href, lesson_number, weekday and date per lesson. |
+| `get_completed_lessons_page` | `lessons`: same row shape; `page`, `offset`, `max_page`, `pages_fetched`, nullable `next_page` and `next_offset`, and `truncated`. This is a separate tool so the legacy list response does not change. |
 | `get_student_information` | name, class_name, number, tutor, school and lucky_number (number or `"?"`). |
 | `get_final_grades` | `result`: subject, midterm, predicted_final and final per subject; `"-"` means not issued. |
 | `get_recent_schedule_events` | `result`: date_added, type and data per event. This consumes a read-once upstream view and checkpoints it locally. |
@@ -92,7 +95,12 @@ are validated by the MCP SDK and again by the client wrapper where necessary:
   Message, attachment, homework and
   attendance detail IDs are bare numeric strings.
 - Homework and completed lessons use `date_from` and `date_to` in YYYY-MM-DD
-  form; timetable uses a Monday date. Subject frequency accepts optional
+  form. `get_completed_lessons_page` accepts `page` (0 to 99), `offset` (0 to
+  9999), `limit` (1 to 1000, default 100) and `max_pages` (1 to 10, default 1).
+  Return the next pair with the same dates to continue, or stop when both are
+  null. The older `get_completed_lessons` keeps its list shape, and both paths
+  reject date ranges with more than 100 upstream pages. A moving range is not
+  a stable snapshot. Timetable uses a Monday date. Subject frequency accepts optional
   `start` and `end`. Calendar inputs use a four-digit year and one- or
   two-digit month; schedule detail takes a validated relative event href.
 - `send_message` requires a non-empty title, content and 1 to 50 unique

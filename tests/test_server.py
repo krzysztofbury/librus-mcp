@@ -16,6 +16,7 @@ from src.server import (
     get_announcements,
     get_attendance,
     get_completed_lessons,
+    get_completed_lessons_page,
     get_grades,
     get_homework,
     get_homework_detail,
@@ -631,6 +632,66 @@ class TestGetAnnouncements:
 
 class TestGetCompletedLessons:
     @pytest.mark.asyncio
+    async def test_bounded_default_keeps_legacy_list_unchanged(self):
+        first_page = [FakeLesson("Math", "Smith", "Lesson 1", "2026-01-15")]
+        second_page = [FakeLesson("English", "Jones", "Lesson 2", "2026-01-16")]
+        mock = AsyncMock(side_effect=[(1, first_page), (1, first_page), second_page])
+        with patch.object(LibrusManager, "_execute", mock):
+            bounded = await get_completed_lessons_page("test_student", "2026-01-01", "2026-01-31")
+            legacy = await get_completed_lessons("test_student", "2026-01-01", "2026-01-31")
+        assert bounded["lessons"][0]["subject"] == "Math"
+        assert (bounded["page"], bounded["next_page"], bounded["next_offset"]) == (0, 1, 0)
+        assert bounded["truncated"] is True
+        assert [lesson["subject"] for lesson in legacy] == ["Math", "English"]
+
+    @pytest.mark.asyncio
+    async def test_bounded_limit_resumes_within_and_across_pages(self):
+        first = [FakeLesson(f"Subject {n}", "Smith", "Topic", "2026-01-15") for n in range(3)]
+        second = [FakeLesson("Final", "Jones", "Topic", "2026-01-16")]
+
+        async def fetch(alias, operation, *args):
+            from src import librus_client
+
+            if operation is librus_client.librus_optimizations.get_completed_first_page:
+                return (1, first)
+            return second
+
+        with patch.object(LibrusManager, "_execute", side_effect=fetch):
+            first_result = await get_completed_lessons_page(
+                "test_student", "2026-01-01", "2026-01-31", limit=2
+            )
+            next_result = await get_completed_lessons_page(
+                "test_student", "2026-01-01", "2026-01-31", page=0, offset=2, limit=2, max_pages=2
+            )
+        assert [lesson["subject"] for lesson in first_result["lessons"]] == [
+            "Subject 0",
+            "Subject 1",
+        ]
+        assert (first_result["next_page"], first_result["next_offset"]) == (0, 2)
+        assert [lesson["subject"] for lesson in next_result["lessons"]] == ["Subject 2", "Final"]
+        assert next_result["next_page"] is None
+        assert next_result["truncated"] is False
+
+    @pytest.mark.asyncio
+    async def test_bounded_page_beyond_last_is_rejected(self):
+        mock = AsyncMock(return_value=(0, []))
+        with (
+            patch.object(LibrusManager, "_execute", mock),
+            pytest.raises(ValueError, match="exceeds max_page"),
+        ):
+            await get_completed_lessons_page("test_student", "2026-01-01", "2026-01-31", page=1)
+        assert mock.await_count == 1
+
+    @pytest.mark.asyncio
+    async def test_bounded_oversized_upstream_page_is_rejected(self):
+        mock = AsyncMock(return_value=(0, [object()] * 10_001))
+        with (
+            patch.object(LibrusManager, "_execute", mock),
+            pytest.raises(ValueError, match="page exceeds 10000"),
+        ):
+            await get_completed_lessons_page("test_student", "2026-01-01", "2026-01-31")
+
+    @pytest.mark.asyncio
     async def test_returns_list_with_pagination(self):
         """Completed lessons paginates through all pages."""
         page_0 = [FakeLesson("Math", "Smith", "Algebra basics", "2026-01-15")]
@@ -660,7 +721,8 @@ class TestGetCompletedLessons:
         assert len(result) == 1
 
     @pytest.mark.asyncio
-    async def test_whole_operation_deadline_cancels_next_page(self, monkeypatch):
+    @pytest.mark.parametrize("bounded", [False, True])
+    async def test_whole_operation_deadline_cancels_next_page(self, monkeypatch, bounded):
         from src import librus_client
 
         monkeypatch.setattr(librus_client, "COMPLETED_LESSONS_TIMEOUT_SECONDS", 0.05)
@@ -678,7 +740,12 @@ class TestGetCompletedLessons:
             patch.object(LibrusManager, "_execute", side_effect=fetch),
             pytest.raises(TimeoutError, match="completed lessons exceeded"),
         ):
-            await get_completed_lessons("test_student", "2026-01-01", "2026-01-31")
+            if bounded:
+                await get_completed_lessons_page(
+                    "test_student", "2026-01-01", "2026-01-31", max_pages=2
+                )
+            else:
+                await get_completed_lessons("test_student", "2026-01-01", "2026-01-31")
         assert cancelled.is_set()
 
     @pytest.mark.asyncio

@@ -69,9 +69,9 @@ async def test_stdio_tool_schemas_and_annotations_match_reviewed_snapshot():
     all_tools = tool_contracts(await list_tools(True))
     default_tools = tool_contracts(await list_tools(False))
 
-    assert len(snapshot) == 25
+    assert len(snapshot) == 26
     assert all_tools == snapshot
-    assert len(default_tools) == 21
+    assert len(default_tools) == 22
     assert default_tools == {name: snapshot[name] for name in default_tools}
     assert set(all_tools) - set(default_tools) == {
         "get_behaviour_notes",
@@ -79,6 +79,55 @@ async def test_stdio_tool_schemas_and_annotations_match_reviewed_snapshot():
         "get_recipients",
         "send_message",
     }
+
+
+@pytest.mark.asyncio
+async def test_stdio_completed_lesson_window_and_legacy_list():
+    lesson = {
+        "subject": "Math",
+        "teacher": "Teacher",
+        "topic": "Algebra",
+        "z_value": "",
+        "attendance_symbol": "",
+        "attendance_href": "",
+        "lesson_number": 1,
+        "weekday": "Monday",
+        "date": "2026-09-21",
+    }
+    child_script = (
+        "from unittest.mock import AsyncMock, patch\n"
+        "from src.cli import main\n"
+        "from src.librus_client import LibrusManager\n"
+        f"lesson = {lesson!r}\n"
+        "with patch.object(LibrusManager, '_execute', AsyncMock(return_value=(0, [lesson]))):\n"
+        "    main([])\n"
+    )
+    arguments = {"student_alias": "synthetic", "date_from": "2026-09-01", "date_to": "2026-09-30"}
+    with anyio.fail_after(30):
+        async with stdio_client(_server(child_script)) as streams:
+            async with ClientSession(*streams) as session:
+                await session.initialize()
+                bounded = await session.call_tool(
+                    "get_completed_lessons_page", {**arguments, "limit": 1}
+                )
+                expected = {
+                    "lessons": [lesson],
+                    "page": 0,
+                    "offset": 0,
+                    "max_page": 0,
+                    "pages_fetched": 1,
+                    "next_page": None,
+                    "next_offset": None,
+                    "truncated": False,
+                }
+                assert bounded.is_error is not True
+                assert json.loads(bounded.content[0].text) == expected
+                assert bounded.structured_content == expected
+
+                legacy = await session.call_tool("get_completed_lessons", arguments)
+                assert legacy.is_error is not True
+                assert [json.loads(block.text) for block in legacy.content] == [lesson]
+                assert legacy.structured_content == {"result": [lesson]}
 
 
 @pytest.mark.asyncio

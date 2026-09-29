@@ -169,6 +169,17 @@ class CompletedLessonOutput(OutputModel):
     date: str
 
 
+class CompletedLessonsPageOutput(OutputModel):
+    lessons: list[CompletedLessonOutput]
+    page: int
+    offset: int
+    max_page: int
+    pages_fetched: int
+    next_page: int | None
+    next_offset: int | None
+    truncated: bool
+
+
 class StudentInformationOutput(OutputModel):
     name: str
     class_name: str

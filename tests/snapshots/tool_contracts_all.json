@@ -509,6 +509,191 @@
       "type": "object"
     }
   },
+  "get_completed_lessons_page": {
+    "annotations": {
+      "openWorldHint": true,
+      "readOnlyHint": true
+    },
+    "inputSchema": {
+      "properties": {
+        "date_from": {
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+          "title": "Date From",
+          "type": "string"
+        },
+        "date_to": {
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+          "title": "Date To",
+          "type": "string"
+        },
+        "limit": {
+          "default": 100,
+          "maximum": 1000,
+          "minimum": 1,
+          "title": "Limit",
+          "type": "integer"
+        },
+        "max_pages": {
+          "default": 1,
+          "maximum": 10,
+          "minimum": 1,
+          "title": "Max Pages",
+          "type": "integer"
+        },
+        "offset": {
+          "default": 0,
+          "exclusiveMaximum": 10000,
+          "minimum": 0,
+          "title": "Offset",
+          "type": "integer"
+        },
+        "page": {
+          "default": 0,
+          "exclusiveMaximum": 100,
+          "minimum": 0,
+          "title": "Page",
+          "type": "integer"
+        },
+        "student_alias": {
+          "description": "Alias of the student account",
+          "maxLength": 80,
+          "minLength": 1,
+          "pattern": "^(?:[^\\s\\p{C}]|[^\\s\\p{C}](?:[^\\s\\p{C}]| )*[^\\s\\p{C}])$",
+          "title": "Student Alias",
+          "type": "string"
+        }
+      },
+      "required": [
+        "student_alias",
+        "date_from",
+        "date_to"
+      ],
+      "title": "get_completed_lessons_pageArguments",
+      "type": "object"
+    },
+    "outputSchema": {
+      "$defs": {
+        "CompletedLessonOutput": {
+          "additionalProperties": true,
+          "properties": {
+            "attendance_href": {
+              "title": "Attendance Href",
+              "type": "string"
+            },
+            "attendance_symbol": {
+              "title": "Attendance Symbol",
+              "type": "string"
+            },
+            "date": {
+              "title": "Date",
+              "type": "string"
+            },
+            "lesson_number": {
+              "title": "Lesson Number",
+              "type": "integer"
+            },
+            "subject": {
+              "title": "Subject",
+              "type": "string"
+            },
+            "teacher": {
+              "title": "Teacher",
+              "type": "string"
+            },
+            "topic": {
+              "title": "Topic",
+              "type": "string"
+            },
+            "weekday": {
+              "title": "Weekday",
+              "type": "string"
+            },
+            "z_value": {
+              "title": "Z Value",
+              "type": "string"
+            }
+          },
+          "required": [
+            "subject",
+            "teacher",
+            "topic",
+            "z_value",
+            "attendance_symbol",
+            "attendance_href",
+            "lesson_number",
+            "weekday",
+            "date"
+          ],
+          "title": "CompletedLessonOutput",
+          "type": "object"
+        }
+      },
+      "additionalProperties": true,
+      "properties": {
+        "lessons": {
+          "items": {
+            "$ref": "#/$defs/CompletedLessonOutput"
+          },
+          "title": "Lessons",
+          "type": "array"
+        },
+        "max_page": {
+          "title": "Max Page",
+          "type": "integer"
+        },
+        "next_offset": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Next Offset"
+        },
+        "next_page": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Next Page"
+        },
+        "offset": {
+          "title": "Offset",
+          "type": "integer"
+        },
+        "page": {
+          "title": "Page",
+          "type": "integer"
+        },
+        "pages_fetched": {
+          "title": "Pages Fetched",
+          "type": "integer"
+        },
+        "truncated": {
+          "title": "Truncated",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "lessons",
+        "page",
+        "offset",
+        "max_page",
+        "pages_fetched",
+        "next_page",
+        "next_offset",
+        "truncated"
+      ],
+      "title": "CompletedLessonsPageOutput",
+      "type": "object"
+    }
+  },
   "get_final_grades": {
     "annotations": {
       "openWorldHint": true,
