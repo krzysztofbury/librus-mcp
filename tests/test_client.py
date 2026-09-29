@@ -1158,6 +1158,33 @@ class TestPerAliasSerialization:
 
 class TestNotificationStateLock:
     @pytest.mark.asyncio
+    async def test_cancelled_acquisition_releases_late_descriptor(self, monkeypatch, tmp_path):
+        started = threading.Event()
+        release = threading.Event()
+        released = []
+
+        def delayed_acquire(*args):
+            started.set()
+            assert release.wait(5)
+            return 42
+
+        monkeypatch.setattr(
+            librus_client_module, "try_acquire_notification_state_lock", delayed_acquire
+        )
+        monkeypatch.setattr(
+            librus_client_module, "release_notification_state_lock", released.append
+        )
+        task = asyncio.create_task(
+            LibrusManager._acquire_notification_state_lock(tmp_path, "test_student")
+        )
+        assert await asyncio.to_thread(started.wait, 2)
+        task.cancel()
+        release.set()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+        assert released == [42]
+
+    @pytest.mark.asyncio
     async def test_cancelled_lock_wait_does_not_acquire_a_descriptor(self, monkeypatch, tmp_path):
         monkeypatch.setattr(librus_client_module, "NOTIFICATION_LOCK_MAX_ATTEMPTS", 100)
         monkeypatch.setattr(

@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.6.2] - 2026-09-29
+
+### Changed
+
+- Bound notification category work across all accounts with a process-wide
+  three-worker pool and a six-request in-flight limit. Drain category workers
+  before releasing an account's client lock when one category fails.
+- Move notification state reads, writes, and cross-process lock operations off
+  the MCP event loop. Finish in-progress filesystem work before unlocking on
+  cancellation, including releasing a lock acquired during cancellation.
+
 ## [1.6.1] - 2026-09-29
 
 ### Added

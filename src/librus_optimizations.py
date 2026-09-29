@@ -4,6 +4,7 @@ import asyncio
 import copy
 import json
 import re
+import threading
 from collections import defaultdict
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
@@ -50,6 +51,30 @@ GATEWAY_RETRIES = 2
 GATEWAY_REQUEST_TIMEOUT_SECONDS = 15.0
 GATEWAY_RESOLUTION_TIMEOUT_SECONDS = 50.0
 NOTIFICATION_CONCURRENCY = 3
+NOTIFICATION_MAX_IN_FLIGHT = 2 * NOTIFICATION_CONCURRENCY
+# Shared across all aliases. The semaphore bounds queued plus running category
+# requests; ThreadPoolExecutor alone has an unbounded submission queue.
+_notification_executor = ThreadPoolExecutor(
+    max_workers=NOTIFICATION_CONCURRENCY, thread_name_prefix="librus-notification"
+)
+_notification_slots = threading.BoundedSemaphore(NOTIFICATION_MAX_IN_FLIGHT)
+
+
+def _submit_notification_call(
+    client: Client, session_factory: Callable[[], Any], function: Callable[..., Any], *args: Any
+) -> Any:
+    _notification_slots.acquire()
+    try:
+        future = _notification_executor.submit(
+            _call_with_clone, client, session_factory, function, *args
+        )
+    except BaseException:
+        _notification_slots.release()
+        raise
+    future.add_done_callback(lambda _: _notification_slots.release())
+    return future
+
+
 MAX_GATEWAY_RESPONSE_BYTES = MAX_RESPONSE_BODY_BYTES
 MAX_SCHEDULE_EVENTS_PER_CALL = 500
 MAX_ATTENDANCE_RECORDS = 10_000
@@ -311,12 +336,22 @@ def get_new_notifications(
             ),
         ),
     }
-    with ThreadPoolExecutor(max_workers=NOTIFICATION_CONCURRENCY) as executor:
-        futures = {
-            name: executor.submit(_call_with_clone, client, session_factory, function, *args)
-            for name, (function, args) in calls.items()
-        }
-        results = {name: future.result() for name, future in futures.items()}
+    futures = {
+        name: _submit_notification_call(client, session_factory, function, *args)
+        for name, (function, args) in calls.items()
+    }
+    results = {}
+    failure = None
+    # Drain all category workers before leaving the per-alias client lock,
+    # including after a failure; clones still share the alias's credentials.
+    for name, future in futures.items():
+        try:
+            results[name] = future.result()
+        except Exception as error:  # noqa: BLE001 - drain every worker before propagating
+            if failure is None:
+                failure = error
+    if failure is not None:
+        raise failure
     schedule = [] if pending_schedule else get_recently_added_schedule(client)
     _checkpoint_and_bound_schedule(pending_schedule or [], schedule, schedule_checkpoint)
     grades, _, _ = results["grades"]
