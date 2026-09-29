@@ -56,9 +56,7 @@ async def test_tool_catalog_fits_context_budget():
     all_features = await measure_tools(True)
 
     assert default["with_output_schema"] == default["tools"]
-    # send_message keeps its heterogeneous preview/delivery result until its
-    # separate write-contract review; all other opt-in tools advertise schemas.
-    assert all_features["with_output_schema"] == all_features["tools"] - 1
+    assert all_features["with_output_schema"] == all_features["tools"]
     assert default["bytes"] <= 48 * 1024
     assert all_features["bytes"] <= 64 * 1024
 
@@ -281,3 +279,78 @@ async def test_stdio_optional_notification_shape_without_consuming_live_events()
                 assert result.is_error is not True
                 assert json.loads(result.content[0].text) == expected
                 assert result.structured_content == expected
+
+
+@pytest.mark.asyncio
+async def test_stdio_send_contract_preserves_confirmation_and_error_channel():
+    child_script = (
+        "from unittest.mock import AsyncMock, patch\n"
+        "from src.cli import main\n"
+        "from src.librus_client import LibrusManager\n"
+        "with patch.object(LibrusManager, 'send_message_to', AsyncMock(side_effect=[\n"
+        "    {'success': True, 'result': 'Wiadomość została wysłana'},\n"
+        "    {'success': False, 'result': 'Wiadomość nie została wysłana'},\n"
+        "    RuntimeError('Librus send delivery is uncertain; upstream secret'),\n"
+        "])):\n"
+        "    main([])\n"
+    )
+    server = _server(child_script)
+    server.env["LIBRUS_FEATURES"] = json.dumps(
+        {"notifications": False, "attachments": False, "send_message": True}
+    )
+    arguments = {
+        "student_alias": "synthetic",
+        "title": "Subject",
+        "content": "Body",
+        "recipient_ids": ["123"],
+    }
+    with anyio.fail_after(30):
+        async with stdio_client(server) as streams:
+            async with ClientSession(*streams) as session:
+                await session.initialize()
+                tools = {tool.name: tool for tool in (await session.list_tools()).tools}
+                schema = tools["send_message"].output_schema
+                assert schema is not None
+                assert schema["discriminator"]["propertyName"] == "status"
+                assert set(schema["discriminator"]["mapping"]) == {
+                    "confirmation_required",
+                    "sent",
+                    "failed",
+                }
+                assert tools["send_message"].annotations.destructive_hint is True
+
+                for status, success in (("sent", True), ("failed", False)):
+                    preview = await session.call_tool("send_message", arguments)
+                    assert preview.is_error is not True
+                    payload = json.loads(preview.content[0].text)
+                    assert payload["status"] == "confirmation_required"
+                    assert preview.structured_content == payload
+                    confirmed = await session.call_tool(
+                        "send_message", {**arguments, "confirm_token": payload["confirm_token"]}
+                    )
+                    expected = {
+                        "status": status,
+                        "success": success,
+                        "result": "Wiadomość została wysłana"
+                        if success
+                        else "Wiadomość nie została wysłana",
+                        "title": "Subject",
+                        "recipient_count": 1,
+                    }
+                    assert confirmed.is_error is not True
+                    assert json.loads(confirmed.content[0].text) == expected
+                    assert confirmed.structured_content == expected
+
+                preview = await session.call_tool("send_message", arguments)
+                token = preview.structured_content["confirm_token"]
+                uncertain = await session.call_tool(
+                    "send_message", {**arguments, "confirm_token": token}
+                )
+                assert uncertain.is_error is True
+                assert uncertain.structured_content is None
+                assert "check the sent folder" in uncertain.content[0].text
+                assert "upstream secret" not in uncertain.content[0].text
+                replay = await session.call_tool(
+                    "send_message", {**arguments, "confirm_token": token}
+                )
+                assert replay.is_error is True
