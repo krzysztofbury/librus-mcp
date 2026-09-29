@@ -150,10 +150,10 @@ Alternatively, add this entry under `mcp.servers` in
 
 V2 connects configured servers automatically. Do not add `enabled`; set
 `disabled: true` only when you deliberately want to keep a server disconnected.
-If `opencode mcp list` does not show `librus` as connected, do not assume that
-Librus is available to the assistant. Reopen OpenCode and check the status
-again before asking it to read grades. If it is still missing, check that you
-used the V2 command or `mcp.servers` example above rather than the V1 example.
+On a fresh OpenCode start, the first `opencode mcp list` can run before the
+server has finished connecting. Run it again; look for `librus connected`.
+If it stays missing or reports a failure, reopen OpenCode and check the status
+again. Do not assume Librus is available to the assistant until it connects.
 
 #### OpenCode V1 (older installations)
 
@@ -178,7 +178,8 @@ put `librus` directly under `mcp` in your global `opencode.json`:
 }
 ```
 
-V1's `mcp.librus` and `enabled` fields are not the V2 setup above. Use
+V2 also supports existing V1 configuration; migrating to `mcp.servers` is
+optional. For new V2 setups, prefer the V2 example above. Use
 `opencode --version` if you are unsure which version you have. Do not copy
 both examples into the same file.
 
@@ -278,7 +279,7 @@ exercised end to end.
 | Gemini CLI | 0.59.0 on Linux | `mcp add` and `mcp list` accepted the documented command | Setup verified |
 | OpenAI Codex CLI | 0.154.0 on Linux | `mcp add` and `mcp get` accepted the documented command | Setup verified |
 | OpenCode V1 | 1.18.30 on Linux (2026-09-18) | Local stdio configuration connected with the V1 shape | Connection verified for V1 at the time |
-| OpenCode V2 | 2.0.18 on Linux (2026-09-29) | `mcp add --global` and project-local `mcp add` accepted the V2 shape with synthetic credentials; `mcp list` reported no servers afterward | Setup syntax checked; connection pending investigation |
+| OpenCode V2 | 2.0.18 on Linux (2026-09-29) | Isolated global setup with synthetic credentials: `mcp list` reported connected after startup; OpenCode logged discovery of 21 tools | Connection and tool discovery verified; no live Librus login or agent tool call |
 
 All clients use the same local stdio server and require a restart or reconnect
 after configuration changes. A setup-verified entry confirms that the client
