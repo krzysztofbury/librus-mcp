@@ -12,15 +12,14 @@ not a release commitment:
 
 Continue bounded collection UX and runtime resource control. Preserve the
 existing text response shapes and feature gates until a documented 2.0
-migration. Message windows now have cursors; completed lessons still return a
-legacy list with no continuation metadata.
+migration. Message and completed-lesson windows now have cursors; the older
+completed-lessons tool still returns a list.
 
 Next independent batches:
 
-1. Add opt-in bounded continuation for completed lessons without changing the
-   legacy list response; then address other large collections as needed.
-2. Bound aggregate cross-account work and move state I/O off the event loop.
-3. Anonymize a populated behaviour-note page before enabling the feature by default.
+1. Bound aggregate cross-account work and move state I/O off the event loop.
+2. Anonymize a populated behaviour-note page before enabling the feature by default.
+3. Add compact or date-bounded modes to other large collections as needed.
 
 ## Completed Safety Foundations (1.2.x)
 
@@ -133,8 +132,9 @@ Next independent batches:
 
 - [x] Add `limit`, `max_pages`, and continuation metadata to `get_messages`,
   including an offset for partial pages.
-- [ ] Extend bounded result modes to completed lessons and other large collections
-  without changing the legacy list response shape.
+- [x] Add a separate bounded completed-lessons tool without changing the
+  legacy list response shape.
+- [ ] Add compact or date-bounded modes to other large collections.
 - [x] Keep `all_pages` for compatibility and recommend explicit bounded requests
   for new clients.
 - [x] Apply a whole-tool deadline to multi-page messages and completed lessons.

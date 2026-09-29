@@ -376,7 +376,16 @@ Contributors can run the credentialed source-tree smoke test with
 | `get_timetable(student_alias, monday?)` | Get a week's timetable (default: current week; `monday` picks another week) |
 | `get_announcements(student_alias)` | Get school announcements |
 | `get_completed_lessons(student_alias, date_from, date_to)` | Get completed lessons (subject, teacher, topic) for a date range |
+| `get_completed_lessons_page(student_alias, date_from, date_to, page?, offset?, limit?, max_pages?)` | Get a small, resumable batch of completed lessons (default: at most 100 lessons from one page) without changing the older list tool |
 | `get_student_information(student_alias)` | Get student profile (name, class, tutor, school, lucky number) |
+
+For a long date range, prefer `get_completed_lessons_page`. Continue with its
+`next_page` and `next_offset` while keeping the same dates. Both are null when
+the range is complete; the response also reports `max_page`, `pages_fetched`
+and `truncated`. Each call is limited to 1000 lessons and 10 pages, and the
+existing 100-page range cap still applies. The older `get_completed_lessons`
+keeps returning a plain list. Pages can shift if Librus changes while you
+read, so this is not a frozen snapshot.
 
 All tools carry MCP `ToolAnnotations` (read-only / destructive / idempotent
 hints), so MCP hosts can apply their own safety policies.

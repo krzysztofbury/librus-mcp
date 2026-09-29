@@ -78,6 +78,8 @@ MAX_HOMEWORK_RANGE_DAYS = 370
 MAX_COMPLETED_LESSONS_RANGE_DAYS = 370
 MAX_COMPLETED_LESSONS_PAGES = 100
 MAX_COMPLETED_LESSONS_ITEMS = 10_000
+MAX_LESSON_WINDOW_PAGES = 10
+MAX_LESSON_WINDOW_ITEMS = 1_000
 COMPLETED_LESSONS_TIMEOUT_SECONDS = 180
 MAX_SEND_TITLE_LENGTH = 200
 MAX_SEND_CONTENT_LENGTH = 15_000
@@ -1078,13 +1080,7 @@ class LibrusManager:
 
     @classmethod
     async def _fetch_completed_lessons(cls, alias: str, date_from: str, date_to: str) -> list[Any]:
-        start = _parse_date(date_from, "date_from")
-        end = _parse_date(date_to, "date_to")
-        if start > end:
-            raise ValueError(f"date_from {date_from} is after date_to {date_to}")
-        if (end - start).days > MAX_COMPLETED_LESSONS_RANGE_DAYS:
-            raise ValueError(f"date range exceeds {MAX_COMPLETED_LESSONS_RANGE_DAYS} days")
-
+        cls._validate_completed_range(date_from, date_to)
         first_page_result = await cls._execute(
             alias,
             librus_optimizations.get_completed_first_page,
@@ -1092,12 +1088,7 @@ class LibrusManager:
             date_to,
         )
         max_page, first_page = cls._validate_first_page_result(first_page_result)
-        page_count = max_page + 1
-        if page_count > MAX_COMPLETED_LESSONS_PAGES:
-            raise ValueError(
-                f"range spans {page_count} pages of lessons "
-                f"(limit {MAX_COMPLETED_LESSONS_PAGES}); narrow the date range"
-            )
+        cls._check_completed_page_count(max_page)
 
         all_lessons = list(first_page)
         if len(all_lessons) > MAX_COMPLETED_LESSONS_ITEMS:
@@ -1115,6 +1106,132 @@ class LibrusManager:
                 )
             all_lessons.extend(lessons)
         return all_lessons
+
+    @staticmethod
+    def _validate_completed_range(date_from: str, date_to: str) -> None:
+        start = _parse_date(date_from, "date_from")
+        end = _parse_date(date_to, "date_to")
+        if start > end:
+            raise ValueError(f"date_from {date_from} is after date_to {date_to}")
+        if (end - start).days > MAX_COMPLETED_LESSONS_RANGE_DAYS:
+            raise ValueError(f"date range exceeds {MAX_COMPLETED_LESSONS_RANGE_DAYS} days")
+
+    @staticmethod
+    def _check_completed_page_count(max_page: int) -> None:
+        page_count = max_page + 1
+        if page_count > MAX_COMPLETED_LESSONS_PAGES:
+            raise ValueError(
+                f"range spans {page_count} pages of lessons "
+                f"(limit {MAX_COMPLETED_LESSONS_PAGES}); narrow the date range"
+            )
+
+    @classmethod
+    async def fetch_completed_lessons_page(
+        cls,
+        alias: str,
+        date_from: str,
+        date_to: str,
+        page: int = 0,
+        offset: int = 0,
+        limit: int = 100,
+        max_pages: int = 1,
+    ) -> dict[str, Any]:
+        """Fetch a bounded, resumable window without changing the legacy list tool."""
+        cls._validate_completed_range(date_from, date_to)
+        if (
+            not isinstance(page, int)
+            or isinstance(page, bool)
+            or not 0 <= page < MAX_COMPLETED_LESSONS_PAGES
+        ):
+            raise ValueError(f"page must be between 0 and {MAX_COMPLETED_LESSONS_PAGES - 1}")
+        if (
+            not isinstance(offset, int)
+            or isinstance(offset, bool)
+            or not 0 <= offset < MAX_COMPLETED_LESSONS_ITEMS
+        ):
+            raise ValueError(f"offset must be between 0 and {MAX_COMPLETED_LESSONS_ITEMS - 1}")
+        if (
+            not isinstance(limit, int)
+            or isinstance(limit, bool)
+            or not 1 <= limit <= MAX_LESSON_WINDOW_ITEMS
+        ):
+            raise ValueError(f"limit must be between 1 and {MAX_LESSON_WINDOW_ITEMS}")
+        if (
+            not isinstance(max_pages, int)
+            or isinstance(max_pages, bool)
+            or not 1 <= max_pages <= MAX_LESSON_WINDOW_PAGES
+        ):
+            raise ValueError(f"max_pages must be between 1 and {MAX_LESSON_WINDOW_PAGES}")
+
+        deadline = asyncio.timeout(COMPLETED_LESSONS_TIMEOUT_SECONDS)
+        try:
+            async with deadline:
+                return await cls._fetch_completed_lessons_page(
+                    alias, date_from, date_to, page, offset, limit, max_pages
+                )
+        except TimeoutError as error:
+            if not deadline.expired():
+                raise
+            raise TimeoutError(
+                f"completed lessons exceeded its {COMPLETED_LESSONS_TIMEOUT_SECONDS}-second deadline"
+            ) from error
+
+    @classmethod
+    async def _fetch_completed_lessons_page(
+        cls,
+        alias: str,
+        date_from: str,
+        date_to: str,
+        page: int,
+        offset: int,
+        limit: int,
+        max_pages: int,
+    ) -> dict[str, Any]:
+        first = await cls._execute(
+            alias, librus_optimizations.get_completed_first_page, date_from, date_to
+        )
+        max_page, first_page = cls._validate_first_page_result(first)
+        cls._check_completed_page_count(max_page)
+        if page > max_page:
+            raise ValueError(f"page {page} exceeds max_page {max_page}")
+
+        lessons: list[Any] = []
+        next_page: int | None = None
+        next_offset: int | None = None
+        pages_fetched = 0
+        for current_page in range(page, min(max_page + 1, page + max_pages)):
+            batch = (
+                first_page
+                if current_page == 0
+                else await cls._execute(alias, get_completed, date_from, date_to, current_page)
+            )
+            assert isinstance(batch, list), "get_completed must return a list"
+            if len(batch) > MAX_COMPLETED_LESSONS_ITEMS:
+                raise ValueError(
+                    f"completed lesson page exceeds {MAX_COMPLETED_LESSONS_ITEMS} items; "
+                    "narrow the date range"
+                )
+            pages_fetched += 1
+            available = batch[offset:] if current_page == page else batch
+            taken = available[: limit - len(lessons)]
+            lessons.extend(taken)
+            consumed = (offset if current_page == page else 0) + len(taken)
+            if consumed < len(batch):
+                next_page, next_offset = current_page, consumed
+                break
+            if current_page < max_page and (len(lessons) == limit or pages_fetched == max_pages):
+                next_page, next_offset = current_page + 1, 0
+                break
+        return {
+            "lessons": lessons,
+            "page": page,
+            "offset": offset,
+            "max_page": max_page,
+            "pages_fetched": pages_fetched,
+            "next_page": next_page,
+            "next_offset": next_offset,
+            "truncated": next_page is not None,
+        }
 
     @classmethod
     async def fetch_student_information(cls, alias: str) -> Any:

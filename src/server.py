@@ -16,6 +16,10 @@ from src.config import ALIAS_PATTERN, MAX_ALIAS_LENGTH, ConfigError
 from src.librus_client import (
     MAX_ALL_MESSAGE_ITEMS,
     MAX_ALL_MESSAGE_PAGES,
+    MAX_COMPLETED_LESSONS_ITEMS,
+    MAX_COMPLETED_LESSONS_PAGES,
+    MAX_LESSON_WINDOW_ITEMS,
+    MAX_LESSON_WINDOW_PAGES,
     MAX_RECIPIENT_ID_LENGTH,
     MAX_SEND_CONTENT_LENGTH,
     MAX_SEND_RECIPIENTS,
@@ -30,6 +34,7 @@ from src.output_models import (
     AttendanceOutput,
     BehaviourNoteOutput,
     CompletedLessonOutput,
+    CompletedLessonsPageOutput,
     DetailFieldsOutput,
     DownloadOutput,
     FinalGradeOutput,
@@ -273,6 +278,26 @@ async def get_completed_lessons(
     """Get completed lesson subjects, teachers and topics within a date range."""
     lessons = await LibrusManager.fetch_completed_lessons(student_alias, date_from, date_to)
     return to_dict(lessons)
+
+
+@mcp.tool(annotations=READ_ONLY)
+async def get_completed_lessons_page(
+    student_alias: StudentAlias,
+    date_from: IsoDate,
+    date_to: IsoDate,
+    page: Annotated[int, Field(ge=0, lt=MAX_COMPLETED_LESSONS_PAGES)] = 0,
+    offset: Annotated[int, Field(ge=0, lt=MAX_COMPLETED_LESSONS_ITEMS)] = 0,
+    limit: Annotated[int, Field(ge=1, le=MAX_LESSON_WINDOW_ITEMS)] = 100,
+    max_pages: Annotated[int, Field(ge=1, le=MAX_LESSON_WINDOW_PAGES)] = 1,
+) -> CompletedLessonsPageOutput:
+    """Get a bounded batch of completed lessons. Continue with next_page and
+    next_offset, keeping the same dates. The legacy get_completed_lessons tool
+    still returns a plain list.
+    """
+    result = await LibrusManager.fetch_completed_lessons_page(
+        student_alias, date_from, date_to, page, offset, limit, max_pages
+    )
+    return to_dict(result)
 
 
 @mcp.tool(annotations=READ_ONLY)
