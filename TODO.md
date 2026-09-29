@@ -1,6 +1,6 @@
 # TODO
 
-This roadmap tracks remaining work after 1.6.2. Each work group can be
+This roadmap tracks remaining work after 1.7.0. Each work group can be
 delivered independently. Version numbers below indicate compatibility risk,
 not a release commitment:
 
@@ -8,17 +8,14 @@ not a release commitment:
   resource controls, safety fixes, and documentation.
 - Major release (`2.0.0`): deliberate tool, response, package, or configuration contract changes.
 
-## Remaining Work After 1.6.2
+## Remaining Work After 1.7.0
 
-Continue bounded collection UX and runtime resource control. Preserve the
-existing text response shapes and feature gates until a documented 2.0
-migration. Message and completed-lesson windows now have cursors; the older
-completed-lessons tool still returns a list.
+Preserve the existing text response shapes and feature gates until a documented
+2.0 migration. The populated behaviour-note fixture is deliberately deferred;
+behaviour notes remain experimental and disabled by default.
 
-Next independent batches:
-
-1. Anonymize a populated behaviour-note page before enabling the feature by default.
-2. Add compact or date-bounded modes to other large collections as needed.
+Next independent batch: anonymize a populated behaviour-note page when one is
+available, before enabling the feature by default.
 
 ## Completed Safety Foundations (1.2.x)
 
@@ -133,14 +130,14 @@ Next independent batches:
   including an offset for partial pages.
 - [x] Add a separate bounded completed-lessons tool without changing the
   legacy list response shape.
-- [ ] Add compact or date-bounded modes to other large collections.
+- [x] Add compact or date-bounded modes to other large collections.
 - [x] Keep `all_pages` for compatibility and recommend explicit bounded requests
   for new clients.
 - [x] Apply a whole-tool deadline to multi-page messages and completed lessons.
-- [ ] Deduplicate received messages by validated ID and detect repeated page signatures.
-- [ ] Report when a mailbox changes during pagination instead of implying a stable snapshot.
-- [ ] Add compact or date-bounded modes for grades and attendance.
-- [ ] Add category filtering to notifications without advancing unrequested category state.
+- [x] Deduplicate received messages by validated ID and detect repeated page signatures.
+- [x] Report detected mailbox changes during pagination without claiming stable snapshots.
+- [x] Add compact or date-bounded modes for grades and attendance.
+- [x] Add category filtering to notifications without advancing unrequested category state.
 
 ### Runtime Resource Control
 
@@ -148,10 +145,10 @@ Next independent batches:
   or work queue.
 - [x] Add aggregate concurrency tests across multiple student aliases.
 - [x] Move notification state reads and writes off the MCP event loop while preserving locks.
-- [ ] Add a bounded per-client cache for lesson-to-subject and subject-to-name metadata.
-- [ ] Reuse pagination metadata from the requested message page instead of fetching
+- [x] Add a bounded per-client cache for lesson-to-subject and subject-to-name metadata.
+- [x] Reuse pagination metadata from the requested message page instead of fetching
   and parsing page zero first for every nonzero page request.
-- [ ] Add call-count and cache-eviction tests across consecutive requests.
+- [x] Add call-count and cache-eviction tests across consecutive requests.
 
 ### Setup And Diagnostics UX
 
@@ -172,7 +169,9 @@ Next independent batches:
   actionable usage guidance in the published catalog.
 - [x] Measure and record default and opt-in `tools/list` sizes, with a CI context
   budget to catch uncontrolled growth; see `MCP_CONTRACT.md`.
-- [ ] Evaluate optional feature profiles that expose only the tools a deployment uses.
+- [x] Evaluate optional feature profiles that expose only the tools a deployment uses.
+  Defer an extra configuration gate while the expanded 24/28-tool catalogs stay
+  below the existing 48/64 KiB budgets; existing feature gates remain available.
 
 ## Major Release (2.0.0)
 

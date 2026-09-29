@@ -1,4 +1,5 @@
 import asyncio
+import dataclasses
 import re
 import sys
 import time
@@ -28,9 +29,6 @@ from librus_apix.exceptions import (
 )
 from librus_apix.grades import get_grades
 from librus_apix.homework import get_homework, homework_detail
-from librus_apix.messages import (
-    get_max_page_number as get_message_max_page,
-)
 from librus_apix.messages import (
     get_received,
     get_recipients,
@@ -75,6 +73,8 @@ MAX_ALL_MESSAGE_PAGES = 40
 MAX_ALL_MESSAGE_ITEMS = MAX_ALL_MESSAGE_PAGES * MESSAGES_PER_PAGE
 MESSAGE_COLLECTION_TIMEOUT_SECONDS = 120
 MAX_HOMEWORK_RANGE_DAYS = 370
+MAX_COLLECTION_WINDOW_ITEMS = 500
+MAX_COLLECTION_WINDOW_SOURCE_ITEMS = 10_000
 MAX_COMPLETED_LESSONS_RANGE_DAYS = 370
 MAX_COMPLETED_LESSONS_PAGES = 100
 MAX_COMPLETED_LESSONS_ITEMS = 10_000
@@ -158,6 +158,69 @@ def _parse_date(value: Any, name: str) -> date:
         return parsed
     except ValueError:
         raise ValueError(f"{name} must be a YYYY-MM-DD date, got: '{value}'")
+
+
+def _validate_window(
+    date_from: str | None, date_to: str | None, offset: int, limit: int
+) -> tuple[date | None, date | None]:
+    start = _parse_date(date_from, "date_from") if date_from is not None else None
+    end = _parse_date(date_to, "date_to") if date_to is not None else None
+    if start is not None and end is not None and start > end:
+        raise ValueError("date_from is after date_to")
+    if start is not None and end is not None and (end - start).days > 370:
+        raise ValueError("date range exceeds 370 days")
+    if (
+        not isinstance(offset, int)
+        or isinstance(offset, bool)
+        or not 0 <= offset <= MAX_COLLECTION_WINDOW_SOURCE_ITEMS
+    ):
+        raise ValueError("offset is outside the supported collection range")
+    if (
+        not isinstance(limit, int)
+        or isinstance(limit, bool)
+        or not 1 <= limit <= MAX_COLLECTION_WINDOW_ITEMS
+    ):
+        raise ValueError(f"limit must be between 1 and {MAX_COLLECTION_WINDOW_ITEMS}")
+    return start, end
+
+
+def _window_items(
+    rows: list[dict[str, Any]],
+    start: date | None,
+    end: date | None,
+    offset: int,
+    limit: int,
+    compact: bool,
+    compact_fields: tuple[str, ...],
+) -> dict[str, Any]:
+    selected = []
+    for row in rows:
+        if start is not None or end is not None:
+            raw_date = row["date"]
+            try:
+                row_date = date.fromisoformat(raw_date)
+            except TypeError, ValueError:
+                try:
+                    match = re.fullmatch(r"([0-9]{2})\.([0-9]{2})\.([0-9]{4})", raw_date)
+                    if match is None:
+                        raise ValueError("unexpected upstream date format")
+                    day, month, year = map(int, match.groups())
+                    row_date = date(year, month, day)
+                except (TypeError, ValueError) as error:
+                    raise ValueError(f"upstream record date is invalid: {raw_date!r}") from error
+            if (start is not None and row_date < start) or (end is not None and row_date > end):
+                continue
+        selected.append(row)
+    page = selected[offset : offset + limit]
+    if compact:
+        page = [{key: row[key] for key in compact_fields} for row in page]
+    next_offset = offset + len(page) if offset + len(page) < len(selected) else None
+    return {
+        "items": page,
+        "offset": offset,
+        "next_offset": next_offset,
+        "truncated": next_offset is not None,
+    }
 
 
 class LibrusTimeoutSession(Session):
@@ -668,6 +731,39 @@ class LibrusManager:
         return {"numeric": grades, "gpa": gpa, "descriptive": descriptive}
 
     @classmethod
+    async def fetch_grades_window(
+        cls,
+        alias: str,
+        date_from: str | None,
+        date_to: str | None,
+        offset: int,
+        limit: int,
+        compact: bool,
+        sort_by: str = "all",
+    ) -> dict[str, Any]:
+        """Window over individual grades, not undated GPA summaries."""
+        start, end = _validate_window(date_from, date_to, offset, limit)
+        grades = await cls.fetch_grades(alias, sort_by)
+        rows: list[dict[str, Any]] = []
+        for kind in ("numeric", "descriptive"):
+            for semester in grades[kind]:
+                for subject, values in semester.items():
+                    for value in values:
+                        row = {"kind": kind, "subject": subject, **dataclasses.asdict(value)}
+                        rows.append(row)
+                        if len(rows) > MAX_COLLECTION_WINDOW_SOURCE_ITEMS:
+                            raise ValueError("grade window source exceeds its item limit")
+        return _window_items(
+            rows,
+            start,
+            end,
+            offset,
+            limit,
+            compact,
+            ("kind", "subject", "grade", "date", "semester"),
+        )
+
+    @classmethod
     async def fetch_messages(
         cls, alias: str, page: int = 0, folder: str = "received"
     ) -> dict[str, Any]:
@@ -685,11 +781,12 @@ class LibrusManager:
                 )
                 max_page, messages = cls._validate_first_page_result(first_page_result)
             else:
-                max_page = await cls._execute(alias, get_message_max_page)
-                assert isinstance(max_page, int), "get_max_page_number must return an int"
+                result = await cls._execute(
+                    alias, librus_optimizations.get_received_page_with_metadata, page
+                )
+                max_page, messages = cls._validate_first_page_result(result)
                 if page > max_page:
                     raise ValueError(f"page {page} exceeds max_page {max_page}")
-                messages = await cls._execute(alias, get_received, page)
         elif folder == "sent":
             # Librus exposes no page counter for the sent folder.
             max_page = None
@@ -792,17 +889,20 @@ class LibrusManager:
                 first = await cls._execute(alias, librus_optimizations.get_received_first_page)
                 max_page, first_batch = cls._validate_first_page_result(first)
             else:
-                max_page = await cls._execute(alias, get_message_max_page)
-                assert isinstance(max_page, int) and max_page >= 0
+                first = await cls._execute(
+                    alias, librus_optimizations.get_received_page_with_metadata, page
+                )
+                max_page, first_batch = cls._validate_first_page_result(first)
                 if page > max_page:
                     raise ValueError(f"page {page} exceeds max_page {max_page}")
-                first_batch = await cls._execute(alias, get_received, page)
         else:
             max_page = None
             first_batch = await cls._execute(alias, get_sent, page)
 
         messages: list[Any] = []
         previous_hrefs: list[str] | None = None
+        seen_ids: set[str] = set()
+        mailbox_changed = False
         pages_fetched = 0
         next_page: int | None = None
         next_offset: int | None = None
@@ -814,14 +914,31 @@ class LibrusManager:
                 operation = get_received if folder == "received" else get_sent
                 batch = await cls._execute(alias, operation, current_page)
             batch, page_truncated = cls._bounded_message_batch(batch)
-            hrefs = [message.href for message in batch] if folder == "sent" else None
-            if folder == "sent" and hrefs == previous_hrefs:
-                break  # Librus clamps an out-of-range sent page to its last page.
+            hrefs = [message.href for message in batch]
+            if hrefs == previous_hrefs:
+                if folder == "received":
+                    mailbox_changed = True
+                    truncated = True
+                break  # A repeat is not a safe received-message continuation.
             previous_hrefs = hrefs
             pages_fetched += 1
             available = batch[offset:] if current_page == page else batch
+            if folder == "received":
+                unique = []
+                for message in available:
+                    message_id = message.href
+                    if isinstance(message_id, str) and re.fullmatch(r"[0-9]+", message_id):
+                        if message_id in seen_ids:
+                            mailbox_changed = True
+                            continue
+                        seen_ids.add(message_id)
+                    unique.append(message)
+                available = unique
             taken = available[: limit - len(messages)]
             messages.extend(taken)
+            if mailbox_changed:
+                truncated = True
+                break  # A shifted mailbox cannot yield a trustworthy cursor.
             consumed = (offset if current_page == page else 0) + len(taken)
             if consumed < len(batch):
                 next_page, next_offset = current_page, consumed
@@ -851,6 +968,7 @@ class LibrusManager:
             "next_page": next_page,
             "next_offset": next_offset,
             "truncated": truncated,
+            "mailbox_changed": mailbox_changed,
         }
 
     @classmethod
@@ -858,7 +976,17 @@ class LibrusManager:
         first_page_result = await cls._execute(alias, librus_optimizations.get_received_first_page)
         max_page, first_page = cls._validate_first_page_result(first_page_result)
         first_page, page_truncated = cls._bounded_message_batch(first_page)
-        messages = first_page[:MAX_ALL_MESSAGE_ITEMS]
+        messages = []
+        seen_ids: set[str] = set()
+        for row in first_page[:MAX_ALL_MESSAGE_ITEMS]:
+            message_id = row.href
+            if isinstance(message_id, str) and re.fullmatch(r"[0-9]+", message_id):
+                if message_id in seen_ids:
+                    page_truncated = True
+                    continue
+                seen_ids.add(message_id)
+            messages.append(row)
+        previous_hrefs = [row.href for row in first_page]
         if page_truncated:
             return messages, 1, True
         if len(first_page) >= MAX_ALL_MESSAGE_ITEMS:
@@ -869,9 +997,25 @@ class LibrusManager:
         for page in range(1, last_page + 1):
             batch = await cls._execute(alias, get_received, page)
             batch, page_truncated = cls._bounded_message_batch(batch)
+            hrefs = [row.href for row in batch]
+            if hrefs == previous_hrefs:
+                return messages, pages_fetched, True
+            previous_hrefs = hrefs
             remaining = MAX_ALL_MESSAGE_ITEMS - len(messages)
-            messages.extend(batch[:remaining])
+            unique = []
+            duplicate_detected = False
+            for row in batch:
+                message_id = row.href
+                if isinstance(message_id, str) and re.fullmatch(r"[0-9]+", message_id):
+                    if message_id in seen_ids:
+                        duplicate_detected = True
+                        continue
+                    seen_ids.add(message_id)
+                unique.append(row)
+            messages.extend(unique[:remaining])
             pages_fetched += 1
+            if duplicate_detected:
+                return messages, pages_fetched, True
             if page_truncated or len(batch) > remaining:
                 return messages, pages_fetched, True
             if len(messages) == MAX_ALL_MESSAGE_ITEMS:
@@ -936,6 +1080,30 @@ class LibrusManager:
                 f"attendance record count exceeds {librus_optimizations.MAX_ATTENDANCE_RECORDS}"
             )
         return attendance
+
+    @classmethod
+    async def fetch_attendance_window(
+        cls,
+        alias: str,
+        date_from: str | None,
+        date_to: str | None,
+        offset: int,
+        limit: int,
+        compact: bool,
+        sort_by: str = "all",
+    ) -> dict[str, Any]:
+        start, end = _validate_window(date_from, date_to, offset, limit)
+        attendance = await cls.fetch_attendance(alias, sort_by)
+        rows = [dataclasses.asdict(value) for semester in attendance for value in semester]
+        return _window_items(
+            rows,
+            start,
+            end,
+            offset,
+            limit,
+            compact,
+            ("date", "subject", "type", "period", "semester"),
+        )
 
     @classmethod
     async def fetch_attendance_detail(cls, alias: str, detail_url: str) -> dict[str, str]:
@@ -1275,7 +1443,9 @@ class LibrusManager:
         return events
 
     @classmethod
-    async def fetch_new_notifications(cls, alias: str) -> dict[str, Any]:
+    async def fetch_new_notifications(
+        cls, alias: str, categories: list[str] | None = None
+    ) -> dict[str, Any]:
         """Diff current Librus data against persisted seen-IDs and return what is new.
 
         First run for an alias has no state file: diff against empty IDs, which
@@ -1284,6 +1454,18 @@ class LibrusManager:
         returns 403 for parent (rodzic) accounts.
         """
         cls._require_account(alias)
+        allowed = {"grades", "attendance", "messages", "announcements", "schedule", "homework"}
+        if categories is not None and (
+            not isinstance(categories, list)
+            or not categories
+            or len(categories) > len(allowed)
+            or any(category not in allowed for category in categories)
+            or len(set(categories)) != len(categories)
+        ):
+            raise ValueError(
+                "categories must be a non-empty list of unique notification categories"
+            )
+        include_schedule = categories is None or "schedule" in categories
         config = cls._get_config()
         state_dir = config.state_dir
         async with cls._notification_lock(alias):
@@ -1293,11 +1475,14 @@ class LibrusManager:
                 first_run = seen_ids is None
                 if seen_ids is None:
                     seen_ids = NotificationIds([], [], [], [], [], [])
-                pending = await cls._notification_state_io(
-                    load_pending_schedule_events, state_dir, alias
+                pending = (
+                    await cls._notification_state_io(load_pending_schedule_events, state_dir, alias)
+                    if include_schedule
+                    else []
                 )
                 checkpointed: list[RecentEvent] = []
                 checkpoint = cls._schedule_checkpoint(state_dir, alias, checkpointed)
+                category_args = (tuple(categories),) if categories is not None else ()
                 result = await cls._execute(
                     alias,
                     librus_optimizations.get_new_notifications,
@@ -1305,6 +1490,7 @@ class LibrusManager:
                     LibrusTimeoutSession,
                     pending,
                     checkpoint,
+                    *category_args,
                 )
                 assert isinstance(result, tuple), "notification fetch must return a tuple"
                 assert len(result) == 2, "notification fetch must return (data, ids)"
@@ -1312,9 +1498,10 @@ class LibrusManager:
                 await cls._notification_state_io(
                     save_notification_ids, state_dir, alias, updated_ids
                 )
-                await cls._notification_state_io(
-                    clear_pending_schedule_events, state_dir, alias, [*pending, *checkpointed]
-                )
+                if include_schedule:
+                    await cls._notification_state_io(
+                        clear_pending_schedule_events, state_dir, alias, [*pending, *checkpointed]
+                    )
             finally:
                 await cls._notification_state_io(release_notification_state_lock, lock_descriptor)
         return {"first_run": first_run, "new": data}

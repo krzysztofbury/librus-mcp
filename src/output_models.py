@@ -53,6 +53,21 @@ class GradesOutput(OutputModel):
     descriptive: list[dict[str, list[DescriptiveGradeOutput]]]
 
 
+class GradeWindowItem(OutputModel):
+    kind: Literal["numeric", "descriptive"]
+    subject: str
+    grade: str
+    date: str
+    semester: int
+
+
+class GradeWindowOutput(OutputModel):
+    items: list[GradeWindowItem]
+    offset: int
+    next_offset: int | None
+    truncated: bool
+
+
 class MessageOutput(OutputModel):
     author: str
     title: str
@@ -72,6 +87,7 @@ class MessagesOutput(OutputModel):
     offset: int | None = None
     next_page: int | None = None
     next_offset: int | None = None
+    mailbox_changed: bool | None = None
 
     @model_serializer(mode="wrap")
     def preserve_variant_fields(self, handler: SerializerFunctionWrapHandler) -> dict[str, Any]:
@@ -97,6 +113,21 @@ class AttendanceOutput(OutputModel):
     excursion: bool
     topic: str
     subject: str
+
+
+class AttendanceWindowItem(OutputModel):
+    date: str
+    subject: str
+    type: str
+    period: int
+    semester: int
+
+
+class AttendanceWindowOutput(OutputModel):
+    items: list[AttendanceWindowItem]
+    offset: int
+    next_offset: int | None
+    truncated: bool
 
 
 class AttendanceFrequencyOutput(OutputModel):

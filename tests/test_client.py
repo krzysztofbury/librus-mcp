@@ -1199,7 +1199,116 @@ class TestNotificationStateLock:
             await task
 
 
+class TestBoundedGradeAndAttendanceViews:
+    @pytest.mark.asyncio
+    async def test_grade_window_filters_inclusively_and_continues_in_source_order(self):
+        from librus_apix.grades import Grade
+
+        from src.librus_client import LibrusManager
+
+        def grade(value, day):
+            return Grade("Quiz", value, True, day, "1", "private details", 1, "Quiz", "T", 1)
+
+        grades = [
+            {
+                "Math": [grade("5", "2026-09-01"), grade("4", "2026-09-02")],
+                "English": [grade("3", "2026-09-02")],
+            },
+            {},
+        ]
+        with patch.object(LibrusManager, "_execute", AsyncMock(return_value=(grades, {}, []))):
+            first = await LibrusManager.fetch_grades_window(
+                "test_student", "2026-09-02", "2026-09-02", 0, 1, True
+            )
+            second = await LibrusManager.fetch_grades_window(
+                "test_student", "2026-09-02", "2026-09-02", first["next_offset"], 1, True
+            )
+        assert [(r["subject"], r["grade"]) for r in first["items"] + second["items"]] == [
+            ("Math", "4"),
+            ("English", "3"),
+        ]
+        assert first["next_offset"] == 1
+        assert second["next_offset"] is None
+        assert "desc" not in first["items"][0]
+
+    @pytest.mark.asyncio
+    async def test_attendance_window_is_bounded_and_compact(self):
+        from librus_apix.attendance import Attendance
+
+        from src.librus_client import LibrusManager
+
+        records = [
+            Attendance(
+                "ob",
+                str(i),
+                1,
+                f"2026-09-{i:02d}",
+                "Present",
+                "T",
+                i,
+                False,
+                "private topic",
+                "Math",
+            )
+            for i in range(1, 4)
+        ]
+        with patch.object(LibrusManager, "_execute", AsyncMock(return_value=[records, []])):
+            result = await LibrusManager.fetch_attendance_window(
+                "test_student", "2026-09-02", "2026-09-03", 0, 1, True
+            )
+        assert result["items"] == [
+            {"date": "2026-09-02", "subject": "Math", "type": "Present", "period": 2, "semester": 1}
+        ]
+        assert result["next_offset"] == 1
+        assert result["truncated"] is True
+
+    @pytest.mark.asyncio
+    async def test_grade_window_accepts_polish_upstream_date_but_rejects_invalid(self):
+        from librus_apix.grades import Grade
+
+        grade = Grade("Quiz", "5", True, "02.09.2026", "1", "", 1, "Quiz", "T", 1)
+        with patch.object(
+            LibrusManager, "_execute", AsyncMock(return_value=([{"Math": [grade]}], {}, []))
+        ):
+            result = await LibrusManager.fetch_grades_window(
+                "test_student", "2026-09-02", "2026-09-02", 0, 100, False
+            )
+        assert result["items"][0]["date"] == "02.09.2026"
+
+        grade.date = "not a date"
+        with (
+            patch.object(
+                LibrusManager, "_execute", AsyncMock(return_value=([{"Math": [grade]}], {}, []))
+            ),
+            pytest.raises(ValueError, match="upstream record date is invalid"),
+        ):
+            await LibrusManager.fetch_grades_window(
+                "test_student", "2026-09-02", "2026-09-02", 0, 100, False
+            )
+
+
 class TestFetchAllMessages:
+    @pytest.mark.asyncio
+    async def test_received_deduplicates_validated_ids_and_stops_on_repeat(self):
+        first = [FakeMessage(str(index)) for index in range(50)]
+        second = [first[0], FakeMessage("50")]
+        mock = AsyncMock(side_effect=[(2, first), second])
+        with patch.object(LibrusManager, "_execute", mock):
+            result = await LibrusManager.fetch_all_messages("test_student")
+        assert [row.href for row in result["messages"]] == [*(str(index) for index in range(51))]
+        assert result["truncated"] is True
+        assert mock.await_count == 2
+
+    @pytest.mark.asyncio
+    async def test_received_repeated_page_is_not_reported_as_complete(self):
+        first = [FakeMessage(str(index)) for index in range(50)]
+        mock = AsyncMock(side_effect=[(2, first), list(first)])
+        with patch.object(LibrusManager, "_execute", mock):
+            result = await LibrusManager.fetch_all_messages("test_student")
+        assert result["messages"] == first
+        assert result["truncated"] is True
+        assert result["pages_fetched"] == 1
+
     @pytest.mark.asyncio
     async def test_single_page_truncates_oversized_upstream_page(self):
         mock = AsyncMock(return_value=(0, _messages(0, 51)))
@@ -1423,6 +1532,36 @@ class TestFetchAllMessages:
 
 class TestMessageWindow:
     @pytest.mark.asyncio
+    async def test_received_overlap_reports_change_without_unsafe_cursor(self):
+        first = [FakeMessage(str(index)) for index in range(50)]
+        second = [first[0], *(FakeMessage(str(index)) for index in range(50, 53))]
+        mock = AsyncMock(side_effect=[(2, first), second])
+        with patch.object(LibrusManager, "_execute", mock):
+            result = await LibrusManager.fetch_message_window(
+                "test_student", 0, "received", 0, 100, 2
+            )
+        assert [row.href for row in result["messages"]] == [
+            *(row.href for row in first),
+            *(row.href for row in second[1:]),
+        ]
+        assert result["mailbox_changed"] is True
+        assert result["truncated"] is True
+        assert (result["next_page"], result["next_offset"]) == (None, None)
+
+    @pytest.mark.asyncio
+    async def test_received_repeated_page_stops_without_false_end_of_mailbox(self):
+        first = [FakeMessage(str(index)) for index in range(50)]
+        mock = AsyncMock(side_effect=[(2, first), list(first)])
+        with patch.object(LibrusManager, "_execute", mock):
+            result = await LibrusManager.fetch_message_window(
+                "test_student", 0, "received", 0, 100, 2
+            )
+        assert result["messages"] == first
+        assert result["mailbox_changed"] is True
+        assert result["truncated"] is True
+        assert result["next_page"] is None
+
+    @pytest.mark.asyncio
     async def test_upstream_timeout_is_not_reported_as_whole_operation_deadline(self):
         with (
             patch.object(
@@ -1455,7 +1594,7 @@ class TestMessageWindow:
 
     @pytest.mark.asyncio
     async def test_page_cap_can_resume_on_next_received_page(self):
-        mock = AsyncMock(side_effect=[(2, _messages(0, 50)), 2, _messages(1, 50)])
+        mock = AsyncMock(side_effect=[(2, _messages(0, 50)), (2, _messages(1, 50))])
         with patch.object(LibrusManager, "_execute", mock):
             first = await LibrusManager.fetch_message_window(
                 "test_student", 0, "received", 0, 200, 1
@@ -1466,6 +1605,7 @@ class TestMessageWindow:
         assert (first["pages_fetched"], first["next_page"], first["next_offset"]) == (1, 1, 0)
         assert second["messages"][0].href == "p1m0"
         assert second["next_page"] == 2
+        assert mock.await_count == 2
 
     @pytest.mark.asyncio
     async def test_limit_crosses_page_and_resumes_inside_second_page(self):

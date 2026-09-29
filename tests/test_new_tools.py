@@ -68,7 +68,7 @@ class TestGetMessagesPagination:
     @pytest.mark.asyncio
     async def test_page_beyond_max_raises(self):
         mock = AsyncMock()
-        mock.side_effect = [1]  # max_page only; messages never fetched
+        mock.side_effect = [(1, [])]  # metadata comes from the requested page
         with (
             patch("src.librus_client.LibrusManager._execute", mock),
             pytest.raises(ValueError, match="max_page"),
@@ -134,6 +134,30 @@ class TestGetRecentScheduleEvents:
 
 
 class TestGetNewNotifications:
+    @pytest.mark.asyncio
+    async def test_filtered_grades_do_not_clear_pending_schedule(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("LIBRUS_STATE_DIR", str(tmp_path))
+        event = RecentEvent("2026-09-15 08:00", "Sprawdzian", "Matematyka")
+        save_pending_schedule_events(tmp_path, "test_student", [event])
+
+        async def fake_execute(alias, function, *args):
+            assert args[-1] == ("grades",)
+            assert args[2] == []
+            updated = NotificationIds(["/grade/1"], [], [], [], [], [])
+            return _empty_notification_data(), updated
+
+        with patch.object(LibrusManager, "_execute", side_effect=fake_execute):
+            result = await get_new_notifications("test_student", categories=["grades"])
+
+        assert result["new"]["schedule"] == []
+        assert load_pending_schedule_events(tmp_path, "test_student") == [event]
+        assert load_notification_ids(tmp_path, "test_student").grades == ["/grade/1"]
+
+    @pytest.mark.asyncio
+    async def test_duplicate_notification_categories_are_rejected(self):
+        with pytest.raises(ValueError, match="unique"):
+            await get_new_notifications("test_student", categories=["grades", "grades"])
+
     @pytest.mark.asyncio
     async def test_state_read_yields_to_other_requests(self, tmp_path, monkeypatch):
         monkeypatch.setenv("LIBRUS_STATE_DIR", str(tmp_path))
