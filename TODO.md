@@ -1,6 +1,6 @@
 # TODO
 
-This roadmap tracks remaining work after 1.6.1. Each work group can be
+This roadmap tracks remaining work after 1.6.2. Each work group can be
 delivered independently. Version numbers below indicate compatibility risk,
 not a release commitment:
 
@@ -8,7 +8,7 @@ not a release commitment:
   resource controls, safety fixes, and documentation.
 - Major release (`2.0.0`): deliberate tool, response, package, or configuration contract changes.
 
-## Remaining Work After 1.6.1
+## Remaining Work After 1.6.2
 
 Continue bounded collection UX and runtime resource control. Preserve the
 existing text response shapes and feature gates until a documented 2.0
@@ -17,9 +17,8 @@ completed-lessons tool still returns a list.
 
 Next independent batches:
 
-1. Bound aggregate cross-account work and move state I/O off the event loop.
-2. Anonymize a populated behaviour-note page before enabling the feature by default.
-3. Add compact or date-bounded modes to other large collections as needed.
+1. Anonymize a populated behaviour-note page before enabling the feature by default.
+2. Add compact or date-bounded modes to other large collections as needed.
 
 ## Completed Safety Foundations (1.2.x)
 
@@ -145,10 +144,10 @@ Next independent batches:
 
 ### Runtime Resource Control
 
-- [ ] Replace per-call notification executors with one process-wide bounded executor
+- [x] Replace per-call notification executors with one process-wide bounded executor
   or work queue.
-- [ ] Add aggregate concurrency tests across multiple student aliases.
-- [ ] Move notification state reads and writes off the MCP event loop while preserving locks.
+- [x] Add aggregate concurrency tests across multiple student aliases.
+- [x] Move notification state reads and writes off the MCP event loop while preserving locks.
 - [ ] Add a bounded per-client cache for lesson-to-subject and subject-to-name metadata.
 - [ ] Reuse pagination metadata from the requested message page instead of fetching
   and parsing page zero first for every nonzero page request.

@@ -1248,10 +1248,12 @@ class LibrusManager:
         async with cls._notification_lock(alias):
             lock_descriptor = await cls._acquire_notification_state_lock(state_dir, alias)
             try:
-                seen_ids = load_notification_ids(state_dir, alias)
+                seen_ids = await cls._notification_state_io(load_notification_ids, state_dir, alias)
                 if seen_ids is None:
                     seen_ids = NotificationIds([], [], [], [], [], [])
-                pending = load_pending_schedule_events(state_dir, alias)
+                pending = await cls._notification_state_io(
+                    load_pending_schedule_events, state_dir, alias
+                )
                 checkpointed: list[RecentEvent] = []
                 checkpoint = cls._schedule_checkpoint(state_dir, alias, checkpointed)
                 result = await cls._execute(
@@ -1264,10 +1266,12 @@ class LibrusManager:
                 assert isinstance(result, tuple), "recent schedule fetch must return a tuple"
                 assert len(result) == 2, "recent schedule fetch must return (events, ids)"
                 events, seen_ids.schedule = result
-                save_notification_ids(state_dir, alias, seen_ids)
-                clear_pending_schedule_events(state_dir, alias, [*pending, *checkpointed])
+                await cls._notification_state_io(save_notification_ids, state_dir, alias, seen_ids)
+                await cls._notification_state_io(
+                    clear_pending_schedule_events, state_dir, alias, [*pending, *checkpointed]
+                )
             finally:
-                release_notification_state_lock(lock_descriptor)
+                await cls._notification_state_io(release_notification_state_lock, lock_descriptor)
         return events
 
     @classmethod
@@ -1285,11 +1289,13 @@ class LibrusManager:
         async with cls._notification_lock(alias):
             lock_descriptor = await cls._acquire_notification_state_lock(state_dir, alias)
             try:
-                seen_ids = load_notification_ids(state_dir, alias)
+                seen_ids = await cls._notification_state_io(load_notification_ids, state_dir, alias)
                 first_run = seen_ids is None
                 if seen_ids is None:
                     seen_ids = NotificationIds([], [], [], [], [], [])
-                pending = load_pending_schedule_events(state_dir, alias)
+                pending = await cls._notification_state_io(
+                    load_pending_schedule_events, state_dir, alias
+                )
                 checkpointed: list[RecentEvent] = []
                 checkpoint = cls._schedule_checkpoint(state_dir, alias, checkpointed)
                 result = await cls._execute(
@@ -1303,10 +1309,14 @@ class LibrusManager:
                 assert isinstance(result, tuple), "notification fetch must return a tuple"
                 assert len(result) == 2, "notification fetch must return (data, ids)"
                 data, updated_ids = result
-                save_notification_ids(state_dir, alias, updated_ids)
-                clear_pending_schedule_events(state_dir, alias, [*pending, *checkpointed])
+                await cls._notification_state_io(
+                    save_notification_ids, state_dir, alias, updated_ids
+                )
+                await cls._notification_state_io(
+                    clear_pending_schedule_events, state_dir, alias, [*pending, *checkpointed]
+                )
             finally:
-                release_notification_state_lock(lock_descriptor)
+                await cls._notification_state_io(release_notification_state_lock, lock_descriptor)
         return {"first_run": first_run, "new": data}
 
     @staticmethod
@@ -1322,15 +1332,35 @@ class LibrusManager:
         return checkpoint
 
     @classmethod
+    async def _notification_state_io(cls, function: Callable[..., Any], *args: Any) -> Any:
+        """Finish filesystem work before releasing a notification transaction lock."""
+        task = asyncio.create_task(asyncio.to_thread(function, *args))
+        try:
+            return await asyncio.shield(task)
+        except asyncio.CancelledError:
+            # A thread cannot be cancelled. Never unlock while it may still be
+            # writing state; pending schedule checkpoints survive a cancelled call.
+            await task
+            raise
+
+    @classmethod
     async def _acquire_notification_state_lock(cls, state_dir: Path, alias: str) -> int:
         """Acquire a cross-process state lock without blocking cancellation.
 
-        Each attempt is non-blocking and the bounded sleep yields to the event
-        loop, so a cancelled MCP request cannot orphan a lock descriptor in a
-        background thread.
+        Filesystem setup can block, so try in a worker. If cancelled during
+        acquisition, wait for that attempt and release any acquired descriptor.
         """
         for _ in range(NOTIFICATION_LOCK_MAX_ATTEMPTS):
-            descriptor = try_acquire_notification_state_lock(state_dir, alias)
+            task = asyncio.create_task(
+                asyncio.to_thread(try_acquire_notification_state_lock, state_dir, alias)
+            )
+            try:
+                descriptor = await asyncio.shield(task)
+            except asyncio.CancelledError:
+                descriptor = await task
+                if descriptor is not None:
+                    await cls._notification_state_io(release_notification_state_lock, descriptor)
+                raise
             if descriptor is not None:
                 return descriptor
             await asyncio.sleep(NOTIFICATION_LOCK_RETRY_SECONDS)

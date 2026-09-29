@@ -135,6 +135,74 @@ class TestGetRecentScheduleEvents:
 
 class TestGetNewNotifications:
     @pytest.mark.asyncio
+    async def test_state_read_yields_to_other_requests(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("LIBRUS_STATE_DIR", str(tmp_path))
+        started = threading.Event()
+        release = threading.Event()
+        from src import librus_client
+
+        original = librus_client.load_notification_ids
+
+        def slow_load(*args):
+            started.set()
+            assert release.wait(5)
+            return original(*args)
+
+        with (
+            patch("src.librus_client.load_notification_ids", side_effect=slow_load),
+            patch.object(
+                LibrusManager,
+                "_execute",
+                AsyncMock(return_value=(_empty_notification_data(), _empty_notification_ids())),
+            ),
+        ):
+            task = asyncio.create_task(get_new_notifications("test_student"))
+            try:
+                assert await asyncio.wait_for(asyncio.to_thread(started.wait, 2), 3)
+                await asyncio.wait_for(asyncio.sleep(0), 0.5)
+                assert not task.done()
+            finally:
+                release.set()
+            assert (await task)["first_run"] is True
+
+    @pytest.mark.asyncio
+    async def test_cancelled_state_write_finishes_before_unlock(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("LIBRUS_STATE_DIR", str(tmp_path))
+        started = threading.Event()
+        release = threading.Event()
+        from src import librus_client
+
+        original = librus_client.save_notification_ids
+
+        def slow_save(*args):
+            started.set()
+            assert release.wait(5)
+            return original(*args)
+
+        with (
+            patch("src.librus_client.save_notification_ids", side_effect=slow_save),
+            patch.object(
+                LibrusManager,
+                "_execute",
+                AsyncMock(return_value=(_empty_notification_data(), _empty_notification_ids())),
+            ),
+        ):
+            task = asyncio.create_task(get_new_notifications("test_student"))
+            try:
+                assert await asyncio.to_thread(started.wait, 2)
+                task.cancel()
+                await asyncio.sleep(0)
+                assert not task.done()
+                assert LibrusManager._notification_lock("test_student").locked()
+            finally:
+                release.set()
+            with pytest.raises(asyncio.CancelledError):
+                await task
+
+        assert load_notification_ids(tmp_path, "test_student") is not None
+        assert not LibrusManager._notification_lock("test_student").locked()
+
+    @pytest.mark.asyncio
     async def test_first_run_passes_empty_ids_and_persists_state(self, tmp_path, monkeypatch):
         """No state file: diff against empty IDs (works for both student and
         parent accounts, unlike get_initial_notification_data which 403s on

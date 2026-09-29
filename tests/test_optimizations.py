@@ -2,6 +2,7 @@ import asyncio
 import hashlib
 import json
 import threading
+from concurrent.futures import ThreadPoolExecutor
 from datetime import date
 from types import SimpleNamespace
 from typing import ClassVar
@@ -624,6 +625,138 @@ class TestFirstPageReuse:
 
 
 class TestParallelNotifications:
+    def test_notification_queue_blocks_when_running_and_waiting_slots_are_full(self):
+        release = threading.Event()
+        started = threading.Condition()
+        active = 0
+
+        def blocked(client):
+            nonlocal active
+            with started:
+                active += 1
+                started.notify_all()
+            assert release.wait(5)
+
+        client = SimpleNamespace(token=object(), cookies={}, _session=SimpleNamespace())
+        submitting = threading.Event()
+
+        def submit_extra():
+            submitting.set()
+            return librus_optimizations._submit_notification_call(
+                client, lambda: MagicMock(), blocked
+            )
+
+        with ThreadPoolExecutor(max_workers=1) as caller:
+            futures = [
+                librus_optimizations._submit_notification_call(client, lambda: MagicMock(), blocked)
+                for _ in range(librus_optimizations.NOTIFICATION_MAX_IN_FLIGHT)
+            ]
+            try:
+                with started:
+                    assert started.wait_for(
+                        lambda: active == librus_optimizations.NOTIFICATION_CONCURRENCY,
+                        timeout=5,
+                    )
+                extra = caller.submit(submit_extra)
+                assert submitting.wait(2)
+                assert not extra.done()
+            finally:
+                release.set()
+            for future in futures:
+                future.result(timeout=5)
+            extra.result(timeout=5).result(timeout=5)
+
+    def test_parallel_aliases_share_a_single_worker_limit(self):
+        started = threading.Condition()
+        release = threading.Event()
+        activity = {"active": 0, "max": 0}
+
+        def tracked(client, *args):
+            with started:
+                activity["active"] += 1
+                activity["max"] = max(activity["max"], activity["active"])
+                started.notify_all()
+            try:
+                assert release.wait(5)
+                return []
+            finally:
+                with started:
+                    activity["active"] -= 1
+
+        def tracked_grades(client, *args):
+            tracked(client, *args)
+            return [], {}, []
+
+        seen = NotificationIds([], [], [], [], [], [])
+        with (
+            patch.object(librus_optimizations, "get_grades", side_effect=tracked_grades) as grades,
+            patch.object(librus_optimizations, "get_attendance", tracked),
+            patch.object(librus_optimizations, "get_received", tracked),
+            patch.object(librus_optimizations, "get_announcements", tracked),
+            patch.object(librus_optimizations, "get_homework", tracked),
+            patch.object(librus_optimizations, "get_recently_added_schedule", return_value=[]),
+            ThreadPoolExecutor(max_workers=3) as callers,
+        ):
+
+            def invoke(alias):
+                client = SimpleNamespace(
+                    alias=alias, token=object(), cookies={}, _session=SimpleNamespace()
+                )
+                return librus_optimizations.get_new_notifications(
+                    client, seen, lambda: MagicMock(), pending_schedule=[]
+                )
+
+            calls = [callers.submit(invoke, alias) for alias in ("first", "second", "third")]
+            try:
+                with started:
+                    assert started.wait_for(
+                        lambda: activity["active"] >= librus_optimizations.NOTIFICATION_CONCURRENCY,
+                        timeout=5,
+                    )
+                assert activity["max"] == librus_optimizations.NOTIFICATION_CONCURRENCY
+            finally:
+                release.set()
+            for call in calls:
+                call.result(timeout=5)
+
+        assert grades.call_count == 3
+        assert activity["max"] == librus_optimizations.NOTIFICATION_CONCURRENCY
+
+    def test_category_failure_drains_other_workers_before_returning(self):
+        release = threading.Event()
+        started = threading.Event()
+        client = SimpleNamespace(token=object(), cookies={}, _session=SimpleNamespace())
+        seen = NotificationIds([], [], [], [], [], [])
+
+        def slow(client, *args):
+            started.set()
+            assert release.wait(5)
+            return []
+
+        with (
+            patch.object(
+                librus_optimizations, "get_grades", side_effect=ValueError("grades failed")
+            ),
+            patch.object(librus_optimizations, "get_attendance", slow),
+            patch.object(librus_optimizations, "get_received", return_value=[]),
+            patch.object(librus_optimizations, "get_announcements", return_value=[]),
+            patch.object(librus_optimizations, "get_homework", return_value=[]),
+            ThreadPoolExecutor(max_workers=1) as caller,
+        ):
+            call = caller.submit(
+                librus_optimizations.get_new_notifications,
+                client,
+                seen,
+                lambda: MagicMock(),
+            )
+            try:
+                assert started.wait(5)
+                assert not call.done()
+            finally:
+                release.set()
+            with pytest.raises(ValueError, match="grades failed"):
+                call.result(timeout=5)
+
     def test_safe_categories_use_bounded_parallelism(self):
         active = {"count": 0, "max": 0, "started": 0}
         lock = threading.Lock()
