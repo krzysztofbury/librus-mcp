@@ -8,6 +8,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from librus_apix.notifications import NotificationData, NotificationIds
 from librus_apix.schedule import RecentEvent
+from mcp.server.mcpserver.exceptions import ToolError
 
 from src import librus_optimizations
 from src.librus_client import LibrusManager
@@ -396,11 +397,12 @@ class TestSendMessageTools:
         preview = await send_message("test_student", "Temat", "Treść", ["12345"])
         with (
             _mock_execute((False, "Coś poszło nie tak")),
-            pytest.raises(RuntimeError, match="unrecognized send_message result"),
+            pytest.raises(ToolError, match="delivery is uncertain") as caught,
         ):
             await send_message(
                 "test_student", "Temat", "Treść", ["12345"], preview["confirm_token"]
             )
+        assert "unrecognized send_message result" in str(caught.value.__cause__)
 
     @pytest.mark.asyncio
     async def test_confirm_token_is_single_use(self):

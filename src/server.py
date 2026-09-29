@@ -7,6 +7,7 @@ import time
 from typing import Annotated, Any, Literal
 
 from mcp.server.mcpserver import MCPServer
+from mcp.server.mcpserver.exceptions import ToolError
 from mcp.types import ToolAnnotations
 from pydantic import Field
 
@@ -37,6 +38,7 @@ from src.output_models import (
     PeriodOutput,
     RecentScheduleEventOutput,
     ScheduleOutput,
+    SendMessageOutput,
     StudentInformationOutput,
     SubjectFrequencyOutput,
 )
@@ -512,7 +514,7 @@ async def send_message(
     content: MessageContent,
     recipient_ids: RecipientIds,
     confirm_token: str | None = None,
-) -> Any:
+) -> SendMessageOutput:
     """
     Sends a message to school staff via the Librus messaging system.
     WRITE ACTION: this delivers a real message to teachers. Disabled by default;
@@ -546,7 +548,14 @@ async def send_message(
             },
         }
     _redeem_confirmation(confirm_token, digest)
-    result = await LibrusManager.send_message_to(student_alias, title, content, recipient_ids)
+    try:
+        result = await LibrusManager.send_message_to(student_alias, title, content, recipient_ids)
+    except RuntimeError as error:
+        # A sent POST cannot safely be retried. Keep uncertainty on the MCP
+        # error channel, with actionable text rather than a generic crash.
+        raise ToolError(
+            "Librus send delivery is uncertain; check the sent folder before trying again."
+        ) from error
     return {
         "status": "sent" if result["success"] else "failed",
         "success": result["success"],

@@ -1,10 +1,11 @@
 """Published MCP response shapes; values returned by existing tools remain unchanged."""
 
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 
 from pydantic import (
     BaseModel,
     ConfigDict,
+    Field,
     RootModel,
     SerializerFunctionWrapHandler,
     model_serializer,
@@ -220,3 +221,48 @@ class BehaviourNoteOutput(OutputModel):
     teacher: str
     category: str
     content: str
+
+
+class SendPreviewDetails(OutputModel):
+    student_alias: str
+    title: str
+    content: str
+    recipient_ids: list[str]
+
+
+class SendPreviewOutput(OutputModel):
+    status: Literal["confirmation_required"]
+    confirm_token: str
+    expires_in_seconds: int
+    preview: SendPreviewDetails
+
+
+class SendSucceededOutput(OutputModel):
+    status: Literal["sent"]
+    success: Literal[True]
+    result: str
+    title: str
+    recipient_count: int
+
+
+class SendFailedOutput(OutputModel):
+    status: Literal["failed"]
+    success: Literal[False]
+    result: str
+    title: str
+    recipient_count: int
+
+
+class SendMessageOutput(
+    RootModel[
+        Annotated[
+            SendPreviewOutput | SendSucceededOutput | SendFailedOutput,
+            Field(discriminator="status"),
+        ]
+    ]
+):
+    """Non-error results; uncertain delivery is an MCP isError result."""
+
+    # MCP's outputSchema requires an explicit top-level object type. Pydantic
+    # emits oneOf without it for a discriminated RootModel of object variants.
+    model_config = ConfigDict(json_schema_extra={"type": "object"})

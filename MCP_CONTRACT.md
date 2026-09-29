@@ -18,9 +18,10 @@ not contact Librus or invoke tools that consume read-once events or send message
 | Profile | Tools | Before typing | Current | Typed output schemas | Context budget |
 | --- | ---: | ---: | ---: | ---: | ---: |
 | Default | 21 | 16,728 B | 32,219 B | 21 | 48 KiB |
-| All feature gates enabled | 25 | 20,763 B | 36,804 B | 24 | 64 KiB |
+| All feature gates enabled | 25 | 20,763 B | 38,869 B | 25 | 64 KiB |
 
-Measurements use the `uv.lock` dependency set and were taken on 2026-09-27.
+Measurements use the `uv.lock` dependency set. The default profile was measured
+on 2026-09-27 and the all-features profile on 2026-09-29.
 Default gates include notifications and attachments; behaviour notes and
 sending messages require opt-in. The CI budget guards total catalog growth,
 not the exact bytes of every SDK-generated schema.
@@ -59,7 +60,7 @@ in `structuredContent`; this is not a new envelope in the text content.
 | `get_behaviour_notes` | `result`: date, teacher, category and content per note. Experimental and disabled by default. |
 | `get_recipient_groups` | `result`: list of group IDs. |
 | `get_recipients` | Map of recipient name to recipient ID. |
-| `send_message` | No advertised output schema yet: preview (`confirmation_required`) and delivery (`sent` or `failed`) have different fields. This write tool remains disabled by default and uses a two-step confirmation. |
+| `send_message` | Discriminated non-error schema: preview (`confirmation_required`) includes `confirm_token`, `expires_in_seconds` and the exact `preview` payload; delivery (`sent` or `failed`) includes `success`, upstream `result`, `title` and `recipient_count`. Existing text JSON is unchanged. Uncertain delivery remains `isError=true` with no `structuredContent`: output schemas only describe non-error tool results. Check the sent folder before considering another attempt; never blindly retry. This write tool remains disabled by default. |
 
 ## Input schemas and annotations
 
@@ -90,5 +91,5 @@ annotations are hints to MCP hosts, not a substitute for runtime validation.
 
 These models describe current data rather than introducing new field names,
 pagination envelopes or normalized Polish labels. Unknown fields on upstream
-records are preserved in structured results. The write-result variants and a
-full per-tool input/output/annotation snapshot need separate contract review.
+records are preserved in structured results. The full per-tool
+input/output/annotation snapshot still needs separate review.

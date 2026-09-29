@@ -1,31 +1,29 @@
 # TODO
 
-This roadmap tracks remaining work after 1.4.1. Each work group can be
+This roadmap tracks remaining work after 1.5.0. Each work group can be
 delivered independently. Version numbers below indicate compatibility risk,
 not a release commitment:
 
-- Compatible work (`1.3.x` or `1.4.x`): additive response schemas, bounded UX,
+- Compatible work (`1.x`): additive response schemas, bounded UX,
   resource controls, safety fixes, and documentation.
 - Major release (`2.0.0`): deliberate tool, response, package, or configuration contract changes.
 
-## Remaining Work After 1.4.1
+## Remaining Work After 1.5.0
 
 Prioritize output contracts and the measured tool catalog first, then bounded
 collection UX and runtime resource control. Preserve the existing text response
 shapes and feature gates until a documented 2.0 migration. The `send_message`
-write result needs its own review before advertising a discriminated schema.
+write result now advertises a schema for non-error results; uncertain delivery
+remains an MCP error, not a successful result variant.
 
 Next independent batches:
 
-1. Review `send_message` preview, sent, failed and uncertain-delivery states;
-   publish a schema only when it reflects all outcomes without altering the
-   two-step confirmation contract.
-2. Capture per-tool input/output schemas and annotations for review, then
+1. Capture per-tool input/output schemas and annotations for review, then
    shorten tool descriptions against the measured catalog-size budget.
-3. Introduce bounded pagination and whole-operation deadlines without removing
+2. Introduce bounded pagination and whole-operation deadlines without removing
    the current `all_pages` entry point.
-4. Bound aggregate cross-account work and move state I/O off the event loop.
-5. Anonymize a populated behaviour-note page before enabling the feature by default.
+3. Bound aggregate cross-account work and move state I/O off the event loop.
+4. Anonymize a populated behaviour-note page before enabling the feature by default.
 
 ## Completed Safety Foundations (1.2.x)
 
@@ -126,7 +124,9 @@ Next independent batches:
 - [x] Document the existing response shapes before publishing schemas, retaining
   legacy text content and recording the SDK's new structuredContent shape.
 - [x] Require known fields in message content and attendance-frequency outputs.
-- [ ] Add discriminated outputs for send preview, sent, failed, and delivery-unknown states.
+- [x] Publish discriminated non-error outputs for send preview, sent, and failed;
+  keep uncertain delivery as an actionable MCP error without structured content
+  or automatic retry (output schemas do not cover `isError` responses).
 - [ ] Snapshot every tool input schema, output schema, and annotation.
 - [x] Add stdio integration tests for `initialize`, `tools/list`, and representative
   `tools/call` responses, including `structuredContent`.

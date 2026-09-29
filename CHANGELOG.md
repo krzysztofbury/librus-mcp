@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.5.0] - 2026-09-29
+
+### Added
+
+- Advertise a discriminated MCP output schema for the opt-in `send_message`
+  tool's confirmation preview, successful delivery and rejected delivery.
+  Preserve existing text responses and the single-use, two-step confirmation.
+- Keep uncertain delivery on the MCP error channel, with actionable guidance
+  to check the sent folder before trying again and without exposing upstream
+  exception details. Sending is never automatically retried.
+- Cover all send outcomes and token reuse through a real stdio MCP session.
+
 ## [1.4.1] - 2026-09-27
 
 ### Fixed
