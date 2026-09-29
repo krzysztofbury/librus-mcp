@@ -132,10 +132,13 @@ Next independent batches:
 
 ### Bounded Collection UX
 
-- [ ] Add `limit`, `max_pages`, and continuation metadata to large collection tools.
-- [ ] Keep `all_pages` temporarily for compatibility, but deprecate it in favor of
-  explicit bounded pagination.
-- [ ] Apply a whole-tool deadline across multi-page operations.
+- [x] Add `limit`, `max_pages`, and continuation metadata to `get_messages`,
+  including an offset for partial pages.
+- [ ] Extend bounded result modes to completed lessons and other large collections
+  without changing the legacy list response shape.
+- [x] Keep `all_pages` for compatibility and recommend explicit bounded requests
+  for new clients.
+- [x] Apply a whole-tool deadline to multi-page messages and completed lessons.
 - [ ] Deduplicate received messages by validated ID and detect repeated page signatures.
 - [ ] Report when a mailbox changes during pagination instead of implying a stable snapshot.
 - [ ] Add compact or date-bounded modes for grades and attendance.

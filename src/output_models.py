@@ -69,11 +69,13 @@ class MessagesOutput(OutputModel):
     page: int | None = None
     max_page: int | None = None
     pages_fetched: int | None = None
+    offset: int | None = None
+    next_page: int | None = None
+    next_offset: int | None = None
 
     @model_serializer(mode="wrap")
     def preserve_variant_fields(self, handler: SerializerFunctionWrapHandler) -> dict[str, Any]:
-        # all_pages has pages_fetched, while one-page results have page and
-        # max_page (which may explicitly be null for the sent folder).
+        # Preserve absent keys in legacy modes; bounded mode adds a cursor.
         return {key: value for key, value in handler(self).items() if key in self.model_fields_set}
 
 

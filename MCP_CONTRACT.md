@@ -17,8 +17,8 @@ not contact Librus or invoke tools that consume read-once events or send message
 
 | Profile | Tools | Before typing | Before shortening | Current | Typed output schemas | Context budget |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| Default | 21 | 16,728 B | 32,219 B | 28,542 B | 21 | 48 KiB |
-| All feature gates enabled | 25 | 20,763 B | 38,981 B | 34,539 B | 25 | 64 KiB |
+| Default | 21 | 16,728 B | 32,219 B | 29,153 B | 21 | 48 KiB |
+| All feature gates enabled | 25 | 20,763 B | 38,981 B | 35,150 B | 25 | 64 KiB |
 
 Measurements use the `uv.lock` dependency set. The before-typing and default
 before-shortening values were recorded on 2026-09-27; the all-features
@@ -46,7 +46,7 @@ in `structuredContent`; this is not a new envelope in the text content.
 | --- | --- |
 | `list_students` | `result`: list of account aliases. |
 | `get_grades` | `numeric`: list of per-semester maps from subject to grade rows; `gpa`: subject map of `{semester, gpa, subject}` rows; `descriptive`: list of per-semester maps from subject to descriptive grade rows. Grade rows retain title, grade, counts, date, href, desc, semester, category, teacher and weight. GPA can be a number or `"-"`. |
-| `get_messages` | `messages`: rows with author, title, date, href, unread and has_attachment; `folder`, `truncated`. A one-page result also has `page` and `max_page` (null for sent messages); `all_pages` instead has `pages_fetched`. Missing keys remain missing. |
+| `get_messages` | `messages`: rows with author, title, date, href, unread and has_attachment; `folder`, `truncated`. A one-page result also has `page` and `max_page` (null for sent messages); legacy `all_pages` instead has `pages_fetched`. Bounded results also include `offset`, `pages_fetched`, `next_page` and `next_offset` (both null at the end or when continuation is unsafe). Missing keys in legacy results remain missing. |
 | `get_message_content` | Required author, title, date and content. |
 | `get_attendance` | `result`: list of semester lists. Entries include symbol, href, semester, date, type, teacher, period, excursion, topic and subject. |
 | `get_attendance_detail` | Map of upstream Polish label to string value. |
@@ -78,8 +78,18 @@ are validated by the MCP SDK and again by the client wrapper where necessary:
 
 - Grade and attendance list tools accept `sort_by` as `all`, `week`, or
   `last_login`; it filters changes rather than sorting them.
-- `get_messages` accepts `page` from 0 to 1000, `folder` as `received` or
-  `sent`, and `all_pages` as a boolean. Message, attachment, homework and
+- `get_messages` accepts `page` from 0 to 1000 and `folder` as `received` or
+  `sent`. With `limit` (1 to 2000), `max_pages` (1 to 40), or `offset` (0 to 49),
+  it returns a bounded batch with a best-effort `(next_page, next_offset)` cursor.
+  When only one bound is given, the other defaults to its existing hard cap.
+  Use the returned pair as the next `page` and `offset`; the cursor is not a
+  snapshot. A full last sent page can yield a speculative next cursor that
+  repeats rows across requests; consumers should compare message IDs.
+  `all_pages` stays available
+  for old clients but cannot be combined with bounds or an offset. Multi-page
+  message reads have a 120-second whole-operation deadline; completed lessons
+  have a 180-second deadline. Timeout is an error, not a partial result.
+  Message, attachment, homework and
   attendance detail IDs are bare numeric strings.
 - Homework and completed lessons use `date_from` and `date_to` in YYYY-MM-DD
   form; timetable uses a Monday date. Subject frequency accepts optional

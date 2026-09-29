@@ -1394,6 +1394,100 @@ class TestFetchAllMessages:
             LibrusManager._validate_first_page_result(result)
 
 
+class TestMessageWindow:
+    @pytest.mark.asyncio
+    async def test_upstream_timeout_is_not_reported_as_whole_operation_deadline(self):
+        with (
+            patch.object(
+                LibrusManager, "_execute", AsyncMock(side_effect=TimeoutError("upstream"))
+            ),
+            pytest.raises(TimeoutError, match="^upstream$"),
+        ):
+            await LibrusManager.fetch_message_window("test_student", 0, "received", 0, 10, 2)
+
+    @pytest.mark.asyncio
+    async def test_limit_inside_page_resumes_without_skipping_rows(self):
+        batch = _messages(0, 50)
+        mock = AsyncMock(return_value=(0, batch))
+        with patch.object(LibrusManager, "_execute", mock):
+            first = await LibrusManager.fetch_message_window(
+                "test_student", 0, "received", 0, 12, 2
+            )
+            second = await LibrusManager.fetch_message_window(
+                "test_student", first["next_page"], "received", first["next_offset"], 38, 2
+            )
+        assert [item.href for item in first["messages"] + second["messages"]] == [
+            item.href for item in batch
+        ]
+        assert (first["next_page"], first["next_offset"], first["truncated"]) == (0, 12, True)
+        assert (second["next_page"], second["next_offset"], second["truncated"]) == (
+            None,
+            None,
+            False,
+        )
+
+    @pytest.mark.asyncio
+    async def test_page_cap_can_resume_on_next_received_page(self):
+        mock = AsyncMock(side_effect=[(2, _messages(0, 50)), 2, _messages(1, 50)])
+        with patch.object(LibrusManager, "_execute", mock):
+            first = await LibrusManager.fetch_message_window(
+                "test_student", 0, "received", 0, 200, 1
+            )
+            second = await LibrusManager.fetch_message_window(
+                "test_student", 1, "received", 0, 200, 1
+            )
+        assert (first["pages_fetched"], first["next_page"], first["next_offset"]) == (1, 1, 0)
+        assert second["messages"][0].href == "p1m0"
+        assert second["next_page"] == 2
+
+    @pytest.mark.asyncio
+    async def test_limit_crosses_page_and_resumes_inside_second_page(self):
+        mock = AsyncMock(side_effect=[(1, _messages(0, 50)), _messages(1, 10)])
+        with patch.object(LibrusManager, "_execute", mock):
+            result = await LibrusManager.fetch_message_window(
+                "test_student", 0, "received", 0, 55, 2
+            )
+        assert len(result["messages"]) == 55
+        assert result["messages"][-1].href == "p1m4"
+        assert (result["next_page"], result["next_offset"]) == (1, 5)
+        assert result["truncated"] is True
+
+    @pytest.mark.asyncio
+    async def test_sent_clamped_page_is_not_duplicated(self):
+        batch = _messages(0, 50)
+        mock = AsyncMock(side_effect=[batch, list(batch)])
+        with patch.object(LibrusManager, "_execute", mock):
+            result = await LibrusManager.fetch_message_window("test_student", 0, "sent", 0, 150, 3)
+        assert result["messages"] == batch
+        assert result["pages_fetched"] == 1
+        assert result["next_page"] is None
+        assert result["truncated"] is False
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("mode", ["window", "all_pages"])
+    async def test_whole_operation_deadline_cancels_second_page(self, monkeypatch, mode):
+        monkeypatch.setattr(librus_client_module, "MESSAGE_COLLECTION_TIMEOUT_SECONDS", 0.05)
+        cancelled = asyncio.Event()
+
+        async def fetch(alias, operation, *args):
+            if operation is librus_client_module.librus_optimizations.get_received_first_page:
+                return (2, _messages(0, 50))
+            try:
+                await asyncio.Event().wait()
+            finally:
+                cancelled.set()
+
+        with (
+            patch.object(LibrusManager, "_execute", side_effect=fetch),
+            pytest.raises(TimeoutError, match="message collection exceeded"),
+        ):
+            if mode == "window":
+                await LibrusManager.fetch_message_window("test_student", 0, "received", 0, 150, 3)
+            else:
+                await LibrusManager.fetch_all_messages("test_student", "received")
+        assert cancelled.is_set()
+
+
 class TestScheduleDetailValidation:
     @pytest.mark.asyncio
     async def test_valid_href_splits_prefix_and_suffix(self):
