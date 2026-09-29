@@ -2,6 +2,19 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.6.0] - 2026-09-29
+
+### Added
+
+- Add opt-in bounded message reads using `limit` and `max_pages`, with
+  `next_page` and `next_offset` for best-effort continuation within a page.
+  Keep the existing one-page and `all_pages` responses unchanged. Sent mailboxes
+  have no reliable last-page count and may repeat rows across requests.
+- Set whole-operation deadlines for multi-page messages (120 seconds) and
+  completed lessons (180 seconds). A timeout returns an error, not partial data.
+- Document native OpenCode V2 MCP setup separately from V1; confirm connection
+  and discovery of 21 tools on V2 with synthetic credentials.
+
 ## [1.5.1] - 2026-09-29
 
 ### Changed

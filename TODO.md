@@ -1,6 +1,6 @@
 # TODO
 
-This roadmap tracks remaining work after 1.5.1. Each work group can be
+This roadmap tracks remaining work after 1.6.0. Each work group can be
 delivered independently. Version numbers below indicate compatibility risk,
 not a release commitment:
 
@@ -8,18 +8,17 @@ not a release commitment:
   resource controls, safety fixes, and documentation.
 - Major release (`2.0.0`): deliberate tool, response, package, or configuration contract changes.
 
-## Remaining Work After 1.5.1
+## Remaining Work After 1.6.0
 
-Prioritize output contracts and the measured tool catalog first, then bounded
-collection UX and runtime resource control. Preserve the existing text response
-shapes and feature gates until a documented 2.0 migration. The `send_message`
-write result now advertises a schema for non-error results; uncertain delivery
-remains an MCP error, not a successful result variant.
+Continue bounded collection UX and runtime resource control. Preserve the
+existing text response shapes and feature gates until a documented 2.0
+migration. Message windows now have cursors; completed lessons still return a
+legacy list with no continuation metadata.
 
 Next independent batches:
 
-1. Introduce bounded pagination and whole-operation deadlines without removing
-   the current `all_pages` entry point.
+1. Add opt-in bounded continuation for completed lessons without changing the
+   legacy list response; then address other large collections as needed.
 2. Bound aggregate cross-account work and move state I/O off the event loop.
 3. Anonymize a populated behaviour-note page before enabling the feature by default.
 
