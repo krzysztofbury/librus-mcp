@@ -625,6 +625,29 @@ class TestFirstPageReuse:
 
 
 class TestParallelNotifications:
+    def test_new_unread_message_on_first_page_is_reported(self):
+        seen = NotificationIds([], [], ["/old"], [], [], [])
+        client = SimpleNamespace(token=object(), cookies={}, _session=SimpleNamespace())
+        message = SimpleNamespace(href="/new", unread=True)
+
+        def received(client, page):
+            return [message] if page == 0 else []
+
+        with (
+            patch.object(librus_optimizations, "get_grades", return_value=([], {}, [])),
+            patch.object(librus_optimizations, "get_attendance", return_value=[]),
+            patch.object(librus_optimizations, "get_received", side_effect=received),
+            patch.object(librus_optimizations, "get_announcements", return_value=[]),
+            patch.object(librus_optimizations, "get_homework", return_value=[]),
+            patch.object(librus_optimizations, "get_recently_added_schedule", return_value=[]),
+        ):
+            data, updated = librus_optimizations.get_new_notifications(
+                client, seen, lambda: MagicMock()
+            )
+
+        assert data.messages == [message]
+        assert updated.messages == ["/old", "/new"]
+
     def test_notification_queue_blocks_when_running_and_waiting_slots_are_full(self):
         release = threading.Event()
         started = threading.Condition()
@@ -646,20 +669,24 @@ class TestParallelNotifications:
                 client, lambda: MagicMock(), blocked
             )
 
-        with ThreadPoolExecutor(max_workers=1) as caller:
-            futures = [
+        def submit_six():
+            return [
                 librus_optimizations._submit_notification_call(client, lambda: MagicMock(), blocked)
-                for _ in range(librus_optimizations.NOTIFICATION_MAX_IN_FLIGHT)
+                for _ in range(6)
             ]
+
+        with ThreadPoolExecutor(max_workers=2) as callers:
+            batch = callers.submit(submit_six)
             try:
+                # Six requests must fit (three running, three queued). A seventh
+                # must wait rather than growing the process-wide executor queue.
+                futures = batch.result(timeout=2)
                 with started:
-                    assert started.wait_for(
-                        lambda: active == librus_optimizations.NOTIFICATION_CONCURRENCY,
-                        timeout=5,
-                    )
-                extra = caller.submit(submit_extra)
+                    assert started.wait_for(lambda: active == 3, timeout=5)
+                extra = callers.submit(submit_extra)
                 assert submitting.wait(2)
-                assert not extra.done()
+                with pytest.raises(TimeoutError):
+                    extra.result(timeout=0.1)
             finally:
                 release.set()
             for future in futures:
