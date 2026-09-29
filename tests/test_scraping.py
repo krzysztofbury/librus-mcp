@@ -331,6 +331,7 @@ class TestDownloadAttachment:
         second_call = mock.call_args_list[1]
         assert second_call.args[0] == "https://sandbox.librus.pl/GetFile/abc123/get"
         assert "cookies" not in second_call.kwargs
+        assert second_call.kwargs["allow_redirects"] is False
         assert second_call.kwargs["headers"]["Accept-Encoding"] == "identity"
 
     def test_final_name_appears_only_after_complete_download(self, tmp_path):

@@ -415,6 +415,27 @@ class TestGetBehaviourNotes:
 
 class TestSendMessageTools:
     @pytest.mark.asyncio
+    async def test_expired_preview_frees_capacity_for_new_confirmation(self):
+        from src import server
+
+        with (
+            patch.object(server, "MAX_PENDING_CONFIRMATIONS", 1),
+            patch.object(
+                server.time,
+                "monotonic",
+                side_effect=[100.0, 101.0 + server.SEND_CONFIRMATION_TTL_SECONDS],
+            ),
+            patch.object(LibrusManager, "send_message_to", new_callable=AsyncMock) as send,
+        ):
+            first = await send_message("test_student", "First", "Body", ["12345"])
+            second = await send_message("test_student", "Second", "Body", ["12345"])
+
+        assert first["status"] == second["status"] == "confirmation_required"
+        assert first["confirm_token"] != second["confirm_token"]
+        assert first["confirm_token"] not in server._pending_confirmations
+        send.assert_not_awaited()
+
+    @pytest.mark.asyncio
     async def test_recipient_groups(self):
         with _mock_execute(["nauczyciel", "wychowawca"]):
             result = await get_recipient_groups("test_student")
