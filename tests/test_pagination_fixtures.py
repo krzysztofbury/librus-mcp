@@ -103,6 +103,27 @@ async def test_received_messages_parse_every_fixture_page_once(populated_message
 
 
 @pytest.mark.asyncio
+async def test_bounded_received_page_uses_its_own_pagination_metadata(populated_message_pages):
+    client = SimpleNamespace(MESSAGE_URL="https://synergia.librus.pl/messages")
+    client.get = MagicMock(side_effect=AssertionError("page zero must not be fetched"))
+    client.post = MagicMock(return_value=SimpleNamespace(text=populated_message_pages[1]))
+
+    def execute(alias, function, *args, **kwargs):
+        return function(client, *args, **kwargs)
+
+    with patch.object(LibrusManager, "_execute", AsyncMock(side_effect=execute)):
+        result = await LibrusManager.fetch_message_window("test_student", 1, "received", 0, 10, 1)
+
+    assert [message.href for message in result["messages"]] == ["200", "201"]
+    assert result["max_page"] == 2
+    client.get.assert_not_called()
+    client.post.assert_called_once_with(
+        client.MESSAGE_URL,
+        data={"numer_strony105": 1, "porcjowanie_pojemnik105": "105"},
+    )
+
+
+@pytest.mark.asyncio
 async def test_completed_lessons_parse_every_fixture_page_once(populated_lesson_pages):
     client = SimpleNamespace(COMPLETED_LESSONS_URL="https://synergia.librus.pl/completed-lessons")
     posted_pages: list[int] = []

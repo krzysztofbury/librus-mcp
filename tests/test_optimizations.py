@@ -130,6 +130,54 @@ def scoped_gateway_cookies():
 
 
 class TestSubjectFrequency:
+    def test_gateway_metadata_cache_is_bounded_and_scoped_to_client(self, monkeypatch):
+        base = "https://synergia.librus.pl"
+        monkeypatch.setattr(librus_optimizations, "MAX_CACHED_LESSONS", 1)
+        FakeClientSession.responses = {
+            f"{base}/gateway/api/2.0/Lessons/1": {"Lesson": {"Subject": {"Id": 9}}},
+            f"{base}/gateway/api/2.0/Lessons/2": {"Lesson": {"Subject": {"Id": 9}}},
+            f"{base}/gateway/api/2.0/Subjects/9": {"Subject": {"Name": "Math"}},
+        }
+        FakeClientSession.requested_urls = []
+        FakeClientSession.activity = {"active": 0, "max": 0}
+
+        def client(lesson_id):
+            payload = {
+                "Attendances": [
+                    {"Date": "2026-01-01", "Lesson": {"Id": lesson_id}, "Type": {"Id": 100}}
+                ]
+            }
+            return SimpleNamespace(
+                BASE_URL=base,
+                GATEWAY_API_ATTENDANCE=f"{base}/gateway/api/2.0/Attendances",
+                proxy={},
+                _session=SimpleNamespace(cookies=RequestsCookieJar(), headers={}),
+                refresh_oauth=MagicMock(),
+                get=MagicMock(return_value=SimpleNamespace(json=lambda: payload)),
+            )
+
+        first = client(1)
+        with patch.object(librus_optimizations, "ClientSession", FakeClientSession):
+            assert librus_optimizations.get_subject_frequency(first) == {"Math": 100.0}
+        with patch.object(
+            librus_optimizations,
+            "ClientSession",
+            side_effect=AssertionError("warm cache opened a session"),
+        ):
+            assert librus_optimizations.get_subject_frequency(first) == {"Math": 100.0}
+        with patch.object(librus_optimizations, "ClientSession", FakeClientSession):
+            first.get.return_value = client(2).get.return_value
+            assert librus_optimizations.get_subject_frequency(first) == {"Math": 100.0}
+            first.get.return_value = client(1).get.return_value
+            assert librus_optimizations.get_subject_frequency(first) == {"Math": 100.0}
+            assert librus_optimizations.get_subject_frequency(client(1)) == {"Math": 100.0}
+
+        urls = FakeClientSession.requested_urls
+        assert urls.count(f"{base}/gateway/api/2.0/Lessons/1") == 3
+        assert urls.count(f"{base}/gateway/api/2.0/Lessons/2") == 1
+        assert urls.count(f"{base}/gateway/api/2.0/Subjects/9") == 2
+        assert first.get.call_count == 4  # Attendance is always fetched fresh.
+
     @pytest.mark.parametrize(
         ("payload", "message"),
         [
@@ -625,6 +673,46 @@ class TestFirstPageReuse:
 
 
 class TestParallelNotifications:
+    def test_filtered_notifications_leave_unrequested_categories_unread(self):
+        seen = NotificationIds(["/old"], [], [], [], ["schedule-id"], [])
+        client = SimpleNamespace(token=object(), cookies={}, _session=SimpleNamespace())
+        with (
+            patch.object(librus_optimizations, "get_grades", return_value=([], {}, [])),
+            patch.object(librus_optimizations, "get_attendance") as attendance,
+            patch.object(librus_optimizations, "get_received") as messages,
+            patch.object(librus_optimizations, "get_announcements") as announcements,
+            patch.object(librus_optimizations, "get_homework") as homework,
+            patch.object(librus_optimizations, "get_recently_added_schedule") as schedule,
+        ):
+            data, updated = librus_optimizations.get_new_notifications(
+                client, seen, lambda: MagicMock(), categories=("grades",)
+            )
+
+        for unused in (attendance, messages, announcements, homework, schedule):
+            unused.assert_not_called()
+        assert data.messages == data.schedule == data.attendance == []
+        assert updated.schedule == ["schedule-id"]
+
+    def test_schedule_only_filter_does_not_fetch_other_categories(self):
+        event = RecentEvent("2026-09-15 08:00", "Sprawdzian", "Matematyka")
+        seen = NotificationIds([], [], [], [], [], [])
+        with (
+            patch.object(librus_optimizations, "get_grades") as grades,
+            patch.object(librus_optimizations, "get_received") as messages,
+            patch.object(librus_optimizations, "get_recently_added_schedule", return_value=[event]),
+        ):
+            data, updated = librus_optimizations.get_new_notifications(
+                SimpleNamespace(),
+                seen,
+                lambda: MagicMock(),
+                schedule_checkpoint=MagicMock(),
+                categories=("schedule",),
+            )
+        grades.assert_not_called()
+        messages.assert_not_called()
+        assert data.schedule == [event]
+        assert updated.schedule == [schedule_event_id(event)]
+
     def test_new_unread_message_on_first_page_is_reported(self):
         seen = NotificationIds([], [], ["/old"], [], [], [])
         client = SimpleNamespace(token=object(), cookies={}, _session=SimpleNamespace())

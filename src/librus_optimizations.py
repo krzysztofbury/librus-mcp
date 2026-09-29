@@ -5,7 +5,8 @@ import copy
 import json
 import re
 import threading
-from collections import defaultdict
+import time
+from collections import OrderedDict, defaultdict
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from datetime import date, datetime, timedelta
@@ -80,6 +81,9 @@ MAX_SCHEDULE_EVENTS_PER_CALL = 500
 MAX_ATTENDANCE_RECORDS = 10_000
 MAX_UNIQUE_LESSON_IDS = 2_000
 MAX_UNIQUE_SUBJECT_IDS = 500
+MAX_CACHED_LESSONS = 512
+MAX_CACHED_SUBJECTS = 128
+METADATA_CACHE_TTL_SECONDS = 300.0
 SCHOOL_TIME_ZONE = ZoneInfo("Europe/Warsaw")
 
 ATTENDANCE_TYPES = {
@@ -180,6 +184,31 @@ async def _resolve_subjects(
         raise ValueError(f"unique lesson count exceeds {MAX_UNIQUE_LESSON_IDS}")
     if not lesson_ids:
         return []
+    cache = getattr(client, "_librus_metadata_cache", None)
+    if cache is None:
+        cache = (OrderedDict(), OrderedDict())
+        client._librus_metadata_cache = cache
+    lesson_cache, subject_cache = cache
+    lesson_subjects: dict[int | str, int | str] = {}
+    missing_lessons: list[int | str] = []
+    for lesson_id in lesson_ids:
+        cached = _metadata_cache_get(lesson_cache, str(lesson_id))
+        if cached is None:
+            missing_lessons.append(lesson_id)
+        else:
+            lesson_subjects[lesson_id] = cached
+    if not missing_lessons:
+        subject_ids = list(dict.fromkeys(lesson_subjects.values()))
+        if len(subject_ids) > MAX_UNIQUE_SUBJECT_IDS:
+            raise ValueError(f"unique subject count exceeds {MAX_UNIQUE_SUBJECT_IDS}")
+        subject_names = {
+            subject_id: _metadata_cache_get(subject_cache, str(subject_id))
+            for subject_id in subject_ids
+        }
+        if all(name is not None for name in subject_names.values()):
+            return _resolved_attendance_subjects(
+                attendances, attendance_type_ids, lesson_subjects, subject_names
+            )
     semaphore = asyncio.Semaphore(GATEWAY_CONCURRENCY)
     proxy = client.proxy.get("https") or client.proxy.get("http")
     timeout = ClientTimeout(total=GATEWAY_REQUEST_TIMEOUT_SECONDS)
@@ -197,16 +226,24 @@ async def _resolve_subjects(
                     semaphore,
                     proxy,
                 )
-                for lesson_id in lesson_ids
+                for lesson_id in missing_lessons
             ]
         )
-        lesson_subjects = {
-            lesson_id: _gateway_id(payload, ("Lesson", "Subject", "Id"), "lesson response")
-            for lesson_id, payload in zip(lesson_ids, lesson_payloads, strict=True)
-        }
+        for lesson_id, payload in zip(missing_lessons, lesson_payloads, strict=True):
+            subject_id = _gateway_id(payload, ("Lesson", "Subject", "Id"), "lesson response")
+            lesson_subjects[lesson_id] = subject_id
+            _metadata_cache_put(lesson_cache, str(lesson_id), subject_id, MAX_CACHED_LESSONS)
         subject_ids = list(dict.fromkeys(lesson_subjects.values()))
         if len(subject_ids) > MAX_UNIQUE_SUBJECT_IDS:
             raise ValueError(f"unique subject count exceeds {MAX_UNIQUE_SUBJECT_IDS}")
+        subject_names: dict[int | str, str] = {}
+        missing_subjects: list[int | str] = []
+        for subject_id in subject_ids:
+            cached = _metadata_cache_get(subject_cache, str(subject_id))
+            if cached is None:
+                missing_subjects.append(subject_id)
+            else:
+                subject_names[subject_id] = cached
         subject_payloads = await asyncio.gather(
             *[
                 _request_json(
@@ -215,15 +252,26 @@ async def _resolve_subjects(
                     semaphore,
                     proxy,
                 )
-                for subject_id in subject_ids
+                for subject_id in missing_subjects
             ]
         )
-    subject_names: dict[int | str, str] = {}
-    for subject_id, payload in zip(subject_ids, subject_payloads, strict=True):
-        name = _gateway_field(payload, ("Subject", "Name"), "subject response")
-        if not isinstance(name, str) or not name.strip():
-            raise ParseError("gateway subject response has invalid Subject.Name")
-        subject_names[subject_id] = name
+        for subject_id, payload in zip(missing_subjects, subject_payloads, strict=True):
+            name = _gateway_field(payload, ("Subject", "Name"), "subject response")
+            if not isinstance(name, str) or not name.strip():
+                raise ParseError("gateway subject response has invalid Subject.Name")
+            subject_names[subject_id] = name
+            _metadata_cache_put(subject_cache, str(subject_id), name, MAX_CACHED_SUBJECTS)
+    return _resolved_attendance_subjects(
+        attendances, attendance_type_ids, lesson_subjects, subject_names
+    )
+
+
+def _resolved_attendance_subjects(
+    attendances: list[dict[str, Any]],
+    attendance_type_ids: list[int | str],
+    lesson_subjects: dict[int | str, int | str],
+    subject_names: dict[int | str, str],
+) -> list[tuple[str, str]]:
     return [
         (
             subject_names[
@@ -233,6 +281,27 @@ async def _resolve_subjects(
         )
         for attendance, type_id in zip(attendances, attendance_type_ids, strict=True)
     ]
+
+
+def _metadata_cache_get(cache: OrderedDict[str, tuple[Any, float]], key: str) -> Any | None:
+    entry = cache.get(key)
+    if entry is None:
+        return None
+    value, expires_at = entry
+    if time.monotonic() >= expires_at:
+        del cache[key]
+        return None
+    cache.move_to_end(key)
+    return value
+
+
+def _metadata_cache_put(
+    cache: OrderedDict[str, tuple[Any, float]], key: str, value: Any, capacity: int
+) -> None:
+    cache[key] = (value, time.monotonic() + METADATA_CACHE_TTL_SECONDS)
+    cache.move_to_end(key)
+    if len(cache) > capacity:
+        cache.popitem(last=False)
 
 
 def _gateway_cookie_jar(cookies: RequestsCookieJar, base_url: str) -> CookieJar:
@@ -320,8 +389,14 @@ def get_new_notifications(
     session_factory: Callable[[], Any],
     pending_schedule: list[RecentEvent] | None = None,
     schedule_checkpoint: Callable[[list[RecentEvent]], None] | None = None,
+    categories: tuple[str, ...] | None = None,
 ) -> tuple[NotificationData, NotificationIds]:
     """Fetch safe categories first, then checkpoint the read-once schedule."""
+    selected = (
+        set(categories)
+        if categories is not None
+        else {"grades", "attendance", "messages", "announcements", "schedule", "homework"}
+    )
     today = datetime.now(SCHOOL_TIME_ZONE).date()
     calls = {
         "grades": (get_grades, ("last_login",)),
@@ -339,6 +414,7 @@ def get_new_notifications(
     futures = {
         name: _submit_notification_call(client, session_factory, function, *args)
         for name, (function, args) in calls.items()
+        if name in selected
     }
     results = {}
     failure = None
@@ -352,22 +428,37 @@ def get_new_notifications(
                 failure = error
     if failure is not None:
         raise failure
-    schedule = [] if pending_schedule else get_recently_added_schedule(client)
-    _checkpoint_and_bound_schedule(pending_schedule or [], schedule, schedule_checkpoint)
-    grades, _, _ = results["grades"]
-    homework = results["homework"][::-1]
-    new_schedule, seen_schedule = _parse_schedule_notifications(
-        pending_schedule or [], schedule, seen.schedule
-    )
-    new_grades, seen_grades = _parse_grades_notifications(grades, seen.grades)
-    new_attendance, seen_attendance = _parse_attendance_notification(
-        results["attendance"], seen.attendance
-    )
-    new_messages, seen_messages = _parse_messages_notification(results["messages"], seen.messages)
-    new_announcements, seen_announcements = _parse_announcements_notification(
-        results["announcements"], seen.announcements
-    )
-    new_homework, seen_homework = _parse_homework_notification(homework, seen.homework)
+    new_schedule, seen_schedule = [], seen.schedule
+    if "schedule" in selected:
+        schedule = [] if pending_schedule else get_recently_added_schedule(client)
+        _checkpoint_and_bound_schedule(pending_schedule or [], schedule, schedule_checkpoint)
+        new_schedule, seen_schedule = _parse_schedule_notifications(
+            pending_schedule or [], schedule, seen.schedule
+        )
+    new_grades, seen_grades = [], seen.grades
+    if "grades" in selected:
+        grades, _, _ = results["grades"]
+        new_grades, seen_grades = _parse_grades_notifications(grades, seen.grades)
+    new_attendance, seen_attendance = [], seen.attendance
+    if "attendance" in selected:
+        new_attendance, seen_attendance = _parse_attendance_notification(
+            results["attendance"], seen.attendance
+        )
+    new_messages, seen_messages = [], seen.messages
+    if "messages" in selected:
+        new_messages, seen_messages = _parse_messages_notification(
+            results["messages"], seen.messages
+        )
+    new_announcements, seen_announcements = [], seen.announcements
+    if "announcements" in selected:
+        new_announcements, seen_announcements = _parse_announcements_notification(
+            results["announcements"], seen.announcements
+        )
+    new_homework, seen_homework = [], seen.homework
+    if "homework" in selected:
+        new_homework, seen_homework = _parse_homework_notification(
+            results["homework"][::-1], seen.homework
+        )
     return NotificationData(
         new_grades,
         new_attendance,
@@ -453,6 +544,13 @@ def _call_with_clone(
 def get_received_first_page(client: Client) -> tuple[int, list[Any]]:
     """Parse received messages and their last page index from one GET."""
     soup = no_access_check(BeautifulSoup(client.get(client.MESSAGE_URL).text, "lxml"))
+    return _last_page_index(soup), parse_messages(soup)
+
+
+def get_received_page_with_metadata(client: Client, page: int) -> tuple[int, list[Any]]:
+    """Read one requested page and its pagination count from the same response."""
+    data = {"numer_strony105": page, "porcjowanie_pojemnik105": "105"}
+    soup = no_access_check(BeautifulSoup(client.post(client.MESSAGE_URL, data=data).text, "lxml"))
     return _last_page_index(soup), parse_messages(soup)
 
 

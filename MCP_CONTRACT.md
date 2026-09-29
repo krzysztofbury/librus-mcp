@@ -17,17 +17,21 @@ not contact Librus or invoke tools that consume read-once events or send message
 
 | Profile | Tools | Before typing | Before shortening | Current | Typed output schemas | Context budget |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| Default | 22 | 16,728 B | 32,219 B | 31,732 B | 22 | 48 KiB |
-| All feature gates enabled | 26 | 20,763 B | 38,981 B | 37,729 B | 26 | 64 KiB |
+| Default | 24 | 16,728 B | 32,219 B | 36,297 B | 24 | 48 KiB |
+| All feature gates enabled | 28 | 20,763 B | 38,981 B | 42,294 B | 28 | 64 KiB |
 
 Measurements use the `uv.lock` dependency set. The before-typing and default
 before-shortening values were recorded on 2026-09-27; the all-features
 before-shortening and both current values were measured on 2026-09-29.
 The before-typing and before-shortening columns describe the earlier 21/25-tool
-catalog; the current 22/26-tool catalog includes `get_completed_lessons_page`.
+catalog; the current 24/28-tool catalog includes `get_completed_lessons_page`,
+`get_grades_window` and `get_attendance_window`.
 Default gates include notifications and attachments; behaviour notes and
 sending messages require opt-in. The CI budget guards total catalog growth,
 not the exact bytes of every SDK-generated schema.
+Feature profiles beyond the existing four optional gates were evaluated but
+deferred: neither catalog approaches its context budget, while another gate
+would complicate setup and tool discovery.
 The reviewed full catalog schema/annotation snapshot lives in
 `tests/snapshots/tool_contracts_all.json`. Refresh it with
 `uv run python release_verification/measure_tools.py --contracts --all-features`
@@ -48,9 +52,11 @@ in `structuredContent`; this is not a new envelope in the text content.
 | --- | --- |
 | `list_students` | `result`: list of account aliases. |
 | `get_grades` | `numeric`: list of per-semester maps from subject to grade rows; `gpa`: subject map of `{semester, gpa, subject}` rows; `descriptive`: list of per-semester maps from subject to descriptive grade rows. Grade rows retain title, grade, counts, date, href, desc, semester, category, teacher and weight. GPA can be a number or `"-"`. |
-| `get_messages` | `messages`: rows with author, title, date, href, unread and has_attachment; `folder`, `truncated`. A one-page result also has `page` and `max_page` (null for sent messages); legacy `all_pages` instead has `pages_fetched`. Bounded results also include `offset`, `pages_fetched`, `next_page` and `next_offset` (both null at the end or when continuation is unsafe). Missing keys in legacy results remain missing. |
+| `get_grades_window` | `items`: dated numeric and descriptive rows with `kind`, `subject`, `grade`, `date`, `semester`; full rows retain existing details, compact rows omit them. `offset`, nullable `next_offset`, `truncated`. Undated GPA summaries stay in `get_grades`. |
+| `get_messages` | `messages`: rows with author, title, date, href, unread and has_attachment; `folder`, `truncated`. A one-page result also has `page` and `max_page` (null for sent messages); legacy `all_pages` instead has `pages_fetched`. Bounded results also include `offset`, `pages_fetched`, `next_page`, `next_offset` and `mailbox_changed` (true on detected received-page overlap/repeat). Cursors are null when continuation is unsafe. Missing keys in legacy results remain missing. |
 | `get_message_content` | Required author, title, date and content. |
 | `get_attendance` | `result`: list of semester lists. Entries include symbol, href, semester, date, type, teacher, period, excursion, topic and subject. |
+| `get_attendance_window` | `items`: attendance rows with date, subject, type, period and semester; full rows retain existing details, compact rows omit them. `offset`, nullable `next_offset`, `truncated`. |
 | `get_attendance_detail` | Map of upstream Polish label to string value. |
 | `get_attendance_frequency` | Required first_semester, second_semester and overall ratios (0 to 1). |
 | `get_subject_frequency` | Map of subject to percentage (0 to 100). |
@@ -65,7 +71,7 @@ in `structuredContent`; this is not a new envelope in the text content.
 | `get_student_information` | name, class_name, number, tutor, school and lucky_number (number or `"?"`). |
 | `get_final_grades` | `result`: subject, midterm, predicted_final and final per subject; `"-"` means not issued. |
 | `get_recent_schedule_events` | `result`: date_added, type and data per event. This consumes a read-once upstream view and checkpoints it locally. |
-| `get_new_notifications` | `first_run` and `new`, containing grade, attendance, message, announcement, schedule and homework lists. Reading updates local seen state. |
+| `get_new_notifications` | `first_run` and `new`, containing grade, attendance, message, announcement, schedule and homework lists. Optional `categories` filters work and seen-state updates; unrequested categories return empty lists and do not consume read-once schedule events. |
 | `get_message_attachments` | `result`: filename, message_id and file_id per attachment. |
 | `download_attachment` | path, filename, size in bytes and content_type. The path is local to the server. |
 | `get_behaviour_notes` | `result`: date, teacher, category and content per note. Experimental and disabled by default. |
@@ -88,6 +94,8 @@ are validated by the MCP SDK and again by the client wrapper where necessary:
   Use the returned pair as the next `page` and `offset`; the cursor is not a
   snapshot. A full last sent page can yield a speculative next cursor that
   repeats rows across requests; consumers should compare message IDs.
+  A detected received-page overlap or repeat sets `mailbox_changed=true` and
+  suppresses the next cursor. `false` does not imply a stable cross-call snapshot.
   `all_pages` stays available
   for old clients but cannot be combined with bounds or an offset. Multi-page
   message reads have a 120-second whole-operation deadline; completed lessons
@@ -103,6 +111,15 @@ are validated by the MCP SDK and again by the client wrapper where necessary:
   a stable snapshot. Timetable uses a Monday date. Subject frequency accepts optional
   `start` and `end`. Calendar inputs use a four-digit year and one- or
   two-digit month; schedule detail takes a validated relative event href.
+- Grade and attendance window tools accept optional inclusive `date_from` and
+  `date_to`, `offset` (0 to 10000), `limit` (1 to 500, default 100), `compact`,
+  and the existing `sort_by` filter. They read the upstream collection before
+  filtering; their offsets are not snapshots. A paired date range is capped at
+  370 days.
+- `get_new_notifications` accepts an optional nonempty list of distinct
+  categories (grades, attendance, messages, announcements, schedule, homework).
+  Without it, the existing all-category behavior is unchanged. Filtering out
+  schedule leaves its read-once view and pending local events untouched.
 - `send_message` requires a non-empty title, content and 1 to 50 unique
   numeric recipient IDs. The schema caps title at 200 characters, content at
   15,000 and each ID at 20; runtime also caps the combined UTF-8 payload at

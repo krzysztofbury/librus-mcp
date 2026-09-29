@@ -332,6 +332,159 @@
       "type": "object"
     }
   },
+  "get_attendance_window": {
+    "annotations": {
+      "openWorldHint": true,
+      "readOnlyHint": true
+    },
+    "inputSchema": {
+      "properties": {
+        "compact": {
+          "default": false,
+          "title": "Compact",
+          "type": "boolean"
+        },
+        "date_from": {
+          "anyOf": [
+            {
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Date From"
+        },
+        "date_to": {
+          "anyOf": [
+            {
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Date To"
+        },
+        "limit": {
+          "default": 100,
+          "maximum": 500,
+          "minimum": 1,
+          "title": "Limit",
+          "type": "integer"
+        },
+        "offset": {
+          "default": 0,
+          "maximum": 10000,
+          "minimum": 0,
+          "title": "Offset",
+          "type": "integer"
+        },
+        "sort_by": {
+          "default": "all",
+          "enum": [
+            "all",
+            "week",
+            "last_login"
+          ],
+          "title": "Sort By",
+          "type": "string"
+        },
+        "student_alias": {
+          "description": "Alias of the student account",
+          "maxLength": 80,
+          "minLength": 1,
+          "pattern": "^(?:[^\\s\\p{C}]|[^\\s\\p{C}](?:[^\\s\\p{C}]| )*[^\\s\\p{C}])$",
+          "title": "Student Alias",
+          "type": "string"
+        }
+      },
+      "required": [
+        "student_alias"
+      ],
+      "title": "get_attendance_windowArguments",
+      "type": "object"
+    },
+    "outputSchema": {
+      "$defs": {
+        "AttendanceWindowItem": {
+          "additionalProperties": true,
+          "properties": {
+            "date": {
+              "title": "Date",
+              "type": "string"
+            },
+            "period": {
+              "title": "Period",
+              "type": "integer"
+            },
+            "semester": {
+              "title": "Semester",
+              "type": "integer"
+            },
+            "subject": {
+              "title": "Subject",
+              "type": "string"
+            },
+            "type": {
+              "title": "Type",
+              "type": "string"
+            }
+          },
+          "required": [
+            "date",
+            "subject",
+            "type",
+            "period",
+            "semester"
+          ],
+          "title": "AttendanceWindowItem",
+          "type": "object"
+        }
+      },
+      "additionalProperties": true,
+      "properties": {
+        "items": {
+          "items": {
+            "$ref": "#/$defs/AttendanceWindowItem"
+          },
+          "title": "Items",
+          "type": "array"
+        },
+        "next_offset": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Next Offset"
+        },
+        "offset": {
+          "title": "Offset",
+          "type": "integer"
+        },
+        "truncated": {
+          "title": "Truncated",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "items",
+        "offset",
+        "next_offset",
+        "truncated"
+      ],
+      "title": "AttendanceWindowOutput",
+      "type": "object"
+    }
+  },
   "get_behaviour_notes": {
     "annotations": {
       "openWorldHint": true,
@@ -981,6 +1134,163 @@
       "type": "object"
     }
   },
+  "get_grades_window": {
+    "annotations": {
+      "openWorldHint": true,
+      "readOnlyHint": true
+    },
+    "inputSchema": {
+      "properties": {
+        "compact": {
+          "default": false,
+          "title": "Compact",
+          "type": "boolean"
+        },
+        "date_from": {
+          "anyOf": [
+            {
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Date From"
+        },
+        "date_to": {
+          "anyOf": [
+            {
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Date To"
+        },
+        "limit": {
+          "default": 100,
+          "maximum": 500,
+          "minimum": 1,
+          "title": "Limit",
+          "type": "integer"
+        },
+        "offset": {
+          "default": 0,
+          "maximum": 10000,
+          "minimum": 0,
+          "title": "Offset",
+          "type": "integer"
+        },
+        "sort_by": {
+          "default": "all",
+          "enum": [
+            "all",
+            "week",
+            "last_login"
+          ],
+          "title": "Sort By",
+          "type": "string"
+        },
+        "student_alias": {
+          "description": "Alias of the student account",
+          "maxLength": 80,
+          "minLength": 1,
+          "pattern": "^(?:[^\\s\\p{C}]|[^\\s\\p{C}](?:[^\\s\\p{C}]| )*[^\\s\\p{C}])$",
+          "title": "Student Alias",
+          "type": "string"
+        }
+      },
+      "required": [
+        "student_alias"
+      ],
+      "title": "get_grades_windowArguments",
+      "type": "object"
+    },
+    "outputSchema": {
+      "$defs": {
+        "GradeWindowItem": {
+          "additionalProperties": true,
+          "properties": {
+            "date": {
+              "title": "Date",
+              "type": "string"
+            },
+            "grade": {
+              "title": "Grade",
+              "type": "string"
+            },
+            "kind": {
+              "enum": [
+                "numeric",
+                "descriptive"
+              ],
+              "title": "Kind",
+              "type": "string"
+            },
+            "semester": {
+              "title": "Semester",
+              "type": "integer"
+            },
+            "subject": {
+              "title": "Subject",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "subject",
+            "grade",
+            "date",
+            "semester"
+          ],
+          "title": "GradeWindowItem",
+          "type": "object"
+        }
+      },
+      "additionalProperties": true,
+      "properties": {
+        "items": {
+          "items": {
+            "$ref": "#/$defs/GradeWindowItem"
+          },
+          "title": "Items",
+          "type": "array"
+        },
+        "next_offset": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Next Offset"
+        },
+        "offset": {
+          "title": "Offset",
+          "type": "integer"
+        },
+        "truncated": {
+          "title": "Truncated",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "items",
+        "offset",
+        "next_offset",
+        "truncated"
+      ],
+      "title": "GradeWindowOutput",
+      "type": "object"
+    }
+  },
   "get_homework": {
     "annotations": {
       "openWorldHint": true,
@@ -1388,6 +1698,18 @@
           "title": "Folder",
           "type": "string"
         },
+        "mailbox_changed": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Mailbox Changed"
+        },
         "max_page": {
           "anyOf": [
             {
@@ -1490,6 +1812,31 @@
     },
     "inputSchema": {
       "properties": {
+        "categories": {
+          "anyOf": [
+            {
+              "items": {
+                "enum": [
+                  "grades",
+                  "attendance",
+                  "messages",
+                  "announcements",
+                  "schedule",
+                  "homework"
+                ],
+                "type": "string"
+              },
+              "maxItems": 6,
+              "minItems": 1,
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Categories"
+        },
         "student_alias": {
           "description": "Alias of the student account",
           "maxLength": 80,

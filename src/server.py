@@ -16,6 +16,8 @@ from src.config import ALIAS_PATTERN, MAX_ALIAS_LENGTH, ConfigError
 from src.librus_client import (
     MAX_ALL_MESSAGE_ITEMS,
     MAX_ALL_MESSAGE_PAGES,
+    MAX_COLLECTION_WINDOW_ITEMS,
+    MAX_COLLECTION_WINDOW_SOURCE_ITEMS,
     MAX_COMPLETED_LESSONS_ITEMS,
     MAX_COMPLETED_LESSONS_PAGES,
     MAX_LESSON_WINDOW_ITEMS,
@@ -32,6 +34,7 @@ from src.output_models import (
     AttachmentOutput,
     AttendanceFrequencyOutput,
     AttendanceOutput,
+    AttendanceWindowOutput,
     BehaviourNoteOutput,
     CompletedLessonOutput,
     CompletedLessonsPageOutput,
@@ -39,6 +42,7 @@ from src.output_models import (
     DownloadOutput,
     FinalGradeOutput,
     GradesOutput,
+    GradeWindowOutput,
     HomeworkOutput,
     MessageContentOutput,
     MessagesOutput,
@@ -108,6 +112,9 @@ RecipientIds = Annotated[
 ]
 IsoDate = Annotated[str, Field(pattern=r"^\d{4}-\d{2}-\d{2}$")]
 SortBy = Literal["all", "week", "last_login"]
+NotificationCategory = Literal[
+    "grades", "attendance", "messages", "announcements", "schedule", "homework"
+]
 
 # MCPServer uses return annotations to publish and validate output schemas.
 # Return the original dictionaries and lists so its legacy text content stays
@@ -139,6 +146,26 @@ async def get_grades(student_alias: StudentAlias, sort_by: SortBy = "all") -> Gr
     """Get numeric, GPA and descriptive grades. sort_by filters to all, this week or since last login."""
     grades = await LibrusManager.fetch_grades(student_alias, sort_by)
     return to_dict(grades)
+
+
+@mcp.tool(annotations=READ_ONLY)
+async def get_grades_window(
+    student_alias: StudentAlias,
+    date_from: IsoDate | None = None,
+    date_to: IsoDate | None = None,
+    offset: Annotated[int, Field(ge=0, le=MAX_COLLECTION_WINDOW_SOURCE_ITEMS)] = 0,
+    limit: Annotated[int, Field(ge=1, le=MAX_COLLECTION_WINDOW_ITEMS)] = 100,
+    compact: bool = False,
+    sort_by: SortBy = "all",
+) -> GradeWindowOutput:
+    """Get bounded dated grade rows. GPA summaries remain in get_grades.
+    Dates filter rows inclusively; compact omits descriptions and other details.
+    Windows reduce response size, not the upstream page fetch. Continue with next_offset.
+    """
+    result = await LibrusManager.fetch_grades_window(
+        student_alias, date_from, date_to, offset, limit, compact, sort_by
+    )
+    return to_dict(result)
 
 
 @mcp.tool(annotations=READ_ONLY)
@@ -189,6 +216,25 @@ async def get_attendance(
     """Get attendance by semester. sort_by filters to all, this week or since last login."""
     attendance = await LibrusManager.fetch_attendance(student_alias, sort_by)
     return to_dict(attendance)
+
+
+@mcp.tool(annotations=READ_ONLY)
+async def get_attendance_window(
+    student_alias: StudentAlias,
+    date_from: IsoDate | None = None,
+    date_to: IsoDate | None = None,
+    offset: Annotated[int, Field(ge=0, le=MAX_COLLECTION_WINDOW_SOURCE_ITEMS)] = 0,
+    limit: Annotated[int, Field(ge=1, le=MAX_COLLECTION_WINDOW_ITEMS)] = 100,
+    compact: bool = False,
+    sort_by: SortBy = "all",
+) -> AttendanceWindowOutput:
+    """Get bounded attendance rows with inclusive dates and optional compact fields.
+    Windows reduce response size, not the upstream page fetch. Continue with next_offset.
+    """
+    result = await LibrusManager.fetch_attendance_window(
+        student_alias, date_from, date_to, offset, limit, compact, sort_by
+    )
+    return to_dict(result)
 
 
 @mcp.tool(annotations=READ_ONLY)
@@ -328,12 +374,19 @@ async def get_recent_schedule_events(
 # --- Optional tools, registered by register_optional_tools() based on config features ---
 
 
-async def get_new_notifications(student_alias: StudentAlias) -> NotificationsOutput:
+async def get_new_notifications(
+    student_alias: StudentAlias,
+    categories: Annotated[
+        list[NotificationCategory] | None, Field(min_length=1, max_length=6)
+    ] = None,
+) -> NotificationsOutput:
     """Get new grades, attendance, messages, announcements, events and homework.
     Advances local seen state; first_run returns the baseline since last login.
-    Interrupted read-once schedule events may replay.
+    Supply categories to read only those categories; unrequested categories do
+    not advance state. Include schedule to consume read-once events. Interrupted
+    read-once schedule events may replay.
     """
-    result = await LibrusManager.fetch_new_notifications(student_alias)
+    result = await LibrusManager.fetch_new_notifications(student_alias, categories)
     return to_dict(result)
 
 

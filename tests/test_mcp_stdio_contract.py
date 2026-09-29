@@ -69,9 +69,9 @@ async def test_stdio_tool_schemas_and_annotations_match_reviewed_snapshot():
     all_tools = tool_contracts(await list_tools(True))
     default_tools = tool_contracts(await list_tools(False))
 
-    assert len(snapshot) == 26
+    assert len(snapshot) == 28
     assert all_tools == snapshot
-    assert len(default_tools) == 22
+    assert len(default_tools) == 24
     assert default_tools == {name: snapshot[name] for name in default_tools}
     assert set(all_tools) - set(default_tools) == {
         "get_behaviour_notes",
@@ -362,6 +362,57 @@ async def test_stdio_optional_notification_shape_without_consuming_live_events()
                 assert result.is_error is not True
                 assert json.loads(result.content[0].text) == expected
                 assert result.structured_content == expected
+
+
+@pytest.mark.asyncio
+async def test_stdio_bounded_grade_and_attendance_windows_keep_typed_output():
+    grade = {
+        "kind": "numeric",
+        "subject": "Math",
+        "grade": "5",
+        "date": "2026-09-01",
+        "semester": 1,
+    }
+    attendance = {
+        "date": "2026-09-01",
+        "subject": "Math",
+        "type": "Present",
+        "period": 1,
+        "semester": 1,
+    }
+    child_script = (
+        "from unittest.mock import AsyncMock, patch\n"
+        "from src.cli import main\n"
+        "from src.librus_client import LibrusManager\n"
+        f"grade, attendance = {grade!r}, {attendance!r}\n"
+        "with (\n"
+        "    patch.object(LibrusManager, 'fetch_grades_window', AsyncMock(return_value={"
+        "'items': [grade], 'offset': 0, 'next_offset': None, 'truncated': False})),\n"
+        "    patch.object(LibrusManager, 'fetch_attendance_window', AsyncMock(return_value={"
+        "'items': [attendance], 'offset': 0, 'next_offset': None, 'truncated': False})),\n"
+        "):\n"
+        "    main([])\n"
+    )
+    with anyio.fail_after(30):
+        async with stdio_client(_server(child_script)) as streams:
+            async with ClientSession(*streams) as session:
+                await session.initialize()
+                for tool, row in (
+                    ("get_grades_window", grade),
+                    ("get_attendance_window", attendance),
+                ):
+                    result = await session.call_tool(
+                        tool, {"student_alias": "synthetic", "compact": True}
+                    )
+                    expected = {
+                        "items": [row],
+                        "offset": 0,
+                        "next_offset": None,
+                        "truncated": False,
+                    }
+                    assert result.is_error is not True
+                    assert json.loads(result.content[0].text) == expected
+                    assert result.structured_content == expected
 
 
 @pytest.mark.asyncio

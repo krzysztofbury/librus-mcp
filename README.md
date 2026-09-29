@@ -81,7 +81,7 @@ on macOS or `%APPDATA%\Claude\claude_desktop_config.json` on Windows.
   "mcpServers": {
     "librus": {
       "command": "uvx",
-      "args": ["librus-mcp==1.6.2", "--config", "/absolute/path/to/secrets.json"]
+      "args": ["librus-mcp==1.7.0", "--config", "/absolute/path/to/secrets.json"]
     }
   }
 }
@@ -93,7 +93,7 @@ Run this once in a terminal:
 
 ```bash
 claude mcp add --scope user --transport stdio librus \
-  -- uvx librus-mcp==1.6.2 --config /absolute/path/to/secrets.json
+  -- uvx librus-mcp==1.7.0 --config /absolute/path/to/secrets.json
 ```
 
 #### Gemini CLI
@@ -102,7 +102,7 @@ Run this once in a terminal. User scope keeps school credentials out of project 
 
 ```bash
 gemini mcp add --scope user --transport stdio \
-  librus uvx librus-mcp==1.6.2 --config /absolute/path/to/secrets.json
+  librus uvx librus-mcp==1.7.0 --config /absolute/path/to/secrets.json
 ```
 
 #### OpenAI Codex CLI
@@ -111,7 +111,7 @@ Run this once in a terminal:
 
 ```bash
 codex mcp add librus \
-  -- uvx librus-mcp==1.6.2 --config /absolute/path/to/secrets.json
+  -- uvx librus-mcp==1.7.0 --config /absolute/path/to/secrets.json
 ```
 
 #### OpenCode V2
@@ -121,7 +121,7 @@ project files; the credentials remain in the private file created above:
 
 ```bash
 opencode mcp add librus --global -- \
-  uvx librus-mcp==1.6.2 --config /absolute/path/to/secrets.json
+  uvx librus-mcp==1.7.0 --config /absolute/path/to/secrets.json
 opencode mcp list
 ```
 
@@ -138,7 +138,7 @@ Alternatively, add this entry under `mcp.servers` in
         "type": "local",
         "command": [
           "uvx",
-          "librus-mcp==1.6.2",
+          "librus-mcp==1.7.0",
           "--config",
           "/absolute/path/to/secrets.json"
         ]
@@ -168,7 +168,7 @@ put `librus` directly under `mcp` in your global `opencode.json`:
       "type": "local",
       "command": [
         "uvx",
-        "librus-mcp==1.6.2",
+        "librus-mcp==1.7.0",
         "--config",
         "/absolute/path/to/secrets.json"
       ],
@@ -208,9 +208,9 @@ These commands are safe to run in a terminal. Replace the example path with the
 same credentials path used in your MCP configuration.
 
 ```bash
-uvx librus-mcp==1.6.2 --version
-uvx librus-mcp==1.6.2 --config /absolute/path/to/secrets.json --check-config
-uvx librus-mcp==1.6.2 --config /absolute/path/to/secrets.json doctor
+uvx librus-mcp==1.7.0 --version
+uvx librus-mcp==1.7.0 --config /absolute/path/to/secrets.json --check-config
+uvx librus-mcp==1.7.0 --config /absolute/path/to/secrets.json doctor
 ```
 
 `--check-config` validates the file without signing in. `doctor` also prepares
@@ -220,7 +220,7 @@ Neither command prints usernames or passwords.
 For an explicit sign-in and read-only check of every configured account, run:
 
 ```bash
-uvx librus-mcp==1.6.2 --config /absolute/path/to/secrets.json doctor --live
+uvx librus-mcp==1.7.0 --config /absolute/path/to/secrets.json doctor --live
 ```
 
 Live doctor mode reads only the student profile. It does not change grades,
@@ -233,7 +233,7 @@ behavior without your decision. To upgrade, replace the old version number in
 your MCP configuration, completely restart or reconnect the client, and run the
 version and doctor commands above.
 
-To track new releases automatically instead, remove `==1.6.2` and use
+To track new releases automatically instead, remove `==1.7.0` and use
 `librus-mcp` as the `uvx` package argument. This is less predictable because a
 future release may be selected after a restart.
 
@@ -361,10 +361,12 @@ Contributors can run the credentialed source-tree smoke test with
 |------|-------------|
 | `list_students()` | List configured student aliases |
 | `get_grades(student_alias, sort_by?)` | Get numeric grades, GPA, and descriptive grades (`all`, `week`, or `last_login`) |
+| `get_grades_window(student_alias, date_from?, date_to?, offset?, limit?, compact?, sort_by?)` | Get up to 500 dated numeric or descriptive grade rows per call, with a continuation offset and optional compact fields. GPA summaries remain in `get_grades` |
 | `get_final_grades(student_alias)` | Get end-of-year summary per subject: midterm, predicted annual (przewidywana roczna), and annual grade |
 | `get_messages(student_alias, page?, folder?, all_pages?, limit?, max_pages?, offset?)` | Get one page of messages or a bounded, resumable batch from `received` or `sent` (50 per page, 2000 overall). Legacy `all_pages` remains available. |
 | `get_message_content(student_alias, message_id)` | Get a message: author, title, date, and content |
 | `get_attendance(student_alias, sort_by?)` | Get attendance records (`all`, `week`, or `last_login`) |
+| `get_attendance_window(student_alias, date_from?, date_to?, offset?, limit?, compact?, sort_by?)` | Get up to 500 dated attendance rows per call, with a continuation offset and optional compact fields |
 | `get_attendance_detail(student_alias, detail_url)` | Get details of one attendance entry by its numeric Librus ID |
 | `get_attendance_frequency(student_alias)` | Get attendance frequency per semester and overall |
 | `get_subject_frequency(student_alias, start?, end?)` | Get per-subject attendance percentage, optionally filtered by date range |
@@ -387,6 +389,12 @@ existing 100-page range cap still applies. The older `get_completed_lessons`
 keeps returning a plain list. Pages can shift if Librus changes while you
 read, so this is not a frozen snapshot.
 
+Grade and attendance windows filter dates inclusively, then return up to
+`limit` rows (default 100) from `offset`. Continue with `next_offset` until it
+is null. `compact=true` omits detailed fields. These windows bound the response
+size, not the upstream fetch; offsets are best effort if the school updates
+records between calls. The original tools retain their existing shapes.
+
 All tools carry MCP `ToolAnnotations` (read-only / destructive / idempotent
 hints), so MCP hosts can apply their own safety policies.
 
@@ -399,6 +407,10 @@ have no reliable last-page count, and a changing mailbox can move messages
 between pages. A full last sent page can yield a speculative next cursor that
 repeats messages; compare message IDs when continuing. This is best-effort,
 not a frozen snapshot.
+For bounded received messages, `mailbox_changed=true` means overlapping or
+repeated pages were detected and the next cursor is withheld. `false` only
+means no change was detected within that call; it does not guarantee a stable
+mailbox across calls. Received rows with validated numeric IDs are deduplicated.
 `all_pages=true` is retained for older clients but can still return up to
 2000 messages; prefer explicit limits for new requests.
 
@@ -409,7 +421,7 @@ These tools are registered based on the `features` section of the configuration
 
 | Tool | Feature gate | Default | Description |
 |------|--------------|---------|-------------|
-| `get_new_notifications(student_alias)` | `notifications` | on | Everything new since the previous call (grades, attendance, messages, announcements, schedule, homework). Seen-state is persisted per student |
+| `get_new_notifications(student_alias, categories?)` | `notifications` | on | Everything new since the previous call, or only selected categories. Unrequested categories are neither read nor advanced; the default includes read-once schedule events. Seen-state is persisted per student |
 | `get_message_attachments(student_alias, message_id)` | `attachments` | on | List attachments (filename + file ID) of a message |
 | `download_attachment(student_alias, message_id, file_id)` | `attachments` | on | Download an attachment to the download directory |
 | `get_behaviour_notes(student_alias)` | `behaviour_notes` | **off** | Experimental behaviour notes (uwagi): date, teacher, category, content |

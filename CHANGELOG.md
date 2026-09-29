@@ -2,6 +2,26 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.7.0] - 2026-09-29
+
+### Added
+
+- Add bounded grade and attendance windows with inclusive optional date filters,
+  compact rows, offsets, and explicit truncation. Legacy tool shapes remain unchanged.
+- Filter notifications by requested categories without fetching or advancing
+  unrequested state. The default still reads every category, including read-once
+  schedule events.
+- Report detected mailbox shifts on bounded received-message reads and withhold
+  unsafe continuation cursors. Cross-request cursors remain best effort.
+
+### Changed
+
+- Deduplicate received messages by validated numeric ID and stop on repeated
+  page signatures. Read pagination metadata from a requested received page
+  rather than making an extra page-zero request.
+- Cache validated lesson and subject gateway metadata per client for five minutes,
+  with separate 512-lesson and 128-subject LRU caps; attendance itself stays fresh.
+
 ## [1.6.2] - 2026-09-29
 
 ### Changed
