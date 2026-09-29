@@ -1,0 +1,2385 @@
+{
+  "download_attachment": {
+    "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": false,
+      "openWorldHint": true,
+      "readOnlyHint": false
+    },
+    "inputSchema": {
+      "properties": {
+        "file_id": {
+          "pattern": "^\\d+$",
+          "title": "File Id",
+          "type": "string"
+        },
+        "message_id": {
+          "pattern": "^\\d+$",
+          "title": "Message Id",
+          "type": "string"
+        },
+        "student_alias": {
+          "description": "Alias of the student account",
+          "maxLength": 80,
+          "minLength": 1,
+          "pattern": "^(?:[^\\s\\p{C}]|[^\\s\\p{C}](?:[^\\s\\p{C}]| )*[^\\s\\p{C}])$",
+          "title": "Student Alias",
+          "type": "string"
+        }
+      },
+      "required": [
+        "student_alias",
+        "message_id",
+        "file_id"
+      ],
+      "title": "download_attachmentArguments",
+      "type": "object"
+    },
+    "outputSchema": {
+      "additionalProperties": true,
+      "properties": {
+        "content_type": {
+          "title": "Content Type",
+          "type": "string"
+        },
+        "filename": {
+          "title": "Filename",
+          "type": "string"
+        },
+        "path": {
+          "title": "Path",
+          "type": "string"
+        },
+        "size": {
+          "title": "Size",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "path",
+        "filename",
+        "size",
+        "content_type"
+      ],
+      "title": "DownloadOutput",
+      "type": "object"
+    }
+  },
+  "get_announcements": {
+    "annotations": {
+      "openWorldHint": true,
+      "readOnlyHint": true
+    },
+    "inputSchema": {
+      "properties": {
+        "student_alias": {
+          "description": "Alias of the student account",
+          "maxLength": 80,
+          "minLength": 1,
+          "pattern": "^(?:[^\\s\\p{C}]|[^\\s\\p{C}](?:[^\\s\\p{C}]| )*[^\\s\\p{C}])$",
+          "title": "Student Alias",
+          "type": "string"
+        }
+      },
+      "required": [
+        "student_alias"
+      ],
+      "title": "get_announcementsArguments",
+      "type": "object"
+    },
+    "outputSchema": {
+      "$defs": {
+        "AnnouncementOutput": {
+          "additionalProperties": true,
+          "properties": {
+            "author": {
+              "title": "Author",
+              "type": "string"
+            },
+            "date": {
+              "title": "Date",
+              "type": "string"
+            },
+            "description": {
+              "title": "Description",
+              "type": "string"
+            },
+            "title": {
+              "title": "Title",
+              "type": "string"
+            }
+          },
+          "required": [
+            "title",
+            "author",
+            "description",
+            "date"
+          ],
+          "title": "AnnouncementOutput",
+          "type": "object"
+        }
+      },
+      "properties": {
+        "result": {
+          "items": {
+            "$ref": "#/$defs/AnnouncementOutput"
+          },
+          "title": "Result",
+          "type": "array"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "title": "get_announcementsOutput",
+      "type": "object"
+    }
+  },
+  "get_attendance": {
+    "annotations": {
+      "openWorldHint": true,
+      "readOnlyHint": true
+    },
+    "inputSchema": {
+      "properties": {
+        "sort_by": {
+          "default": "all",
+          "enum": [
+            "all",
+            "week",
+            "last_login"
+          ],
+          "title": "Sort By",
+          "type": "string"
+        },
+        "student_alias": {
+          "description": "Alias of the student account",
+          "maxLength": 80,
+          "minLength": 1,
+          "pattern": "^(?:[^\\s\\p{C}]|[^\\s\\p{C}](?:[^\\s\\p{C}]| )*[^\\s\\p{C}])$",
+          "title": "Student Alias",
+          "type": "string"
+        }
+      },
+      "required": [
+        "student_alias"
+      ],
+      "title": "get_attendanceArguments",
+      "type": "object"
+    },
+    "outputSchema": {
+      "$defs": {
+        "AttendanceOutput": {
+          "additionalProperties": true,
+          "properties": {
+            "date": {
+              "title": "Date",
+              "type": "string"
+            },
+            "excursion": {
+              "title": "Excursion",
+              "type": "boolean"
+            },
+            "href": {
+              "title": "Href",
+              "type": "string"
+            },
+            "period": {
+              "title": "Period",
+              "type": "integer"
+            },
+            "semester": {
+              "title": "Semester",
+              "type": "integer"
+            },
+            "subject": {
+              "title": "Subject",
+              "type": "string"
+            },
+            "symbol": {
+              "title": "Symbol",
+              "type": "string"
+            },
+            "teacher": {
+              "title": "Teacher",
+              "type": "string"
+            },
+            "topic": {
+              "title": "Topic",
+              "type": "string"
+            },
+            "type": {
+              "title": "Type",
+              "type": "string"
+            }
+          },
+          "required": [
+            "symbol",
+            "href",
+            "semester",
+            "date",
+            "type",
+            "teacher",
+            "period",
+            "excursion",
+            "topic",
+            "subject"
+          ],
+          "title": "AttendanceOutput",
+          "type": "object"
+        }
+      },
+      "properties": {
+        "result": {
+          "items": {
+            "items": {
+              "$ref": "#/$defs/AttendanceOutput"
+            },
+            "type": "array"
+          },
+          "title": "Result",
+          "type": "array"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "title": "get_attendanceOutput",
+      "type": "object"
+    }
+  },
+  "get_attendance_detail": {
+    "annotations": {
+      "openWorldHint": true,
+      "readOnlyHint": true
+    },
+    "inputSchema": {
+      "properties": {
+        "detail_url": {
+          "pattern": "^\\d+$",
+          "title": "Detail Url",
+          "type": "string"
+        },
+        "student_alias": {
+          "description": "Alias of the student account",
+          "maxLength": 80,
+          "minLength": 1,
+          "pattern": "^(?:[^\\s\\p{C}]|[^\\s\\p{C}](?:[^\\s\\p{C}]| )*[^\\s\\p{C}])$",
+          "title": "Student Alias",
+          "type": "string"
+        }
+      },
+      "required": [
+        "student_alias",
+        "detail_url"
+      ],
+      "title": "get_attendance_detailArguments",
+      "type": "object"
+    },
+    "outputSchema": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Label/value detail pages use upstream Polish keys, not fixed field names.",
+      "title": "DetailFieldsOutput",
+      "type": "object"
+    }
+  },
+  "get_attendance_frequency": {
+    "annotations": {
+      "openWorldHint": true,
+      "readOnlyHint": true
+    },
+    "inputSchema": {
+      "properties": {
+        "student_alias": {
+          "description": "Alias of the student account",
+          "maxLength": 80,
+          "minLength": 1,
+          "pattern": "^(?:[^\\s\\p{C}]|[^\\s\\p{C}](?:[^\\s\\p{C}]| )*[^\\s\\p{C}])$",
+          "title": "Student Alias",
+          "type": "string"
+        }
+      },
+      "required": [
+        "student_alias"
+      ],
+      "title": "get_attendance_frequencyArguments",
+      "type": "object"
+    },
+    "outputSchema": {
+      "additionalProperties": true,
+      "properties": {
+        "first_semester": {
+          "title": "First Semester",
+          "type": "number"
+        },
+        "overall": {
+          "title": "Overall",
+          "type": "number"
+        },
+        "second_semester": {
+          "title": "Second Semester",
+          "type": "number"
+        }
+      },
+      "required": [
+        "first_semester",
+        "second_semester",
+        "overall"
+      ],
+      "title": "AttendanceFrequencyOutput",
+      "type": "object"
+    }
+  },
+  "get_behaviour_notes": {
+    "annotations": {
+      "openWorldHint": true,
+      "readOnlyHint": true
+    },
+    "inputSchema": {
+      "properties": {
+        "student_alias": {
+          "description": "Alias of the student account",
+          "maxLength": 80,
+          "minLength": 1,
+          "pattern": "^(?:[^\\s\\p{C}]|[^\\s\\p{C}](?:[^\\s\\p{C}]| )*[^\\s\\p{C}])$",
+          "title": "Student Alias",
+          "type": "string"
+        }
+      },
+      "required": [
+        "student_alias"
+      ],
+      "title": "get_behaviour_notesArguments",
+      "type": "object"
+    },
+    "outputSchema": {
+      "$defs": {
+        "BehaviourNoteOutput": {
+          "additionalProperties": true,
+          "properties": {
+            "category": {
+              "title": "Category",
+              "type": "string"
+            },
+            "content": {
+              "title": "Content",
+              "type": "string"
+            },
+            "date": {
+              "title": "Date",
+              "type": "string"
+            },
+            "teacher": {
+              "title": "Teacher",
+              "type": "string"
+            }
+          },
+          "required": [
+            "date",
+            "teacher",
+            "category",
+            "content"
+          ],
+          "title": "BehaviourNoteOutput",
+          "type": "object"
+        }
+      },
+      "properties": {
+        "result": {
+          "items": {
+            "$ref": "#/$defs/BehaviourNoteOutput"
+          },
+          "title": "Result",
+          "type": "array"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "title": "get_behaviour_notesOutput",
+      "type": "object"
+    }
+  },
+  "get_completed_lessons": {
+    "annotations": {
+      "openWorldHint": true,
+      "readOnlyHint": true
+    },
+    "inputSchema": {
+      "properties": {
+        "date_from": {
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+          "title": "Date From",
+          "type": "string"
+        },
+        "date_to": {
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+          "title": "Date To",
+          "type": "string"
+        },
+        "student_alias": {
+          "description": "Alias of the student account",
+          "maxLength": 80,
+          "minLength": 1,
+          "pattern": "^(?:[^\\s\\p{C}]|[^\\s\\p{C}](?:[^\\s\\p{C}]| )*[^\\s\\p{C}])$",
+          "title": "Student Alias",
+          "type": "string"
+        }
+      },
+      "required": [
+        "student_alias",
+        "date_from",
+        "date_to"
+      ],
+      "title": "get_completed_lessonsArguments",
+      "type": "object"
+    },
+    "outputSchema": {
+      "$defs": {
+        "CompletedLessonOutput": {
+          "additionalProperties": true,
+          "properties": {
+            "attendance_href": {
+              "title": "Attendance Href",
+              "type": "string"
+            },
+            "attendance_symbol": {
+              "title": "Attendance Symbol",
+              "type": "string"
+            },
+            "date": {
+              "title": "Date",
+              "type": "string"
+            },
+            "lesson_number": {
+              "title": "Lesson Number",
+              "type": "integer"
+            },
+            "subject": {
+              "title": "Subject",
+              "type": "string"
+            },
+            "teacher": {
+              "title": "Teacher",
+              "type": "string"
+            },
+            "topic": {
+              "title": "Topic",
+              "type": "string"
+            },
+            "weekday": {
+              "title": "Weekday",
+              "type": "string"
+            },
+            "z_value": {
+              "title": "Z Value",
+              "type": "string"
+            }
+          },
+          "required": [
+            "subject",
+            "teacher",
+            "topic",
+            "z_value",
+            "attendance_symbol",
+            "attendance_href",
+            "lesson_number",
+            "weekday",
+            "date"
+          ],
+          "title": "CompletedLessonOutput",
+          "type": "object"
+        }
+      },
+      "properties": {
+        "result": {
+          "items": {
+            "$ref": "#/$defs/CompletedLessonOutput"
+          },
+          "title": "Result",
+          "type": "array"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "title": "get_completed_lessonsOutput",
+      "type": "object"
+    }
+  },
+  "get_final_grades": {
+    "annotations": {
+      "openWorldHint": true,
+      "readOnlyHint": true
+    },
+    "inputSchema": {
+      "properties": {
+        "student_alias": {
+          "description": "Alias of the student account",
+          "maxLength": 80,
+          "minLength": 1,
+          "pattern": "^(?:[^\\s\\p{C}]|[^\\s\\p{C}](?:[^\\s\\p{C}]| )*[^\\s\\p{C}])$",
+          "title": "Student Alias",
+          "type": "string"
+        }
+      },
+      "required": [
+        "student_alias"
+      ],
+      "title": "get_final_gradesArguments",
+      "type": "object"
+    },
+    "outputSchema": {
+      "$defs": {
+        "FinalGradeOutput": {
+          "additionalProperties": true,
+          "properties": {
+            "final": {
+              "title": "Final",
+              "type": "string"
+            },
+            "midterm": {
+              "title": "Midterm",
+              "type": "string"
+            },
+            "predicted_final": {
+              "title": "Predicted Final",
+              "type": "string"
+            },
+            "subject": {
+              "title": "Subject",
+              "type": "string"
+            }
+          },
+          "required": [
+            "subject",
+            "midterm",
+            "predicted_final",
+            "final"
+          ],
+          "title": "FinalGradeOutput",
+          "type": "object"
+        }
+      },
+      "properties": {
+        "result": {
+          "items": {
+            "$ref": "#/$defs/FinalGradeOutput"
+          },
+          "title": "Result",
+          "type": "array"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "title": "get_final_gradesOutput",
+      "type": "object"
+    }
+  },
+  "get_grades": {
+    "annotations": {
+      "openWorldHint": true,
+      "readOnlyHint": true
+    },
+    "inputSchema": {
+      "properties": {
+        "sort_by": {
+          "default": "all",
+          "enum": [
+            "all",
+            "week",
+            "last_login"
+          ],
+          "title": "Sort By",
+          "type": "string"
+        },
+        "student_alias": {
+          "description": "Alias of the student account",
+          "maxLength": 80,
+          "minLength": 1,
+          "pattern": "^(?:[^\\s\\p{C}]|[^\\s\\p{C}](?:[^\\s\\p{C}]| )*[^\\s\\p{C}])$",
+          "title": "Student Alias",
+          "type": "string"
+        }
+      },
+      "required": [
+        "student_alias"
+      ],
+      "title": "get_gradesArguments",
+      "type": "object"
+    },
+    "outputSchema": {
+      "$defs": {
+        "DescriptiveGradeOutput": {
+          "additionalProperties": true,
+          "properties": {
+            "date": {
+              "title": "Date",
+              "type": "string"
+            },
+            "desc": {
+              "title": "Desc",
+              "type": "string"
+            },
+            "grade": {
+              "title": "Grade",
+              "type": "string"
+            },
+            "href": {
+              "title": "Href",
+              "type": "string"
+            },
+            "semester": {
+              "title": "Semester",
+              "type": "integer"
+            },
+            "teacher": {
+              "title": "Teacher",
+              "type": "string"
+            },
+            "title": {
+              "title": "Title",
+              "type": "string"
+            }
+          },
+          "required": [
+            "title",
+            "grade",
+            "date",
+            "href",
+            "desc",
+            "semester",
+            "teacher"
+          ],
+          "title": "DescriptiveGradeOutput",
+          "type": "object"
+        },
+        "GpaOutput": {
+          "additionalProperties": true,
+          "properties": {
+            "gpa": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "string"
+                }
+              ],
+              "title": "Gpa"
+            },
+            "semester": {
+              "title": "Semester",
+              "type": "integer"
+            },
+            "subject": {
+              "title": "Subject",
+              "type": "string"
+            }
+          },
+          "required": [
+            "semester",
+            "gpa",
+            "subject"
+          ],
+          "title": "GpaOutput",
+          "type": "object"
+        },
+        "GradeOutput": {
+          "additionalProperties": true,
+          "properties": {
+            "category": {
+              "title": "Category",
+              "type": "string"
+            },
+            "counts": {
+              "title": "Counts",
+              "type": "boolean"
+            },
+            "date": {
+              "title": "Date",
+              "type": "string"
+            },
+            "desc": {
+              "title": "Desc",
+              "type": "string"
+            },
+            "grade": {
+              "title": "Grade",
+              "type": "string"
+            },
+            "href": {
+              "title": "Href",
+              "type": "string"
+            },
+            "semester": {
+              "title": "Semester",
+              "type": "integer"
+            },
+            "teacher": {
+              "title": "Teacher",
+              "type": "string"
+            },
+            "title": {
+              "title": "Title",
+              "type": "string"
+            },
+            "weight": {
+              "title": "Weight",
+              "type": "integer"
+            }
+          },
+          "required": [
+            "title",
+            "grade",
+            "counts",
+            "date",
+            "href",
+            "desc",
+            "semester",
+            "category",
+            "teacher",
+            "weight"
+          ],
+          "title": "GradeOutput",
+          "type": "object"
+        }
+      },
+      "additionalProperties": true,
+      "properties": {
+        "descriptive": {
+          "items": {
+            "additionalProperties": {
+              "items": {
+                "$ref": "#/$defs/DescriptiveGradeOutput"
+              },
+              "type": "array"
+            },
+            "type": "object"
+          },
+          "title": "Descriptive",
+          "type": "array"
+        },
+        "gpa": {
+          "additionalProperties": {
+            "items": {
+              "$ref": "#/$defs/GpaOutput"
+            },
+            "type": "array"
+          },
+          "title": "Gpa",
+          "type": "object"
+        },
+        "numeric": {
+          "items": {
+            "additionalProperties": {
+              "items": {
+                "$ref": "#/$defs/GradeOutput"
+              },
+              "type": "array"
+            },
+            "type": "object"
+          },
+          "title": "Numeric",
+          "type": "array"
+        }
+      },
+      "required": [
+        "numeric",
+        "gpa",
+        "descriptive"
+      ],
+      "title": "GradesOutput",
+      "type": "object"
+    }
+  },
+  "get_homework": {
+    "annotations": {
+      "openWorldHint": true,
+      "readOnlyHint": true
+    },
+    "inputSchema": {
+      "properties": {
+        "date_from": {
+          "anyOf": [
+            {
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Date From"
+        },
+        "date_to": {
+          "anyOf": [
+            {
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Date To"
+        },
+        "student_alias": {
+          "description": "Alias of the student account",
+          "maxLength": 80,
+          "minLength": 1,
+          "pattern": "^(?:[^\\s\\p{C}]|[^\\s\\p{C}](?:[^\\s\\p{C}]| )*[^\\s\\p{C}])$",
+          "title": "Student Alias",
+          "type": "string"
+        }
+      },
+      "required": [
+        "student_alias"
+      ],
+      "title": "get_homeworkArguments",
+      "type": "object"
+    },
+    "outputSchema": {
+      "$defs": {
+        "HomeworkOutput": {
+          "additionalProperties": true,
+          "properties": {
+            "category": {
+              "title": "Category",
+              "type": "string"
+            },
+            "completion_date": {
+              "title": "Completion Date",
+              "type": "string"
+            },
+            "href": {
+              "title": "Href",
+              "type": "string"
+            },
+            "lesson": {
+              "title": "Lesson",
+              "type": "string"
+            },
+            "subject": {
+              "title": "Subject",
+              "type": "string"
+            },
+            "task_date": {
+              "title": "Task Date",
+              "type": "string"
+            },
+            "teacher": {
+              "title": "Teacher",
+              "type": "string"
+            }
+          },
+          "required": [
+            "lesson",
+            "teacher",
+            "subject",
+            "category",
+            "task_date",
+            "completion_date",
+            "href"
+          ],
+          "title": "HomeworkOutput",
+          "type": "object"
+        }
+      },
+      "properties": {
+        "result": {
+          "items": {
+            "$ref": "#/$defs/HomeworkOutput"
+          },
+          "title": "Result",
+          "type": "array"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "title": "get_homeworkOutput",
+      "type": "object"
+    }
+  },
+  "get_homework_detail": {
+    "annotations": {
+      "openWorldHint": true,
+      "readOnlyHint": true
+    },
+    "inputSchema": {
+      "properties": {
+        "detail_url": {
+          "pattern": "^\\d+$",
+          "title": "Detail Url",
+          "type": "string"
+        },
+        "student_alias": {
+          "description": "Alias of the student account",
+          "maxLength": 80,
+          "minLength": 1,
+          "pattern": "^(?:[^\\s\\p{C}]|[^\\s\\p{C}](?:[^\\s\\p{C}]| )*[^\\s\\p{C}])$",
+          "title": "Student Alias",
+          "type": "string"
+        }
+      },
+      "required": [
+        "student_alias",
+        "detail_url"
+      ],
+      "title": "get_homework_detailArguments",
+      "type": "object"
+    },
+    "outputSchema": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Label/value detail pages use upstream Polish keys, not fixed field names.",
+      "title": "DetailFieldsOutput",
+      "type": "object"
+    }
+  },
+  "get_message_attachments": {
+    "annotations": {
+      "openWorldHint": true,
+      "readOnlyHint": true
+    },
+    "inputSchema": {
+      "properties": {
+        "message_id": {
+          "pattern": "^\\d+$",
+          "title": "Message Id",
+          "type": "string"
+        },
+        "student_alias": {
+          "description": "Alias of the student account",
+          "maxLength": 80,
+          "minLength": 1,
+          "pattern": "^(?:[^\\s\\p{C}]|[^\\s\\p{C}](?:[^\\s\\p{C}]| )*[^\\s\\p{C}])$",
+          "title": "Student Alias",
+          "type": "string"
+        }
+      },
+      "required": [
+        "student_alias",
+        "message_id"
+      ],
+      "title": "get_message_attachmentsArguments",
+      "type": "object"
+    },
+    "outputSchema": {
+      "$defs": {
+        "AttachmentOutput": {
+          "additionalProperties": true,
+          "properties": {
+            "file_id": {
+              "title": "File Id",
+              "type": "string"
+            },
+            "filename": {
+              "title": "Filename",
+              "type": "string"
+            },
+            "message_id": {
+              "title": "Message Id",
+              "type": "string"
+            }
+          },
+          "required": [
+            "filename",
+            "message_id",
+            "file_id"
+          ],
+          "title": "AttachmentOutput",
+          "type": "object"
+        }
+      },
+      "properties": {
+        "result": {
+          "items": {
+            "$ref": "#/$defs/AttachmentOutput"
+          },
+          "title": "Result",
+          "type": "array"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "title": "get_message_attachmentsOutput",
+      "type": "object"
+    }
+  },
+  "get_message_content": {
+    "annotations": {
+      "openWorldHint": true,
+      "readOnlyHint": true
+    },
+    "inputSchema": {
+      "properties": {
+        "message_id": {
+          "pattern": "^\\d+$",
+          "title": "Message Id",
+          "type": "string"
+        },
+        "student_alias": {
+          "description": "Alias of the student account",
+          "maxLength": 80,
+          "minLength": 1,
+          "pattern": "^(?:[^\\s\\p{C}]|[^\\s\\p{C}](?:[^\\s\\p{C}]| )*[^\\s\\p{C}])$",
+          "title": "Student Alias",
+          "type": "string"
+        }
+      },
+      "required": [
+        "student_alias",
+        "message_id"
+      ],
+      "title": "get_message_contentArguments",
+      "type": "object"
+    },
+    "outputSchema": {
+      "additionalProperties": true,
+      "properties": {
+        "author": {
+          "title": "Author",
+          "type": "string"
+        },
+        "content": {
+          "title": "Content",
+          "type": "string"
+        },
+        "date": {
+          "title": "Date",
+          "type": "string"
+        },
+        "title": {
+          "title": "Title",
+          "type": "string"
+        }
+      },
+      "required": [
+        "author",
+        "title",
+        "date",
+        "content"
+      ],
+      "title": "MessageContentOutput",
+      "type": "object"
+    }
+  },
+  "get_messages": {
+    "annotations": {
+      "openWorldHint": true,
+      "readOnlyHint": true
+    },
+    "inputSchema": {
+      "properties": {
+        "all_pages": {
+          "default": false,
+          "title": "All Pages",
+          "type": "boolean"
+        },
+        "folder": {
+          "default": "received",
+          "enum": [
+            "received",
+            "sent"
+          ],
+          "title": "Folder",
+          "type": "string"
+        },
+        "page": {
+          "default": 0,
+          "maximum": 1000,
+          "minimum": 0,
+          "title": "Page",
+          "type": "integer"
+        },
+        "student_alias": {
+          "description": "Alias of the student account",
+          "maxLength": 80,
+          "minLength": 1,
+          "pattern": "^(?:[^\\s\\p{C}]|[^\\s\\p{C}](?:[^\\s\\p{C}]| )*[^\\s\\p{C}])$",
+          "title": "Student Alias",
+          "type": "string"
+        }
+      },
+      "required": [
+        "student_alias"
+      ],
+      "title": "get_messagesArguments",
+      "type": "object"
+    },
+    "outputSchema": {
+      "$defs": {
+        "MessageOutput": {
+          "additionalProperties": true,
+          "properties": {
+            "author": {
+              "title": "Author",
+              "type": "string"
+            },
+            "date": {
+              "title": "Date",
+              "type": "string"
+            },
+            "has_attachment": {
+              "title": "Has Attachment",
+              "type": "boolean"
+            },
+            "href": {
+              "title": "Href",
+              "type": "string"
+            },
+            "title": {
+              "title": "Title",
+              "type": "string"
+            },
+            "unread": {
+              "title": "Unread",
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "author",
+            "title",
+            "date",
+            "href",
+            "unread",
+            "has_attachment"
+          ],
+          "title": "MessageOutput",
+          "type": "object"
+        }
+      },
+      "additionalProperties": true,
+      "properties": {
+        "folder": {
+          "enum": [
+            "received",
+            "sent"
+          ],
+          "title": "Folder",
+          "type": "string"
+        },
+        "max_page": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Max Page"
+        },
+        "messages": {
+          "items": {
+            "$ref": "#/$defs/MessageOutput"
+          },
+          "title": "Messages",
+          "type": "array"
+        },
+        "page": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Page"
+        },
+        "pages_fetched": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Pages Fetched"
+        },
+        "truncated": {
+          "title": "Truncated",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "messages",
+        "folder",
+        "truncated"
+      ],
+      "title": "MessagesOutput",
+      "type": "object"
+    }
+  },
+  "get_new_notifications": {
+    "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": false,
+      "openWorldHint": true,
+      "readOnlyHint": false
+    },
+    "inputSchema": {
+      "properties": {
+        "student_alias": {
+          "description": "Alias of the student account",
+          "maxLength": 80,
+          "minLength": 1,
+          "pattern": "^(?:[^\\s\\p{C}]|[^\\s\\p{C}](?:[^\\s\\p{C}]| )*[^\\s\\p{C}])$",
+          "title": "Student Alias",
+          "type": "string"
+        }
+      },
+      "required": [
+        "student_alias"
+      ],
+      "title": "get_new_notificationsArguments",
+      "type": "object"
+    },
+    "outputSchema": {
+      "$defs": {
+        "AnnouncementOutput": {
+          "additionalProperties": true,
+          "properties": {
+            "author": {
+              "title": "Author",
+              "type": "string"
+            },
+            "date": {
+              "title": "Date",
+              "type": "string"
+            },
+            "description": {
+              "title": "Description",
+              "type": "string"
+            },
+            "title": {
+              "title": "Title",
+              "type": "string"
+            }
+          },
+          "required": [
+            "title",
+            "author",
+            "description",
+            "date"
+          ],
+          "title": "AnnouncementOutput",
+          "type": "object"
+        },
+        "AttendanceOutput": {
+          "additionalProperties": true,
+          "properties": {
+            "date": {
+              "title": "Date",
+              "type": "string"
+            },
+            "excursion": {
+              "title": "Excursion",
+              "type": "boolean"
+            },
+            "href": {
+              "title": "Href",
+              "type": "string"
+            },
+            "period": {
+              "title": "Period",
+              "type": "integer"
+            },
+            "semester": {
+              "title": "Semester",
+              "type": "integer"
+            },
+            "subject": {
+              "title": "Subject",
+              "type": "string"
+            },
+            "symbol": {
+              "title": "Symbol",
+              "type": "string"
+            },
+            "teacher": {
+              "title": "Teacher",
+              "type": "string"
+            },
+            "topic": {
+              "title": "Topic",
+              "type": "string"
+            },
+            "type": {
+              "title": "Type",
+              "type": "string"
+            }
+          },
+          "required": [
+            "symbol",
+            "href",
+            "semester",
+            "date",
+            "type",
+            "teacher",
+            "period",
+            "excursion",
+            "topic",
+            "subject"
+          ],
+          "title": "AttendanceOutput",
+          "type": "object"
+        },
+        "GradeOutput": {
+          "additionalProperties": true,
+          "properties": {
+            "category": {
+              "title": "Category",
+              "type": "string"
+            },
+            "counts": {
+              "title": "Counts",
+              "type": "boolean"
+            },
+            "date": {
+              "title": "Date",
+              "type": "string"
+            },
+            "desc": {
+              "title": "Desc",
+              "type": "string"
+            },
+            "grade": {
+              "title": "Grade",
+              "type": "string"
+            },
+            "href": {
+              "title": "Href",
+              "type": "string"
+            },
+            "semester": {
+              "title": "Semester",
+              "type": "integer"
+            },
+            "teacher": {
+              "title": "Teacher",
+              "type": "string"
+            },
+            "title": {
+              "title": "Title",
+              "type": "string"
+            },
+            "weight": {
+              "title": "Weight",
+              "type": "integer"
+            }
+          },
+          "required": [
+            "title",
+            "grade",
+            "counts",
+            "date",
+            "href",
+            "desc",
+            "semester",
+            "category",
+            "teacher",
+            "weight"
+          ],
+          "title": "GradeOutput",
+          "type": "object"
+        },
+        "HomeworkOutput": {
+          "additionalProperties": true,
+          "properties": {
+            "category": {
+              "title": "Category",
+              "type": "string"
+            },
+            "completion_date": {
+              "title": "Completion Date",
+              "type": "string"
+            },
+            "href": {
+              "title": "Href",
+              "type": "string"
+            },
+            "lesson": {
+              "title": "Lesson",
+              "type": "string"
+            },
+            "subject": {
+              "title": "Subject",
+              "type": "string"
+            },
+            "task_date": {
+              "title": "Task Date",
+              "type": "string"
+            },
+            "teacher": {
+              "title": "Teacher",
+              "type": "string"
+            }
+          },
+          "required": [
+            "lesson",
+            "teacher",
+            "subject",
+            "category",
+            "task_date",
+            "completion_date",
+            "href"
+          ],
+          "title": "HomeworkOutput",
+          "type": "object"
+        },
+        "MessageOutput": {
+          "additionalProperties": true,
+          "properties": {
+            "author": {
+              "title": "Author",
+              "type": "string"
+            },
+            "date": {
+              "title": "Date",
+              "type": "string"
+            },
+            "has_attachment": {
+              "title": "Has Attachment",
+              "type": "boolean"
+            },
+            "href": {
+              "title": "Href",
+              "type": "string"
+            },
+            "title": {
+              "title": "Title",
+              "type": "string"
+            },
+            "unread": {
+              "title": "Unread",
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "author",
+            "title",
+            "date",
+            "href",
+            "unread",
+            "has_attachment"
+          ],
+          "title": "MessageOutput",
+          "type": "object"
+        },
+        "NotificationDataOutput": {
+          "additionalProperties": true,
+          "properties": {
+            "announcements": {
+              "items": {
+                "$ref": "#/$defs/AnnouncementOutput"
+              },
+              "title": "Announcements",
+              "type": "array"
+            },
+            "attendance": {
+              "items": {
+                "$ref": "#/$defs/AttendanceOutput"
+              },
+              "title": "Attendance",
+              "type": "array"
+            },
+            "grades": {
+              "items": {
+                "$ref": "#/$defs/GradeOutput"
+              },
+              "title": "Grades",
+              "type": "array"
+            },
+            "homework": {
+              "items": {
+                "$ref": "#/$defs/HomeworkOutput"
+              },
+              "title": "Homework",
+              "type": "array"
+            },
+            "messages": {
+              "items": {
+                "$ref": "#/$defs/MessageOutput"
+              },
+              "title": "Messages",
+              "type": "array"
+            },
+            "schedule": {
+              "items": {
+                "$ref": "#/$defs/RecentScheduleEventOutput"
+              },
+              "title": "Schedule",
+              "type": "array"
+            }
+          },
+          "required": [
+            "grades",
+            "attendance",
+            "messages",
+            "announcements",
+            "schedule",
+            "homework"
+          ],
+          "title": "NotificationDataOutput",
+          "type": "object"
+        },
+        "RecentScheduleEventOutput": {
+          "additionalProperties": true,
+          "properties": {
+            "data": {
+              "title": "Data",
+              "type": "string"
+            },
+            "date_added": {
+              "title": "Date Added",
+              "type": "string"
+            },
+            "type": {
+              "title": "Type",
+              "type": "string"
+            }
+          },
+          "required": [
+            "date_added",
+            "type",
+            "data"
+          ],
+          "title": "RecentScheduleEventOutput",
+          "type": "object"
+        }
+      },
+      "additionalProperties": true,
+      "properties": {
+        "first_run": {
+          "title": "First Run",
+          "type": "boolean"
+        },
+        "new": {
+          "$ref": "#/$defs/NotificationDataOutput"
+        }
+      },
+      "required": [
+        "first_run",
+        "new"
+      ],
+      "title": "NotificationsOutput",
+      "type": "object"
+    }
+  },
+  "get_recent_schedule_events": {
+    "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": false,
+      "openWorldHint": true,
+      "readOnlyHint": false
+    },
+    "inputSchema": {
+      "properties": {
+        "student_alias": {
+          "description": "Alias of the student account",
+          "maxLength": 80,
+          "minLength": 1,
+          "pattern": "^(?:[^\\s\\p{C}]|[^\\s\\p{C}](?:[^\\s\\p{C}]| )*[^\\s\\p{C}])$",
+          "title": "Student Alias",
+          "type": "string"
+        }
+      },
+      "required": [
+        "student_alias"
+      ],
+      "title": "get_recent_schedule_eventsArguments",
+      "type": "object"
+    },
+    "outputSchema": {
+      "$defs": {
+        "RecentScheduleEventOutput": {
+          "additionalProperties": true,
+          "properties": {
+            "data": {
+              "title": "Data",
+              "type": "string"
+            },
+            "date_added": {
+              "title": "Date Added",
+              "type": "string"
+            },
+            "type": {
+              "title": "Type",
+              "type": "string"
+            }
+          },
+          "required": [
+            "date_added",
+            "type",
+            "data"
+          ],
+          "title": "RecentScheduleEventOutput",
+          "type": "object"
+        }
+      },
+      "properties": {
+        "result": {
+          "items": {
+            "$ref": "#/$defs/RecentScheduleEventOutput"
+          },
+          "title": "Result",
+          "type": "array"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "title": "get_recent_schedule_eventsOutput",
+      "type": "object"
+    }
+  },
+  "get_recipient_groups": {
+    "annotations": {
+      "openWorldHint": true,
+      "readOnlyHint": true
+    },
+    "inputSchema": {
+      "properties": {
+        "student_alias": {
+          "description": "Alias of the student account",
+          "maxLength": 80,
+          "minLength": 1,
+          "pattern": "^(?:[^\\s\\p{C}]|[^\\s\\p{C}](?:[^\\s\\p{C}]| )*[^\\s\\p{C}])$",
+          "title": "Student Alias",
+          "type": "string"
+        }
+      },
+      "required": [
+        "student_alias"
+      ],
+      "title": "get_recipient_groupsArguments",
+      "type": "object"
+    },
+    "outputSchema": {
+      "properties": {
+        "result": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Result",
+          "type": "array"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "title": "get_recipient_groupsOutput",
+      "type": "object"
+    }
+  },
+  "get_recipients": {
+    "annotations": {
+      "openWorldHint": true,
+      "readOnlyHint": true
+    },
+    "inputSchema": {
+      "properties": {
+        "group": {
+          "title": "Group",
+          "type": "string"
+        },
+        "student_alias": {
+          "description": "Alias of the student account",
+          "maxLength": 80,
+          "minLength": 1,
+          "pattern": "^(?:[^\\s\\p{C}]|[^\\s\\p{C}](?:[^\\s\\p{C}]| )*[^\\s\\p{C}])$",
+          "title": "Student Alias",
+          "type": "string"
+        }
+      },
+      "required": [
+        "student_alias",
+        "group"
+      ],
+      "title": "get_recipientsArguments",
+      "type": "object"
+    },
+    "outputSchema": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "title": "get_recipientsDictOutput",
+      "type": "object"
+    }
+  },
+  "get_schedule": {
+    "annotations": {
+      "openWorldHint": true,
+      "readOnlyHint": true
+    },
+    "inputSchema": {
+      "properties": {
+        "month": {
+          "pattern": "^\\d{1,2}$",
+          "title": "Month",
+          "type": "string"
+        },
+        "student_alias": {
+          "description": "Alias of the student account",
+          "maxLength": 80,
+          "minLength": 1,
+          "pattern": "^(?:[^\\s\\p{C}]|[^\\s\\p{C}](?:[^\\s\\p{C}]| )*[^\\s\\p{C}])$",
+          "title": "Student Alias",
+          "type": "string"
+        },
+        "year": {
+          "pattern": "^\\d{4}$",
+          "title": "Year",
+          "type": "string"
+        }
+      },
+      "required": [
+        "student_alias",
+        "year",
+        "month"
+      ],
+      "title": "get_scheduleArguments",
+      "type": "object"
+    },
+    "outputSchema": {
+      "$defs": {
+        "ScheduleEventOutput": {
+          "additionalProperties": true,
+          "properties": {
+            "data": {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "title": "Data",
+              "type": "object"
+            },
+            "day": {
+              "title": "Day",
+              "type": "string"
+            },
+            "hour": {
+              "title": "Hour",
+              "type": "string"
+            },
+            "href": {
+              "title": "Href",
+              "type": "string"
+            },
+            "number": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "string"
+                }
+              ],
+              "title": "Number"
+            },
+            "subject": {
+              "title": "Subject",
+              "type": "string"
+            },
+            "title": {
+              "title": "Title",
+              "type": "string"
+            }
+          },
+          "required": [
+            "title",
+            "subject",
+            "data",
+            "day",
+            "number",
+            "hour",
+            "href"
+          ],
+          "title": "ScheduleEventOutput",
+          "type": "object"
+        }
+      },
+      "additionalProperties": {
+        "items": {
+          "$ref": "#/$defs/ScheduleEventOutput"
+        },
+        "type": "array"
+      },
+      "description": "Day keys are integers in Python and strings in the JSON response.",
+      "title": "ScheduleOutput",
+      "type": "object"
+    }
+  },
+  "get_schedule_detail": {
+    "annotations": {
+      "openWorldHint": true,
+      "readOnlyHint": true
+    },
+    "inputSchema": {
+      "properties": {
+        "href": {
+          "title": "Href",
+          "type": "string"
+        },
+        "student_alias": {
+          "description": "Alias of the student account",
+          "maxLength": 80,
+          "minLength": 1,
+          "pattern": "^(?:[^\\s\\p{C}]|[^\\s\\p{C}](?:[^\\s\\p{C}]| )*[^\\s\\p{C}])$",
+          "title": "Student Alias",
+          "type": "string"
+        }
+      },
+      "required": [
+        "student_alias",
+        "href"
+      ],
+      "title": "get_schedule_detailArguments",
+      "type": "object"
+    },
+    "outputSchema": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Label/value detail pages use upstream Polish keys, not fixed field names.",
+      "title": "DetailFieldsOutput",
+      "type": "object"
+    }
+  },
+  "get_student_information": {
+    "annotations": {
+      "openWorldHint": true,
+      "readOnlyHint": true
+    },
+    "inputSchema": {
+      "properties": {
+        "student_alias": {
+          "description": "Alias of the student account",
+          "maxLength": 80,
+          "minLength": 1,
+          "pattern": "^(?:[^\\s\\p{C}]|[^\\s\\p{C}](?:[^\\s\\p{C}]| )*[^\\s\\p{C}])$",
+          "title": "Student Alias",
+          "type": "string"
+        }
+      },
+      "required": [
+        "student_alias"
+      ],
+      "title": "get_student_informationArguments",
+      "type": "object"
+    },
+    "outputSchema": {
+      "additionalProperties": true,
+      "properties": {
+        "class_name": {
+          "title": "Class Name",
+          "type": "string"
+        },
+        "lucky_number": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "title": "Lucky Number"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "number": {
+          "title": "Number",
+          "type": "integer"
+        },
+        "school": {
+          "title": "School",
+          "type": "string"
+        },
+        "tutor": {
+          "title": "Tutor",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "class_name",
+        "number",
+        "tutor",
+        "school",
+        "lucky_number"
+      ],
+      "title": "StudentInformationOutput",
+      "type": "object"
+    }
+  },
+  "get_subject_frequency": {
+    "annotations": {
+      "openWorldHint": true,
+      "readOnlyHint": true
+    },
+    "inputSchema": {
+      "properties": {
+        "end": {
+          "anyOf": [
+            {
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "End"
+        },
+        "start": {
+          "anyOf": [
+            {
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Start"
+        },
+        "student_alias": {
+          "description": "Alias of the student account",
+          "maxLength": 80,
+          "minLength": 1,
+          "pattern": "^(?:[^\\s\\p{C}]|[^\\s\\p{C}](?:[^\\s\\p{C}]| )*[^\\s\\p{C}])$",
+          "title": "Student Alias",
+          "type": "string"
+        }
+      },
+      "required": [
+        "student_alias"
+      ],
+      "title": "get_subject_frequencyArguments",
+      "type": "object"
+    },
+    "outputSchema": {
+      "additionalProperties": {
+        "type": "number"
+      },
+      "title": "SubjectFrequencyOutput",
+      "type": "object"
+    }
+  },
+  "get_timetable": {
+    "annotations": {
+      "openWorldHint": true,
+      "readOnlyHint": true
+    },
+    "inputSchema": {
+      "properties": {
+        "monday": {
+          "anyOf": [
+            {
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Monday"
+        },
+        "student_alias": {
+          "description": "Alias of the student account",
+          "maxLength": 80,
+          "minLength": 1,
+          "pattern": "^(?:[^\\s\\p{C}]|[^\\s\\p{C}](?:[^\\s\\p{C}]| )*[^\\s\\p{C}])$",
+          "title": "Student Alias",
+          "type": "string"
+        }
+      },
+      "required": [
+        "student_alias"
+      ],
+      "title": "get_timetableArguments",
+      "type": "object"
+    },
+    "outputSchema": {
+      "$defs": {
+        "PeriodOutput": {
+          "additionalProperties": true,
+          "properties": {
+            "date": {
+              "title": "Date",
+              "type": "string"
+            },
+            "date_from": {
+              "title": "Date From",
+              "type": "string"
+            },
+            "date_to": {
+              "title": "Date To",
+              "type": "string"
+            },
+            "info": {
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "additionalProperties": {
+                      "type": "string"
+                    },
+                    "type": "object"
+                  }
+                ]
+              },
+              "title": "Info",
+              "type": "object"
+            },
+            "next_recess_from": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Next Recess From"
+            },
+            "next_recess_to": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Next Recess To"
+            },
+            "number": {
+              "title": "Number",
+              "type": "integer"
+            },
+            "subject": {
+              "title": "Subject",
+              "type": "string"
+            },
+            "teacher_and_classroom": {
+              "title": "Teacher And Classroom",
+              "type": "string"
+            },
+            "weekday": {
+              "title": "Weekday",
+              "type": "string"
+            }
+          },
+          "required": [
+            "subject",
+            "teacher_and_classroom",
+            "date",
+            "date_from",
+            "date_to",
+            "weekday",
+            "info",
+            "number",
+            "next_recess_from",
+            "next_recess_to"
+          ],
+          "title": "PeriodOutput",
+          "type": "object"
+        }
+      },
+      "properties": {
+        "result": {
+          "items": {
+            "items": {
+              "$ref": "#/$defs/PeriodOutput"
+            },
+            "type": "array"
+          },
+          "title": "Result",
+          "type": "array"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "title": "get_timetableOutput",
+      "type": "object"
+    }
+  },
+  "list_students": {
+    "annotations": {
+      "openWorldHint": true,
+      "readOnlyHint": true
+    },
+    "inputSchema": {
+      "properties": {},
+      "title": "list_studentsArguments",
+      "type": "object"
+    },
+    "outputSchema": {
+      "properties": {
+        "result": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Result",
+          "type": "array"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "title": "list_studentsOutput",
+      "type": "object"
+    }
+  },
+  "send_message": {
+    "annotations": {
+      "destructiveHint": true,
+      "idempotentHint": false,
+      "openWorldHint": true,
+      "readOnlyHint": false
+    },
+    "inputSchema": {
+      "properties": {
+        "confirm_token": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Confirm Token"
+        },
+        "content": {
+          "description": "Nonblank body; the combined UTF-8 message payload is limited to 64 KiB",
+          "maxLength": 15000,
+          "minLength": 1,
+          "title": "Content",
+          "type": "string"
+        },
+        "recipient_ids": {
+          "description": "Unique numeric recipient IDs; included in the 64 KiB payload limit",
+          "items": {
+            "maxLength": 20,
+            "minLength": 1,
+            "pattern": "^[0-9]+$",
+            "type": "string"
+          },
+          "maxItems": 50,
+          "minItems": 1,
+          "title": "Recipient Ids",
+          "type": "array",
+          "uniqueItems": true
+        },
+        "student_alias": {
+          "description": "Alias of the student account",
+          "maxLength": 80,
+          "minLength": 1,
+          "pattern": "^(?:[^\\s\\p{C}]|[^\\s\\p{C}](?:[^\\s\\p{C}]| )*[^\\s\\p{C}])$",
+          "title": "Student Alias",
+          "type": "string"
+        },
+        "title": {
+          "description": "Nonblank subject; the combined UTF-8 message payload is limited to 64 KiB",
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Title",
+          "type": "string"
+        }
+      },
+      "required": [
+        "student_alias",
+        "title",
+        "content",
+        "recipient_ids"
+      ],
+      "title": "send_messageArguments",
+      "type": "object"
+    },
+    "outputSchema": {
+      "$defs": {
+        "SendFailedOutput": {
+          "additionalProperties": true,
+          "properties": {
+            "recipient_count": {
+              "title": "Recipient Count",
+              "type": "integer"
+            },
+            "result": {
+              "title": "Result",
+              "type": "string"
+            },
+            "status": {
+              "const": "failed",
+              "title": "Status",
+              "type": "string"
+            },
+            "success": {
+              "const": false,
+              "title": "Success",
+              "type": "boolean"
+            },
+            "title": {
+              "title": "Title",
+              "type": "string"
+            }
+          },
+          "required": [
+            "status",
+            "success",
+            "result",
+            "title",
+            "recipient_count"
+          ],
+          "title": "SendFailedOutput",
+          "type": "object"
+        },
+        "SendPreviewDetails": {
+          "additionalProperties": true,
+          "properties": {
+            "content": {
+              "title": "Content",
+              "type": "string"
+            },
+            "recipient_ids": {
+              "items": {
+                "type": "string"
+              },
+              "title": "Recipient Ids",
+              "type": "array"
+            },
+            "student_alias": {
+              "title": "Student Alias",
+              "type": "string"
+            },
+            "title": {
+              "title": "Title",
+              "type": "string"
+            }
+          },
+          "required": [
+            "student_alias",
+            "title",
+            "content",
+            "recipient_ids"
+          ],
+          "title": "SendPreviewDetails",
+          "type": "object"
+        },
+        "SendPreviewOutput": {
+          "additionalProperties": true,
+          "properties": {
+            "confirm_token": {
+              "title": "Confirm Token",
+              "type": "string"
+            },
+            "expires_in_seconds": {
+              "title": "Expires In Seconds",
+              "type": "integer"
+            },
+            "preview": {
+              "$ref": "#/$defs/SendPreviewDetails"
+            },
+            "status": {
+              "const": "confirmation_required",
+              "title": "Status",
+              "type": "string"
+            }
+          },
+          "required": [
+            "status",
+            "confirm_token",
+            "expires_in_seconds",
+            "preview"
+          ],
+          "title": "SendPreviewOutput",
+          "type": "object"
+        },
+        "SendSucceededOutput": {
+          "additionalProperties": true,
+          "properties": {
+            "recipient_count": {
+              "title": "Recipient Count",
+              "type": "integer"
+            },
+            "result": {
+              "title": "Result",
+              "type": "string"
+            },
+            "status": {
+              "const": "sent",
+              "title": "Status",
+              "type": "string"
+            },
+            "success": {
+              "const": true,
+              "title": "Success",
+              "type": "boolean"
+            },
+            "title": {
+              "title": "Title",
+              "type": "string"
+            }
+          },
+          "required": [
+            "status",
+            "success",
+            "result",
+            "title",
+            "recipient_count"
+          ],
+          "title": "SendSucceededOutput",
+          "type": "object"
+        }
+      },
+      "description": "Non-error results; uncertain delivery is an MCP isError result.",
+      "discriminator": {
+        "mapping": {
+          "confirmation_required": "#/$defs/SendPreviewOutput",
+          "failed": "#/$defs/SendFailedOutput",
+          "sent": "#/$defs/SendSucceededOutput"
+        },
+        "propertyName": "status"
+      },
+      "oneOf": [
+        {
+          "$ref": "#/$defs/SendPreviewOutput"
+        },
+        {
+          "$ref": "#/$defs/SendSucceededOutput"
+        },
+        {
+          "$ref": "#/$defs/SendFailedOutput"
+        }
+      ],
+      "title": "SendMessageOutput",
+      "type": "object"
+    }
+  }
+}

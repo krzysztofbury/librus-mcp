@@ -1,6 +1,6 @@
 # TODO
 
-This roadmap tracks remaining work after 1.5.0. Each work group can be
+This roadmap tracks remaining work after 1.5.1. Each work group can be
 delivered independently. Version numbers below indicate compatibility risk,
 not a release commitment:
 
@@ -8,7 +8,7 @@ not a release commitment:
   resource controls, safety fixes, and documentation.
 - Major release (`2.0.0`): deliberate tool, response, package, or configuration contract changes.
 
-## Remaining Work After 1.5.0
+## Remaining Work After 1.5.1
 
 Prioritize output contracts and the measured tool catalog first, then bounded
 collection UX and runtime resource control. Preserve the existing text response
@@ -18,12 +18,10 @@ remains an MCP error, not a successful result variant.
 
 Next independent batches:
 
-1. Capture per-tool input/output schemas and annotations for review, then
-   shorten tool descriptions against the measured catalog-size budget.
-2. Introduce bounded pagination and whole-operation deadlines without removing
+1. Introduce bounded pagination and whole-operation deadlines without removing
    the current `all_pages` entry point.
-3. Bound aggregate cross-account work and move state I/O off the event loop.
-4. Anonymize a populated behaviour-note page before enabling the feature by default.
+2. Bound aggregate cross-account work and move state I/O off the event loop.
+3. Anonymize a populated behaviour-note page before enabling the feature by default.
 
 ## Completed Safety Foundations (1.2.x)
 
@@ -127,7 +125,8 @@ Next independent batches:
 - [x] Publish discriminated non-error outputs for send preview, sent, and failed;
   keep uncertain delivery as an actionable MCP error without structured content
   or automatic retry (output schemas do not cover `isError` responses).
-- [ ] Snapshot every tool input schema, output schema, and annotation.
+- [x] Snapshot every tool input schema, output schema, and annotation through
+  stdio for both the default and all-feature profiles.
 - [x] Add stdio integration tests for `initialize`, `tools/list`, and representative
   `tools/call` responses, including `structuredContent`.
 
@@ -168,8 +167,8 @@ Next independent batches:
 
 ### Tool Discovery Efficiency
 
-- [ ] Shorten repetitive tool descriptions while preserving constraints and
-  actionable usage guidance in schemas.
+- [x] Shorten repetitive tool descriptions while preserving constraints and
+  actionable usage guidance in the published catalog.
 - [x] Measure and record default and opt-in `tools/list` sizes, with a CI context
   budget to catch uncontrolled growth; see `MCP_CONTRACT.md`.
 - [ ] Evaluate optional feature profiles that expose only the tools a deployment uses.

@@ -15,16 +15,24 @@ the `tools/list` result serialized with `by_alias=True, exclude_unset=True`,
 including descriptions, input schemas, output schemas, and annotations. They do
 not contact Librus or invoke tools that consume read-once events or send messages.
 
-| Profile | Tools | Before typing | Current | Typed output schemas | Context budget |
-| --- | ---: | ---: | ---: | ---: | ---: |
-| Default | 21 | 16,728 B | 32,219 B | 21 | 48 KiB |
-| All feature gates enabled | 25 | 20,763 B | 38,869 B | 25 | 64 KiB |
+| Profile | Tools | Before typing | Before shortening | Current | Typed output schemas | Context budget |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| Default | 21 | 16,728 B | 32,219 B | 28,542 B | 21 | 48 KiB |
+| All feature gates enabled | 25 | 20,763 B | 38,981 B | 34,539 B | 25 | 64 KiB |
 
-Measurements use the `uv.lock` dependency set. The default profile was measured
-on 2026-09-27 and the all-features profile on 2026-09-29.
+Measurements use the `uv.lock` dependency set. The before-typing and default
+before-shortening values were recorded on 2026-09-27; the all-features
+before-shortening and both current values were measured on 2026-09-29.
 Default gates include notifications and attachments; behaviour notes and
 sending messages require opt-in. The CI budget guards total catalog growth,
 not the exact bytes of every SDK-generated schema.
+The reviewed full catalog schema/annotation snapshot lives in
+`tests/snapshots/tool_contracts_all.json`. Refresh it with
+`uv run python release_verification/measure_tools.py --contracts --all-features`
+and review changes before accepting them. The stdio test also verifies the
+default feature gates against that same snapshot. Prose descriptions are
+excluded from the snapshot so they can be improved independently; the measured
+byte budgets still include them.
 The clean installed-wheel check also exercises `tools/list` and `list_students`
 over stdio on Linux, macOS and Windows, without contacting Librus.
 

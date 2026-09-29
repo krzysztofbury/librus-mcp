@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.5.1] - 2026-09-29
+
+### Changed
+
+- Shorten repeated MCP tool descriptions while preserving paging, read-once,
+  attachment and message-send guidance. The measured default `tools/list`
+  response is 28,542 bytes; with all feature gates enabled it is 34,539 bytes.
+- Snapshot every tool input schema, output schema and annotation through a real
+  stdio session. A regression check covers both the default and opt-in catalog
+  without freezing the prose descriptions.
+
 ## [1.5.0] - 2026-09-29
 
 ### Added
