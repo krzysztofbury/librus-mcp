@@ -1,6 +1,6 @@
 # TODO
 
-This roadmap tracks remaining work after 1.6.0. Each work group can be
+This roadmap tracks remaining work after 1.6.1. Each work group can be
 delivered independently. Version numbers below indicate compatibility risk,
 not a release commitment:
 
@@ -8,7 +8,7 @@ not a release commitment:
   resource controls, safety fixes, and documentation.
 - Major release (`2.0.0`): deliberate tool, response, package, or configuration contract changes.
 
-## Remaining Work After 1.6.0
+## Remaining Work After 1.6.1
 
 Continue bounded collection UX and runtime resource control. Preserve the
 existing text response shapes and feature gates until a documented 2.0

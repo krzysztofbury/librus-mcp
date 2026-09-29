@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.6.1] - 2026-09-29
+
+### Added
+
+- Add `get_completed_lessons_page` for bounded, resumable completed-lesson
+  reads. It defaults to 100 lessons from one page and allows at most 1000
+  lessons and 10 pages per call, with page/offset continuation metadata.
+  The existing `get_completed_lessons` list response remains unchanged.
+- Publish the new tool's input/output schema and include it in the reviewed
+  MCP catalog snapshot. Document best-effort continuation when Librus changes
+  between requests.
+
 ## [1.6.0] - 2026-09-29
 
 ### Added
