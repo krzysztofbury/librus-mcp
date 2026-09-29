@@ -95,6 +95,11 @@ class TestGetMessagesPagination:
         with pytest.raises(ValueError, match="page"):
             await get_messages("test_student", page=-1)
 
+    @pytest.mark.asyncio
+    async def test_all_pages_rejects_bounded_cursor(self):
+        with pytest.raises(ValueError, match="cannot be combined"):
+            await get_messages("test_student", all_pages=True, limit=10)
+
 
 # --- get_recent_schedule_events ---
 

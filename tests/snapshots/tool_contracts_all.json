@@ -1094,6 +1094,41 @@
           "title": "Folder",
           "type": "string"
         },
+        "limit": {
+          "anyOf": [
+            {
+              "maximum": 2000,
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Limit"
+        },
+        "max_pages": {
+          "anyOf": [
+            {
+              "maximum": 40,
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Max Pages"
+        },
+        "offset": {
+          "default": 0,
+          "exclusiveMaximum": 50,
+          "minimum": 0,
+          "title": "Offset",
+          "type": "integer"
+        },
         "page": {
           "default": 0,
           "maximum": 1000,
@@ -1186,6 +1221,42 @@
           },
           "title": "Messages",
           "type": "array"
+        },
+        "next_offset": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Next Offset"
+        },
+        "next_page": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Next Page"
+        },
+        "offset": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Offset"
         },
         "page": {
           "anyOf": [

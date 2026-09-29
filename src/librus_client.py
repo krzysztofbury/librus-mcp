@@ -73,10 +73,12 @@ MAX_MESSAGE_PAGE = 1000
 # unbounded loop against a scraped endpoint.
 MAX_ALL_MESSAGE_PAGES = 40
 MAX_ALL_MESSAGE_ITEMS = MAX_ALL_MESSAGE_PAGES * MESSAGES_PER_PAGE
+MESSAGE_COLLECTION_TIMEOUT_SECONDS = 120
 MAX_HOMEWORK_RANGE_DAYS = 370
 MAX_COMPLETED_LESSONS_RANGE_DAYS = 370
 MAX_COMPLETED_LESSONS_PAGES = 100
 MAX_COMPLETED_LESSONS_ITEMS = 10_000
+COMPLETED_LESSONS_TIMEOUT_SECONDS = 180
 MAX_SEND_TITLE_LENGTH = 200
 MAX_SEND_CONTENT_LENGTH = 15_000
 MAX_SEND_RECIPIENTS = 50
@@ -729,16 +731,123 @@ class LibrusManager:
         """Fetch every message in a folder, newest first, bounded by
         MAX_ALL_MESSAGE_PAGES. Returns truncated=True when the bound cut
         the mailbox short."""
-        if folder == "received":
-            messages, pages_fetched, truncated = await cls._fetch_all_received(alias)
-        elif folder == "sent":
-            messages, pages_fetched, truncated = await cls._fetch_all_sent(alias)
-        else:
+        if folder not in MESSAGE_FOLDERS:
             raise ValueError(f"folder must be one of {MESSAGE_FOLDERS}, got: '{folder}'")
+        deadline = asyncio.timeout(MESSAGE_COLLECTION_TIMEOUT_SECONDS)
+        try:
+            async with deadline:
+                if folder == "received":
+                    messages, pages_fetched, truncated = await cls._fetch_all_received(alias)
+                else:
+                    messages, pages_fetched, truncated = await cls._fetch_all_sent(alias)
+        except TimeoutError as error:
+            if not deadline.expired():
+                raise
+            raise TimeoutError(
+                f"message collection exceeded its {MESSAGE_COLLECTION_TIMEOUT_SECONDS}-second deadline"
+            ) from error
         return {
             "messages": messages,
             "folder": folder,
             "pages_fetched": pages_fetched,
+            "truncated": truncated,
+        }
+
+    @classmethod
+    async def fetch_message_window(
+        cls, alias: str, page: int, folder: str, offset: int, limit: int, max_pages: int
+    ) -> dict[str, Any]:
+        """Return a bounded, resumable window. Offsets count rows within a page."""
+        cls._validate_message_page(page)
+        if folder not in MESSAGE_FOLDERS:
+            raise ValueError(f"folder must be one of {MESSAGE_FOLDERS}, got: '{folder}'")
+        if not 0 <= offset < MESSAGES_PER_PAGE:
+            raise ValueError(f"offset must be between 0 and {MESSAGES_PER_PAGE - 1}")
+        if not 1 <= limit <= MAX_ALL_MESSAGE_ITEMS:
+            raise ValueError(f"limit must be between 1 and {MAX_ALL_MESSAGE_ITEMS}")
+        if not 1 <= max_pages <= MAX_ALL_MESSAGE_PAGES:
+            raise ValueError(f"max_pages must be between 1 and {MAX_ALL_MESSAGE_PAGES}")
+
+        deadline = asyncio.timeout(MESSAGE_COLLECTION_TIMEOUT_SECONDS)
+        try:
+            async with deadline:
+                return await cls._fetch_message_window(
+                    alias, page, folder, offset, limit, max_pages
+                )
+        except TimeoutError as error:
+            if not deadline.expired():
+                raise
+            raise TimeoutError(
+                f"message collection exceeded its {MESSAGE_COLLECTION_TIMEOUT_SECONDS}-second deadline"
+            ) from error
+
+    @classmethod
+    async def _fetch_message_window(
+        cls, alias: str, page: int, folder: str, offset: int, limit: int, max_pages: int
+    ) -> dict[str, Any]:
+        if folder == "received":
+            if page == 0:
+                first = await cls._execute(alias, librus_optimizations.get_received_first_page)
+                max_page, first_batch = cls._validate_first_page_result(first)
+            else:
+                max_page = await cls._execute(alias, get_message_max_page)
+                assert isinstance(max_page, int) and max_page >= 0
+                if page > max_page:
+                    raise ValueError(f"page {page} exceeds max_page {max_page}")
+                first_batch = await cls._execute(alias, get_received, page)
+        else:
+            max_page = None
+            first_batch = await cls._execute(alias, get_sent, page)
+
+        messages: list[Any] = []
+        previous_hrefs: list[str] | None = None
+        pages_fetched = 0
+        next_page: int | None = None
+        next_offset: int | None = None
+        truncated = False
+        for current_page in range(page, min(page + max_pages, MAX_MESSAGE_PAGE + 1)):
+            if current_page == page:
+                batch = first_batch
+            else:
+                operation = get_received if folder == "received" else get_sent
+                batch = await cls._execute(alias, operation, current_page)
+            batch, page_truncated = cls._bounded_message_batch(batch)
+            hrefs = [message.href for message in batch] if folder == "sent" else None
+            if folder == "sent" and hrefs == previous_hrefs:
+                break  # Librus clamps an out-of-range sent page to its last page.
+            previous_hrefs = hrefs
+            pages_fetched += 1
+            available = batch[offset:] if current_page == page else batch
+            taken = available[: limit - len(messages)]
+            messages.extend(taken)
+            consumed = (offset if current_page == page else 0) + len(taken)
+            if consumed < len(batch):
+                next_page, next_offset = current_page, consumed
+                truncated = True
+                break
+            if page_truncated:
+                truncated = True  # Malformed oversized page has no safe continuation.
+                break
+            more_pages = (
+                current_page < max_page if max_page is not None else len(batch) == MESSAGES_PER_PAGE
+            )
+            if more_pages and current_page < MAX_MESSAGE_PAGE:
+                if len(messages) == limit or pages_fetched == max_pages:
+                    next_page, next_offset = current_page + 1, 0
+                    truncated = True
+                    break
+            else:
+                truncated = more_pages
+                break
+        return {
+            "messages": messages,
+            "folder": folder,
+            "page": page,
+            "offset": offset,
+            "max_page": max_page,
+            "pages_fetched": pages_fetched,
+            "next_page": next_page,
+            "next_offset": next_offset,
             "truncated": truncated,
         }
 
@@ -956,6 +1065,19 @@ class LibrusManager:
     @classmethod
     async def fetch_completed_lessons(cls, alias: str, date_from: str, date_to: str) -> list[Any]:
         """Fetch completed lessons for a date range, iterating all pages."""
+        deadline = asyncio.timeout(COMPLETED_LESSONS_TIMEOUT_SECONDS)
+        try:
+            async with deadline:
+                return await cls._fetch_completed_lessons(alias, date_from, date_to)
+        except TimeoutError as error:
+            if not deadline.expired():
+                raise
+            raise TimeoutError(
+                f"completed lessons exceeded its {COMPLETED_LESSONS_TIMEOUT_SECONDS}-second deadline"
+            ) from error
+
+    @classmethod
+    async def _fetch_completed_lessons(cls, alias: str, date_from: str, date_to: str) -> list[Any]:
         start = _parse_date(date_from, "date_from")
         end = _parse_date(date_to, "date_to")
         if start > end:

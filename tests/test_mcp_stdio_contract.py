@@ -142,14 +142,27 @@ async def test_stdio_message_modes_preserve_null_and_absent_fields():
         "pages_fetched": 1,
         "truncated": False,
     }
+    bounded = {
+        "messages": [message],
+        "folder": "received",
+        "page": 0,
+        "offset": 0,
+        "max_page": 2,
+        "pages_fetched": 1,
+        "next_page": 0,
+        "next_offset": 1,
+        "truncated": True,
+    }
     child_script = (
         "from unittest.mock import AsyncMock, patch\n"
         "from src.cli import main\n"
         "from src.librus_client import LibrusManager\n"
-        f"received, sent, all_pages = {received!r}, {sent!r}, {all_pages!r}\n"
+        f"received, sent, all_pages, bounded = "
+        f"{received!r}, {sent!r}, {all_pages!r}, {bounded!r}\n"
         "with (\n"
         "    patch.object(LibrusManager, 'fetch_messages', AsyncMock(side_effect=[received, sent])),\n"
         "    patch.object(LibrusManager, 'fetch_all_messages', AsyncMock(return_value=all_pages)),\n"
+        "    patch.object(LibrusManager, 'fetch_message_window', AsyncMock(return_value=bounded)),\n"
         "):\n"
         "    main([])\n"
     )
@@ -161,6 +174,7 @@ async def test_stdio_message_modes_preserve_null_and_absent_fields():
                     ({"student_alias": "synthetic"}, received),
                     ({"student_alias": "synthetic", "folder": "sent"}, sent),
                     ({"student_alias": "synthetic", "all_pages": True}, all_pages),
+                    ({"student_alias": "synthetic", "limit": 1}, bounded),
                 ):
                     result = await session.call_tool("get_messages", arguments)
                     assert result.is_error is not True

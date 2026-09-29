@@ -14,10 +14,13 @@ from pydantic import Field
 from src import __version__
 from src.config import ALIAS_PATTERN, MAX_ALIAS_LENGTH, ConfigError
 from src.librus_client import (
+    MAX_ALL_MESSAGE_ITEMS,
+    MAX_ALL_MESSAGE_PAGES,
     MAX_RECIPIENT_ID_LENGTH,
     MAX_SEND_CONTENT_LENGTH,
     MAX_SEND_RECIPIENTS,
     MAX_SEND_TITLE_LENGTH,
+    MESSAGES_PER_PAGE,
     LibrusManager,
 )
 from src.output_models import (
@@ -139,14 +142,28 @@ async def get_messages(
     page: Annotated[int, Field(ge=0, le=1000)] = 0,
     folder: Literal["received", "sent"] = "received",
     all_pages: bool = False,
+    limit: Annotated[int | None, Field(ge=1, le=MAX_ALL_MESSAGE_ITEMS)] = None,
+    max_pages: Annotated[int | None, Field(ge=1, le=MAX_ALL_MESSAGE_PAGES)] = None,
+    offset: Annotated[int, Field(ge=0, lt=MESSAGES_PER_PAGE)] = 0,
 ) -> MessagesOutput:
     """Get received or sent messages, newest first. Page 0 is newest; pages hold
-    50. Sent max_page=null does not mean last page. Librus clamps out-of-range
-    pages, so a short page signals the end. all_pages ignores page, fetches up
-    to 2000 messages and reports pages_fetched and truncated.
+    50. For bounded reads set limit or max_pages; resume with next_page and
+    next_offset. Sent max_page=null means the last page is unknown. Legacy
+    all_pages ignores page and fetches up to 2000 messages without a cursor.
     """
     if all_pages:
+        if limit is not None or max_pages is not None or offset:
+            raise ValueError("all_pages cannot be combined with limit, max_pages or offset")
         messages = await LibrusManager.fetch_all_messages(student_alias, folder)
+    elif limit is not None or max_pages is not None or offset:
+        messages = await LibrusManager.fetch_message_window(
+            student_alias,
+            page,
+            folder,
+            offset,
+            limit if limit is not None else MAX_ALL_MESSAGE_ITEMS,
+            max_pages if max_pages is not None else MAX_ALL_MESSAGE_PAGES,
+        )
     else:
         messages = await LibrusManager.fetch_messages(student_alias, page, folder)
     return to_dict(messages)

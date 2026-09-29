@@ -1,5 +1,6 @@
 """Tests for all MCP tools exposed by the librus-mcp server."""
 
+import asyncio
 import dataclasses
 import json
 import os
@@ -10,6 +11,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from src import __version__
+from src.librus_client import LibrusManager
 from src.server import (
     get_announcements,
     get_attendance,
@@ -656,6 +658,28 @@ class TestGetCompletedLessons:
         with patch("src.librus_client.LibrusManager._execute", mock):
             result = await get_completed_lessons("test_student", "2026-01-01", "2026-01-31")
         assert len(result) == 1
+
+    @pytest.mark.asyncio
+    async def test_whole_operation_deadline_cancels_next_page(self, monkeypatch):
+        from src import librus_client
+
+        monkeypatch.setattr(librus_client, "COMPLETED_LESSONS_TIMEOUT_SECONDS", 0.05)
+        cancelled = asyncio.Event()
+
+        async def fetch(alias, operation, *args):
+            if operation is librus_client.librus_optimizations.get_completed_first_page:
+                return (1, [])
+            try:
+                await asyncio.Event().wait()
+            finally:
+                cancelled.set()
+
+        with (
+            patch.object(LibrusManager, "_execute", side_effect=fetch),
+            pytest.raises(TimeoutError, match="completed lessons exceeded"),
+        ):
+            await get_completed_lessons("test_student", "2026-01-01", "2026-01-31")
+        assert cancelled.is_set()
 
     @pytest.mark.asyncio
     async def test_empty_date_from_raises(self):

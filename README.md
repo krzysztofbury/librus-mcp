@@ -362,7 +362,7 @@ Contributors can run the credentialed source-tree smoke test with
 | `list_students()` | List configured student aliases |
 | `get_grades(student_alias, sort_by?)` | Get numeric grades, GPA, and descriptive grades (`all`, `week`, or `last_login`) |
 | `get_final_grades(student_alias)` | Get end-of-year summary per subject: midterm, predicted annual (przewidywana roczna), and annual grade |
-| `get_messages(student_alias, page?, folder?, all_pages?)` | Get one page of messages from the `received` or `sent` folder, or the whole folder (50 messages per page, 2000 overall, with truncation metadata) |
+| `get_messages(student_alias, page?, folder?, all_pages?, limit?, max_pages?, offset?)` | Get one page of messages or a bounded, resumable batch from `received` or `sent` (50 per page, 2000 overall). Legacy `all_pages` remains available. |
 | `get_message_content(student_alias, message_id)` | Get a message: author, title, date, and content |
 | `get_attendance(student_alias, sort_by?)` | Get attendance records (`all`, `week`, or `last_login`) |
 | `get_attendance_detail(student_alias, detail_url)` | Get details of one attendance entry by its numeric Librus ID |
@@ -380,6 +380,18 @@ Contributors can run the credentialed source-tree smoke test with
 
 All tools carry MCP `ToolAnnotations` (read-only / destructive / idempotent
 hints), so MCP hosts can apply their own safety policies.
+
+For a large mailbox, ask your assistant for a small batch, for example:
+**"Show the newest 20 received messages for daughter."** It can use
+`get_messages` with `limit=20`. If the result includes `next_page` and
+`next_offset`, pass both back with the same folder, limit and max_pages to
+continue. A null `next_page` means there is no safe next cursor. Sent messages
+have no reliable last-page count, and a changing mailbox can move messages
+between pages. A full last sent page can yield a speculative next cursor that
+repeats messages; compare message IDs when continuing. This is best-effort,
+not a frozen snapshot.
+`all_pages=true` is retained for older clients but can still return up to
+2000 messages; prefer explicit limits for new requests.
 
 ### Optional tools (feature gates)
 
