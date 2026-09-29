@@ -114,9 +114,51 @@ codex mcp add librus \
   -- uvx librus-mcp==1.5.1 --config /absolute/path/to/secrets.json
 ```
 
-#### OpenCode
+#### OpenCode V2
 
-Add this server to `~/.config/opencode/opencode.json`:
+Run this once in a terminal. `--global` keeps the server configuration out of
+project files; the credentials remain in the private file created above:
+
+```bash
+opencode mcp add librus --global -- \
+  uvx librus-mcp==1.5.1 --config /absolute/path/to/secrets.json
+opencode mcp list
+```
+
+Alternatively, add this entry under `mcp.servers` in
+`~/.config/opencode/opencode.json`. If the file already exists, add only the
+`librus` entry and keep its other settings and servers:
+
+```json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "servers": {
+      "librus": {
+        "type": "local",
+        "command": [
+          "uvx",
+          "librus-mcp==1.5.1",
+          "--config",
+          "/absolute/path/to/secrets.json"
+        ]
+      }
+    }
+  }
+}
+```
+
+V2 connects configured servers automatically. Do not add `enabled`; set
+`disabled: true` only when you deliberately want to keep a server disconnected.
+If `opencode mcp list` does not show `librus` as connected, do not assume that
+Librus is available to the assistant. Reopen OpenCode and check the status
+again before asking it to read grades. If it is still missing, check that you
+used the V2 command or `mcp.servers` example above rather than the V1 example.
+
+#### OpenCode V1 (older installations)
+
+OpenCode 1.x used a different configuration shape. If you are still on V1,
+put `librus` directly under `mcp` in your global `opencode.json`:
 
 ```json
 {
@@ -136,6 +178,10 @@ Add this server to `~/.config/opencode/opencode.json`:
 }
 ```
 
+V1's `mcp.librus` and `enabled` fields are not the V2 setup above. Use
+`opencode --version` if you are unsure which version you have. Do not copy
+both examples into the same file.
+
 Never put a Librus password or `LIBRUS_ACCOUNTS` in a project-level MCP
 configuration. Project files can be committed, synchronized, or shared.
 
@@ -147,8 +193,9 @@ configuration. Project files can be committed, synchronized, or shared.
 4. Ask: **"Use Librus to show grades for daughter."** Replace `daughter` with
    your alias. This second request performs a real Librus login.
 
-For CLI status checks, use `claude mcp list`, `gemini mcp list`, or
-`codex mcp list`. Claude Code and Gemini CLI also expose status through `/mcp`.
+For CLI status checks, use `claude mcp list`, `gemini mcp list`,
+`codex mcp list`, or `opencode mcp list`. Claude Code and Gemini CLI also
+expose status through `/mcp`; OpenCode V2 uses `/mcps`.
 
 Repeat the restart or reconnect step after changing credentials, enabled
 features, storage folders, or the Librus MCP version. A running MCP process does
@@ -219,9 +266,10 @@ cover live authentication or upstream network behavior.
 | macOS (`macos-latest`) | Every pull request | Installed-wheel smoke-tested |
 | Windows (`windows-latest`) | Every pull request | Installed-wheel smoke-tested |
 
-Client setup was checked on 2026-09-18. Client and operating-system dimensions
-are tested separately; the table does not claim that every client and OS pair
-has been exercised end to end.
+Initial client setup was checked on 2026-09-18; OpenCode V2 setup was checked
+separately on 2026-09-29. Client and operating-system dimensions are tested
+separately; the table does not claim that every client and OS pair has been
+exercised end to end.
 
 | MCP client | Checked version | Check performed | Status |
 |------------|-----------------|-----------------|--------|
@@ -229,7 +277,8 @@ has been exercised end to end.
 | Claude Code | 2.1.270 on Linux | `mcp add` and `mcp get` accepted the documented command | Setup verified |
 | Gemini CLI | 0.59.0 on Linux | `mcp add` and `mcp list` accepted the documented command | Setup verified |
 | OpenAI Codex CLI | 0.154.0 on Linux | `mcp add` and `mcp get` accepted the documented command | Setup verified |
-| OpenCode | 1.18.30 on Linux | Local stdio configuration connected | Connection verified |
+| OpenCode V1 | 1.18.30 on Linux (2026-09-18) | Local stdio configuration connected with the V1 shape | Connection verified for V1 at the time |
+| OpenCode V2 | 2.0.18 on Linux (2026-09-29) | `mcp add --global` and project-local `mcp add` accepted the V2 shape with synthetic credentials; `mcp list` reported no servers afterward | Setup syntax checked; connection pending investigation |
 
 All clients use the same local stdio server and require a restart or reconnect
 after configuration changes. A setup-verified entry confirms that the client
