@@ -47,6 +47,7 @@ from requests.exceptions import JSONDecodeError as RequestsJSONDecodeError
 
 from src import librus_optimizations, scraping
 from src.config import AccountConfig, AppConfig, load_config, validate_alias
+from src.identity_backend import IdentityBackend
 from src.notification_state import (
     clear_pending_schedule_events,
     load_notification_ids,
@@ -303,6 +304,17 @@ class LibrusTimeoutSession(Session):
 
 
 class LibrusManager:
+    _identity_backend: ClassVar[IdentityBackend | None] = None
+
+    @classmethod
+    def set_identity_backend(cls, backend: IdentityBackend | None) -> None:
+        """Explicit local identity experiment; caller owns backend lifecycle.
+
+        Configure before serving requests. None restores the unchanged default.
+        Other tools keep their selected backend and never share native cookies.
+        """
+        cls._identity_backend = backend
+
     _instances: ClassVar[dict[str, Client]] = {}
     _tokens: ClassVar[dict[str, Token]] = {}
     _config_cache: ClassVar[AppConfig | None] = None
@@ -1404,6 +1416,9 @@ class LibrusManager:
     @classmethod
     async def fetch_student_information(cls, alias: str) -> Any:
         """Fetch student profile information (name, class, tutor, school, lucky number)."""
+        if cls._identity_backend is not None:
+            cls._require_account(alias)
+            return await cls._identity_backend.student_information(alias)
         info = await cls._execute(alias, get_student_information)
         assert info is not None, "get_student_information returned None"
         return info
