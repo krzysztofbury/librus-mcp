@@ -21,7 +21,10 @@ remain unchanged. This limitation and live authentication/HTML layout gaps must
 be resolved before production selection.
 
 Offline installed-artifact stdio qualification is provided by
-`librus-python-api/tools/mcp_identity_probe.py`, using original synthetic loopback
-fixtures. It does not call Librus or read production credentials. PyPI publication
+the library's opt-in `tests/integration/test_mcp_identity.py`, using original
+synthetic loopback fixtures. Select it with pytest's `-m integration` and supply
+`--mcp-checkout=/path/to/librus-mcp` from an installed-library environment; see the
+library's CONTRIBUTING.md for the full command. It does not call Librus or read
+production credentials. PyPI publication
 is deferred until the library's `1.0.0rc1`; no production dependency pin or default
 CLI switch is introduced here.
