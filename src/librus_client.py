@@ -47,6 +47,7 @@ from requests.exceptions import JSONDecodeError as RequestsJSONDecodeError
 
 from src import librus_optimizations, scraping
 from src.config import AccountConfig, AppConfig, load_config, validate_alias
+from src.grade_backend import FinalGradesBackend
 from src.identity_backend import IdentityBackend
 from src.notification_state import (
     clear_pending_schedule_events,
@@ -305,6 +306,16 @@ class LibrusTimeoutSession(Session):
 
 class LibrusManager:
     _identity_backend: ClassVar[IdentityBackend | None] = None
+    _final_grades_backend: ClassVar[FinalGradesBackend | None] = None
+
+    @classmethod
+    def set_final_grades_backend(cls, backend: FinalGradesBackend | None) -> None:
+        """Configure before serving; caller owns the backend lifecycle.
+
+        None preserves the legacy default. A native failure is never replayed
+        through the legacy backend, and other grade tools remain unchanged.
+        """
+        cls._final_grades_backend = backend
 
     @classmethod
     def set_identity_backend(cls, backend: IdentityBackend | None) -> None:
@@ -1693,6 +1704,9 @@ class LibrusManager:
         Own scraping: librus-apix parses only current grades and skips the
         (I)/(R)/R summary columns of the grades table.
         """
+        if cls._final_grades_backend is not None:
+            cls._require_account(alias)
+            return await cls._final_grades_backend.final_grades(alias)
         grades = await cls._execute(alias, scraping.get_final_grades)
         assert isinstance(grades, list), "get_final_grades must return a list"
         return grades
