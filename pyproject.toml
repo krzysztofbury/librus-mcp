@@ -3,7 +3,7 @@ name = "librus-mcp"
 version = "2.0.0.dev1"
 description = "MCP server for Librus Synergia using the independent librus-python-api"
 authors = [{name = "Krzysztof Bury", email = "contact@datacraze.io"}]
-license = "GPL-3.0-only"
+license = "MIT"
 license-files = ["LICENSE"]
 readme = "README.md"
 requires-python = ">=3.14"
@@ -11,7 +11,7 @@ keywords = ["mcp", "librus", "synergia", "gradebook", "llm", "claude", "gemini"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
-    "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
+    "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.14",
 ]
@@ -41,13 +41,12 @@ build-backend = "hatchling.build"
 packages = ["src/librus_mcp"]
 
 [tool.hatch.build.targets.sdist]
-only-include = ["src/librus_mcp", "tests_native", "release_verification", "scripts/qualify_native.py", "pyproject.toml", "uv.lock", "README.md", "CHANGELOG.md", "LICENSE", "MCP_2_0_PLAN.md", "MIGRATION_2_0.md", "NATIVE_TEST_PLAN.md"]
+only-include = ["src/librus_mcp", "tests_native", "release_verification", "scripts/qualify_native.py", "pyproject.toml", "uv.lock", "README.md", "CHANGELOG.md", "LICENSE", "LICENSE_REVIEW.md", "MCP_2_0_PLAN.md", "MIGRATION_2_0.md", "NATIVE_TEST_PLAN.md", "SPEC.md", "MCP_CONTRACT.md"]
 
 [dependency-groups]
 dev = [
     "ruff>=0.11.0",
     "bandit[toml]>=1.8.0",
-    "cosmic-ray>=8.7,<9",
     "hatchling==1.27.0",
     "pytest>=8.0.0",
     "pytest-asyncio>=0.24.0",

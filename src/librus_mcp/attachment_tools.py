@@ -85,7 +85,16 @@ async def download_attachment(
     saved = await publish_attachment(
         stream, runtime.attachment_resources.directory, filename=filename, max_bytes=max_bytes
     )
-    uri = runtime.attachment_resources.snapshot(saved)
+    # Publication is the native commit point. Optional resource hosting must
+    # not turn an already committed download into an apparent failed transfer.
+    # A rejected snapshot never creates a URI; the published digest remains the
+    # caller's integrity check for subsequent local-file use.
+    try:
+        uri = runtime.attachment_resources.snapshot(saved)
+    except LibrusError as error:
+        if error.kind is not ErrorKind.STORAGE:
+            raise
+        uri = None
     return SavedAttachmentResult(
         filename=saved.path.name,
         local_path=str(saved.path),

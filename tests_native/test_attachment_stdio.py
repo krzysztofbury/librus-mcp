@@ -134,3 +134,45 @@ def test_resource_capacity_expiry_and_nofollow_boundary(tmp_path, monkeypatch):
     with pytest.raises(LibrusError) as unsafe:
         resources.snapshot(saved)
     assert unsafe.value.kind is ErrorKind.STORAGE
+
+
+@pytest.mark.asyncio
+async def test_snapshot_failure_after_publication_returns_complete_local_file(tmp_path):
+    setup = """from librus_mcp.resources import AttachmentResources
+from librus_python_api.exceptions import LibrusError, ErrorKind
+def unavailable(self, saved):
+    raise LibrusError(ErrorKind.STORAGE)
+AttachmentResources.snapshot = unavailable
+"""
+    async with Wire().serve() as wire:
+        process = server_process(
+            wire.origin,
+            [("account", "71")],
+            features={"attachments": True},
+            download_dir=tmp_path / "downloads",
+            setup_script=setup,
+        )
+        with anyio.fail_after(20):
+            async with stdio_client(process) as streams, ClientSession(*streams) as session:
+                await session.initialize()
+                messages = await session.call_tool(
+                    "get_messages", {"account_alias": "account", "limit": 1}
+                )
+                result = await session.call_tool(
+                    "download_attachment",
+                    {
+                        "account_alias": "account",
+                        "attachment_ref": {
+                            "message": messages.structured_content["items"][0]["reference"],
+                            "identifier": "91",
+                        },
+                        "filename": "Fixture.bin",
+                    },
+                )
+                assert not result.is_error, result
+                assert result.structured_content["resource_uri"] is None
+                assert (
+                    Path(result.structured_content["local_path"]).read_bytes()
+                    == wire.attachment_body
+                )
+                assert len(list((tmp_path / "downloads" / "native-v2").iterdir())) == 1

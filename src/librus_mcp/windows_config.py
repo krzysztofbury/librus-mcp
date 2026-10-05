@@ -3,17 +3,51 @@
 from pathlib import Path
 from typing import Any, cast
 
+import pywintypes  # type: ignore[import-untyped]
+import win32api  # type: ignore[import-untyped]
+import win32con  # type: ignore[import-untyped]
+import win32file  # type: ignore[import-untyped]
+import win32security  # type: ignore[import-untyped]
+
 from librus_mcp.config import ConfigError
 
 
-def read_private_config(path: Path, maximum: int) -> bytes:
-    # Conditional imports keep POSIX startup independent of Windows extensions.
-    import pywintypes  # type: ignore[import-untyped]
-    import win32api  # type: ignore[import-untyped]
-    import win32con  # type: ignore[import-untyped]
-    import win32file  # type: ignore[import-untyped]
-    import win32security  # type: ignore[import-untyped]
+def validate_acl(handle: Any) -> None:
+    token = win32security.OpenProcessToken(win32api.GetCurrentProcess(), win32con.TOKEN_QUERY)
+    try:
+        user = win32security.ConvertSidToStringSid(
+            win32security.GetTokenInformation(token, win32security.TokenUser)[0]
+        )
+        owner = win32security.ConvertSidToStringSid(
+            win32security.GetTokenInformation(token, win32security.TokenOwner)
+        )
+    finally:
+        token.Close()
+    security = win32security.GetSecurityInfo(
+        handle,
+        win32security.SE_FILE_OBJECT,
+        win32security.OWNER_SECURITY_INFORMATION | win32security.DACL_SECURITY_INFORMATION,
+    )
+    acl = security.GetSecurityDescriptorDacl()
+    if (
+        win32security.ConvertSidToStringSid(security.GetSecurityDescriptorOwner())
+        not in {user, owner}
+        or acl is None
+        or not 1 <= acl.GetAceCount() <= 16
+    ):
+        raise ConfigError("configuration must have an owner-private Windows ACL")
+    for index in range(acl.GetAceCount()):
+        ace = acl.GetAce(index)
+        if (
+            len(ace) != 3
+            or ace[0][0] != win32security.ACCESS_ALLOWED_ACE_TYPE
+            or win32security.ConvertSidToStringSid(ace[2]) not in {user, "S-1-5-18", "S-1-5-32-544"}
+        ):
+            raise ConfigError("configuration must have an owner-private Windows ACL")
 
+
+def read_private_config(path: Path, maximum: int) -> bytes:
+    # This module is loaded only by the Windows configuration read boundary.
     path = path.absolute()
     if (
         len(path.drive) != 2
@@ -65,39 +99,8 @@ def read_private_config(path: Path, maximum: int) -> bytes:
             or win32file.GetFileType(handle) != win32con.FILE_TYPE_DISK
         ):
             raise ConfigError("configuration must be a regular unlinked file")
-        token = win32security.OpenProcessToken(win32api.GetCurrentProcess(), win32con.TOKEN_QUERY)
-        try:
-            user = win32security.ConvertSidToStringSid(
-                win32security.GetTokenInformation(token, win32security.TokenUser)[0]
-            )
-            owner = win32security.ConvertSidToStringSid(
-                win32security.GetTokenInformation(token, win32security.TokenOwner)
-            )
-        finally:
-            token.Close()
-        security = win32security.GetSecurityInfo(
-            handle,
-            win32security.SE_FILE_OBJECT,
-            win32security.OWNER_SECURITY_INFORMATION | win32security.DACL_SECURITY_INFORMATION,
-        )
-        acl = security.GetSecurityDescriptorDacl()
-        if (
-            win32security.ConvertSidToStringSid(security.GetSecurityDescriptorOwner())
-            not in {user, owner}
-            or acl is None
-            or not 1 <= acl.GetAceCount() <= 16
-        ):
-            raise ConfigError("configuration must have an owner-private Windows ACL")
-        for index in range(acl.GetAceCount()):
-            ace = acl.GetAce(index)
-            if (
-                len(ace) != 3
-                or ace[0][0] != win32security.ACCESS_ALLOWED_ACE_TYPE
-                or win32security.ConvertSidToStringSid(ace[2])
-                not in {user, "S-1-5-18", "S-1-5-32-544"}
-            ):
-                raise ConfigError("configuration must have an owner-private Windows ACL")
-        if (info[5] << 32) | info[6] > maximum:
+        validate_acl(handle)
+        if ((info[5] << 32) | info[6]) > maximum:
             raise ConfigError("configuration file exceeds the configuration size limit")
         if not info[5] and not info[6]:
             return b""

@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ## [2.0.0] - Unreleased
 
+- License the independent native package under MIT after the source/dependency
+  review. Preserve unshipped apix-era references under GPL-3.0-only and leave
+  historical release licenses untouched.
+- Qualify both messaging backends, dispatch cancellation/disconnects, explicit
+  notification uncertainty recovery and interrupted migration manifests offline.
+- Harden Windows credential-file reads with pinned local-NTFS handles and
+  conservative private ACL checks. Snapshot failures after native file publication
+  return the complete local file instead of reporting a failed transfer.
+
 ### Breaking changes
 
 - Replace the `librus-apix` backend with the independently implemented

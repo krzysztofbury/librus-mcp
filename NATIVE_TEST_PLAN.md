@@ -3,7 +3,7 @@
 ## Baseline and current test selection
 
 The apix-era suite passed **569 tests** before dependency removal on 2026-10-05.
-It is retained in `tests/` as a migration reference, not installed with the native
+It is retained in `legacy_reference/tests/` as a GPL-scoped migration reference, not installed with the native
 package and not executed by native CI. Many tests import apix/private wrappers or
 assert deliberate 1.x contracts; they cannot truthfully validate 2.0 unchanged.
 No apix dependency is retained to make that suite importable.
@@ -95,16 +95,55 @@ Durable integration evidence on 2026-10-05:
   pins; those baseline false positives were not suppressed by changing unrelated
   files. Review the historical scan baseline before final release.
 
+## Expanded native qualification
+
+The post-review suite passes **73 tests, 1 Windows-only skip** on Linux, including
+an isolated wheel rebuilt from its audited MIT sdist. The installed verifier
+also exercises the actual CLI and both feature catalogs outside the checkout.
+
+New independent consumer evidence:
+
+- Remaining academic families through the public API and real stdio, including
+  unknown attendance ratios, school wall times, bound details and lesson cursors.
+- Both explicit messaging backends across paging, consent, directory/legacy
+  group choices, durable sends, downloads and notification replay/ack.
+- Accepted, rejected, unrecognized and disconnected send outcomes; cancellation
+  after observed dispatch; offline restart recovery without consumer resubmission.
+- Public store errors before/after execution are closed `STORAGE` results without
+  consumer retry. Native claim/save transaction internals remain API-owned proof.
+- Snapshot failure after native publication returns the complete local file,
+  not an apparent failed download. The regression failed before the adapter fix.
+- Actual historical short-hash alias collision, over-capacity source retention,
+  pre-/post-bootstrap manifest interruption, archive export and empty/populated
+  target recovery. Old files remain unchanged.
+- Lost consume response remains `CHECKPOINT`-quarantined after restart. Operator
+  export and separately loss-consenting uncertainty resolution stay offline.
+- Four-login mixed cold/warm workloads at 3 and 100 mailbox records, concurrent
+  academic calls, independent contexts, one login per account, shared concurrency
+  and complete response-byte bounds. This is safety/load qualification, not a
+  speedup or old-versus-new performance benchmark.
+
+Hosted macOS passed the expanded pre-license suite at `acc10a0` in run
+[37364751785](https://github.com/krzysztofbury/librus-mcp/actions/runs/37364751785).
+That run's Linux/Windows jobs never acquired hosted runners and are not test
+evidence. The final source/sdist matrix is required after the coordinated MIT
+cutover. Windows's positive/negative credential ACL case must execute there.
+
+The 1.x source/tests were preserved under `legacy_reference/`, not deleted or
+imported into native tests. Reusable parser/storage/scheduler invariants are owned
+by the API, as mapped above; obsolete mocks/return shapes do not count as 2.0 proof.
+Cosmic Ray's old configurations are scoped with those historical references.
+
 ## Required future qualification
 
-- Broaden installed stdio integration to all enabled families and real persistence.
+- Finish the final hosted MIT sdist-rebuilt wheel matrix, including Windows ACLs.
 - Record equivalent old/new representative workloads before claiming performance
   gains, including warm/cold request counts, latency distribution, peak memory,
   rate/burst/queue saturation, concurrent tools and cancellation.
 - Exercise Linux, macOS and Windows on actual respective CI hosts. Local Linux
   success and upstream Windows CI are not consumer Windows qualification.
 - Qualify public API #22-25 at their released contracts; keep #26-27 deferred.
-- Audit provenance/dependency licenses before switching artifacts to MIT.
+- Keep [LICENSE_REVIEW.md](LICENSE_REVIEW.md) current as dependencies/artifacts change.
 - Keep ordinary CI offline. Release-time live checks need separate scoped approval;
   no routine read-once events, message-open mark-read operations or sends.
 - Before calling a live family unavailable or treating an empty result as a native

@@ -20,34 +20,38 @@ and final release gates remain open.
   existing MCP 2.0 roadmap items; create the dedicated MCP branch.
 - [x] File API gaps [#22-27](https://github.com/krzysztofbury/librus-python-api/issues)
   with evidence and acceptance criteria; distinguish required and conditional gates.
-- [ ] Approve W0 contract choices: backend/platform scope, tool catalog,
+- [x] Approve W0 contract choices: backend/platform scope, tool catalog,
   poll/ack delivery, context key, configuration and migration/rollback policy.
 - [x] W1: API #22-25 are closed and included in published stable API `1.0.0`,
   pinned for native development. Consumer acceptance of durable integrations
   remains part of W4/W5; upstream completion alone is not MCP qualification.
-- [ ] W2: establish `librus_mcp` packaging, native lifespan and explicit config.
+- [x] W2: establish `librus_mcp` packaging, native lifespan and explicit config.
   Package/entry point, shared service, XDG selection, persistent-key input and
   offline validation and explicit doctor/storage diagnostics are implemented;
-  actual macOS/Windows consumer qualification remains pending.
-- [ ] W3: replace ordinary reads with native typed operations and MCP 2.0 DTOs.
+  platform acceptance is tracked under W7, including hardened Windows config ACLs.
+- [x] W3: replace ordinary reads with native typed operations and MCP 2.0 DTOs.
   All planned ordinary read families, date windows, bound school references and
-  presentation/native cursors are implemented. Complete family-wide offline proof
-  and final catalog review remain release gates.
-- [ ] W4: integrate native messaging, durable sends, streams and file publication.
+  presentation/native cursors pass family-wide offline stdio proof. Both catalogs
+  pass the client's schema validators and numeric byte budgets.
+- [x] W4: integrate native messaging, durable sends, streams and file publication.
   Message summaries/content and recipient discovery/selection are implemented,
-  with explicit backend/context binding and received-open consent. Modern stdio
-  paging/content/directory, durable sends/outcomes and publication/resources now
-  pass offline stdio/restart proof. Legacy-backend and host qualification, plus
-  cancellation/disconnect invariants, remain open.
-- [ ] W5: implement notification poll/status/ack and explicit old-state migration.
+  with explicit backend/context binding and received-open consent. Both backends
+  pass stdio/restart send/read/file proof, including cancellation/disconnect and
+  post-publication snapshot fallback. Final platform acceptance is tracked in W7.
+- [x] W5: implement notification poll/status/ack and explicit old-state migration.
   Poll/status/ack, POSIX old-file inventory/reviewed bootstrap, per-account old-state
   quarantine, explicit archive export and loss-consenting recovery are integrated.
   Historical event replay/ack and malformed checkpoint retention pass offline
-  restart proof. Broader migration/platform/failure qualification remains open;
-  lossless reverse migration is not promised.
-- [ ] W6: remove apix, duplicated HTTP/parsers/workers/caches and runtime JSON state.
+  restart proof, collision/capacity rejection, interrupted manifests and explicit
+  uncertainty recovery. Lossless reverse migration is not promised.
+- [x] W6: remove apix and duplicated runtime HTTP/parsers/workers/caches/JSON state.
+  Historical source/tests/tooling are preserved, GPL-scoped and excluded from
+  imports/builds in `legacy_reference/`. Cosmic Ray is removed from native dev deps.
 - [ ] W7: qualify installed artifacts, protocol contracts, representative workloads,
   declared platforms and the source/dependency provenance required for MIT.
+  Local isolated MIT wheel-from-sdist passes 73 tests (1 Windows-only skip), CLI,
+  both catalog profiles and artifact inventories. MIT source/dependency review is
+  recorded in `LICENSE_REVIEW.md`. Final hosted Windows matrix remains required.
 - [ ] W8: publish the exact API prerequisite and MCP 2.0.0, verify remote artifacts
   and fresh `uvx` startup.
 
@@ -57,10 +61,10 @@ remain unavailable/unregistered; offline E2E and release qualification remain re
 
 The target is a thin MCP client with reusable heavy work in `librus-python-api`.
 New tool requests/responses may break 1.x compatibility. Durable history and
-uncertain sends must remain recoverable. MIT is the target for the qualified
+uncertain sends must remain recoverable. MIT is the license of the new native
 2.0 release; existing GPL releases and notices are not retroactively changed.
 Runtime implementation has started as `2.0.0.dev1`; dependency replacement is
-complete with no apix fallback. The remaining work and final MIT gate are open.
+complete with no apix fallback. Final hosted acceptance and publication remain open.
 
 ## Remaining Work After 1.7.0
 

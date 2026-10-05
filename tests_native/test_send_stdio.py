@@ -192,3 +192,46 @@ async def test_cancel_after_send_dispatch_keeps_uncertainty_and_never_resubmits(
                 )
                 assert replay.is_error
                 assert len(wire.sent_payloads) == 1
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("after_execution", [False, True])
+async def test_native_storage_error_is_closed_and_never_causes_consumer_send_retry(
+    tmp_path, after_execution
+):
+    setup = f"""from librus_python_api.persistence import PersistenceStore
+from librus_python_api.exceptions import LibrusError, ErrorKind
+original = PersistenceStore.execute_send
+async def unavailable(self, token, attempt, *, budget=None):
+    if {after_execution!r}:
+        await original(self, token, attempt, budget=budget)
+    raise LibrusError(ErrorKind.STORAGE)
+PersistenceStore.execute_send = unavailable
+"""
+    async with Wire().serve() as wire:
+        process = server_process(
+            wire.origin,
+            [("sender", "71")],
+            features={"send_message": True},
+            state_dir=tmp_path / "state",
+            setup_script=setup,
+        )
+        with anyio.fail_after(20):
+            async with stdio_client(process) as streams, ClientSession(*streams) as session:
+                await session.initialize()
+                arguments = {"account_alias": "sender", "message": await discover_message(session)}
+                preview = await session.call_tool("preview_message", arguments)
+                token = preview.structured_content["confirmation_token"]
+                result = await session.call_tool(
+                    "send_message", arguments | {"confirmation_token": token, "confirm": True}
+                )
+                assert result.is_error and result.structured_content == {
+                    "error": {"code": "STORAGE"}
+                }
+                history = await session.call_tool(
+                    "get_send_outcome", {"account_alias": "sender", "confirmation_token": token}
+                )
+                assert history.structured_content["data"]["phase"] == (
+                    "accepted" if after_execution else "pending"
+                )
+                assert len(wire.sent_payloads) == int(after_execution)

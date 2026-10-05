@@ -56,7 +56,7 @@ recoverability of already-consumed events.
 
 The existing GPL releases, tags and artifacts retain their licenses. Historical
 MIT releases before the GPL adoption are likewise not rewritten. Implementation
-on this branch remains under its current license until the coordinated license
+on this branch initially remained under its GPL license until the coordinated license
 cutover; changing the dependency alone does not change source ownership.
 
 ## 2. Target ownership: a thin MCP application
@@ -425,7 +425,15 @@ authorship alone does not prove that every retained snippet/fixture is original.
   README, SPEC, security/contribution guidance and release notes to MIT for the
   qualified 2.0 line. Preserve applicable copyright/attribution notices.
 - Do not rewrite historical tags, release artifacts or 1.x license notices.
-  Until the gate passes, keep GPL metadata and do not publish an MIT candidate.
+   Until the gate passes, keep GPL metadata and do not publish an MIT candidate.
+
+Review completion, 2026-10-05: [LICENSE_REVIEW.md](LICENSE_REVIEW.md) inventories
+the new native source, original fixtures, retained project-owned helpers and the
+runtime dependency closure including extras/platform markers. The native package
+now uses MIT. Historical references were moved outside runtime/build inventories
+to `legacy_reference/` with the original GPL license intact. lxml's additional
+terms are disclosed; no all-MIT dependency bundle is claimed. Final artifact/host
+qualification still applies before publication.
 
 ## 9. Cohesive implementation sequence
 

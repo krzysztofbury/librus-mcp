@@ -1,5 +1,11 @@
 # Security
 
+The native MIT-licensed 2.0 package uses the independent API and does not ship
+the GPL-scoped historical references. Configuration files must be private;
+Windows requires local fixed NTFS and conservative ACLs. No implicit permission
+repair, legacy-state reset, backend fallback or uncertain-send retry is allowed.
+For consent and recovery boundaries, see [MIGRATION_2_0.md](MIGRATION_2_0.md).
+
 ## Reporting Security Issues
 
 > Do not open issues that might have security implications!

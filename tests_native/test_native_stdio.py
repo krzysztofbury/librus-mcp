@@ -19,7 +19,14 @@ REPOSITORY = Path(__file__).resolve().parents[1]
 
 
 def server_process(
-    origin, accounts, *, budget_requests=None, features=None, state_dir=None, download_dir=None
+    origin,
+    accounts,
+    *,
+    budget_requests=None,
+    features=None,
+    state_dir=None,
+    download_dir=None,
+    setup_script="",
 ):
     environment = os.environ.copy()
     for name in list(environment):
@@ -51,7 +58,10 @@ def server_process(
         environment["LIBRUS_STATE_DIR"] = str(state_dir)
     if download_dir is not None:
         environment["LIBRUS_DOWNLOAD_DIR"] = str(download_dir)
-    script = """import os
+    script = (
+        setup_script
+        + "\n"
+        + """import os
 from librus_python_api import ConnectionSettings, RequestBudget
 from librus_mcp.config import load_config
 from librus_mcp.server import create_server
@@ -62,6 +72,7 @@ create_server(load_config(), connection=ConnectionSettings(
     synergia_origin=origin, api_origin=origin, download_origin=origin,
     messages_origin=origin), budget=budget).run(transport="stdio")
 """
+    )
     return StdioServerParameters(
         command=sys.executable, args=["-c", script], cwd=REPOSITORY, env=environment
     )
@@ -256,3 +267,49 @@ async def test_full_mcp_result_size_limit_returns_explicit_error(monkeypatch):
     result = await server.call_tool("fixture_large_output", {})
     assert result.is_error and result.structured_content == {"error": {"code": "LIMIT"}}
     assert "\u017c" not in result.model_dump_json()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("records", [3, 100])
+async def test_four_account_cold_and_warm_mixed_workload_remains_bounded_and_isolated(records):
+    accounts = [(f"account-{number}", str(71 + number)) for number in range(4)]
+    async with Wire().serve() as wire:
+        wire.message_count = records
+        with anyio.fail_after(60):
+            async with (
+                stdio_client(server_process(wire.origin, accounts)) as streams,
+                ClientSession(*streams) as session,
+            ):
+                await session.initialize()
+                for _ in range(2):
+                    results = await asyncio.gather(
+                        *[
+                            session.call_tool(
+                                name,
+                                {"account_alias": alias}
+                                | (
+                                    {"limit": records, "max_pages": 2}
+                                    if name == "get_messages"
+                                    else {}
+                                ),
+                            )
+                            for alias, _ in accounts
+                            for name in ("get_grades", "get_attendance", "get_messages")
+                        ]
+                    )
+                    for index, result in enumerate(results):
+                        assert not result.is_error, result
+                        alias, login = accounts[index // 3]
+                        assert result.structured_content["observation"]["account"] == alias
+                        assert result.structured_content["identity"]["owner"]["id"] == login
+                        assert len(result.model_dump_json(by_alias=True).encode()) <= 512 * 1024
+                        if index % 3 == 2:
+                            items = result.structured_content["items"]
+                            assert len(items) == records
+                            assert all(item["reference"]["account"] == alias for item in items)
+                            assert all(
+                                item["summary"]["subject"].endswith("for " + login)
+                                for item in items
+                            )
+                    assert wire.logins == {login: 1 for _, login in accounts}
+                assert wire.peak <= 2

@@ -20,6 +20,7 @@ from mcp.client.stdio import StdioServerParameters, stdio_client
 
 from librus_mcp.cli import main
 from librus_mcp.config import load_config
+from librus_mcp.migration import migrate_state, notification_state
 from tests_native.test_config import config_data, write_config
 
 pytestmark = pytest.mark.skipif(
@@ -384,3 +385,141 @@ def test_full_hash_and_short_mirror_require_identical_baselines(tmp_path, capsys
     with pytest.raises(SystemExit):
         main(arguments)
     assert "conflicting" in capsys.readouterr().err and not state.exists()
+
+
+async def empty_baseline_mapping(source, config, tmp_path):
+    baseline = source / "account.notifications.json"
+    baseline.write_text(json.dumps({key: [] for key in json.loads(baseline.read_bytes())}))
+    settings = load_config(config)
+    async with LibrusService(
+        {account.alias: account.credentials() for account in settings.accounts},
+        context_key=settings.key_bytes(),
+    ) as service:
+        context = service.account("account").context
+    mapping = tmp_path / "mapping.json"
+    mapping.write_text(
+        json.dumps(
+            {
+                "account_alias": "account",
+                "context": context.identifier,
+                "source_files": {
+                    path.name: hashlib.sha256(path.read_bytes()).hexdigest()
+                    for path in source.iterdir()
+                },
+                "mappings": [],
+            }
+        )
+    )
+    mapping.chmod(0o600)
+    return settings, mapping, context
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("commit_completed", [False, True])
+async def test_interrupted_manifest_preserves_source_and_exposes_target_recovery(
+    tmp_path, monkeypatch, commit_completed
+):
+    from librus_mcp import migration
+    from librus_mcp.config import ConfigError
+
+    source, state, config, _ = migration_files(tmp_path)
+    settings, mapping, context = await empty_baseline_mapping(source, config, tmp_path)
+    originals = {path.name: path.read_bytes() for path in source.iterdir()}
+    publish = migration._publish_manifest
+
+    def interrupted(path, payload):
+        if path.name.endswith(".completed.json") or not commit_completed:
+            raise ConfigError("synthetic manifest interruption")
+        publish(path, payload)
+
+    with monkeypatch.context() as patch:
+        patch.setattr(migration, "_publish_manifest", interrupted)
+        with pytest.raises(ConfigError, match="interruption"):
+            await migrate_state(
+                settings,
+                source_dir=source,
+                account_alias="account",
+                mapping_file=mapping,
+                apply=True,
+                writers_stopped=True,
+                binding_reviewed=True,
+            )
+    async with NotificationStore(state / "native-v2") as store:
+        status = await store.recovery_status(context=context)
+        assert status.initialized is commit_completed
+        assert status.has_pending_work is commit_completed
+    if commit_completed:
+        assert len(list((state / "native-v2").glob("*.prepared.json"))) == 1
+        archive = tmp_path / "recovery.json"
+        result = await notification_state(settings, account_alias="account", export_file=archive)
+        assert result["pending_items"] == 1 and archive.exists()
+        with pytest.raises(ConfigError, match="not empty"):
+            await migrate_state(
+                settings,
+                source_dir=source,
+                account_alias="account",
+                mapping_file=mapping,
+                apply=True,
+                writers_stopped=True,
+                binding_reviewed=True,
+            )
+    else:
+        result = await migrate_state(
+            settings,
+            source_dir=source,
+            account_alias="account",
+            mapping_file=mapping,
+            apply=True,
+            writers_stopped=True,
+            binding_reviewed=True,
+        )
+        assert result["imported"] is True
+    assert {path.name: path.read_bytes() for path in source.iterdir()} == originals
+
+
+@pytest.mark.asyncio
+async def test_import_over_consumer_capacity_retains_all_original_events_without_target_write(
+    tmp_path,
+):
+    from librus_mcp.config import ConfigError
+
+    source, state, config, event = migration_files(tmp_path)
+    pending = next(source.glob("*.pending-schedule*"))
+    pending.unlink()
+    body = json.dumps(
+        [event | {"data": f"Retained event {index}"} for index in range(129)],
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode()
+    pending = source / f"account.pending-schedule.batch.{hashlib.sha256(body).hexdigest()}.json"
+    pending.write_bytes(body)
+    pending.chmod(0o600)
+    settings, mapping, _ = await empty_baseline_mapping(source, config, tmp_path)
+    originals = {path.name: path.read_bytes() for path in source.iterdir()}
+    with pytest.raises(ConfigError, match="batch item limit"):
+        await migrate_state(
+            settings,
+            source_dir=source,
+            account_alias="account",
+            mapping_file=mapping,
+            apply=True,
+            writers_stopped=True,
+            binding_reviewed=True,
+        )
+    assert not state.exists()
+    assert {path.name: path.read_bytes() for path in source.iterdir()} == originals
+
+
+def test_cross_account_filename_collision_is_rejected_before_target_creation(tmp_path, capsys):
+    source, state, config, _ = migration_files(tmp_path)
+    data = json.loads(config.read_bytes())
+    # Independently found synthetic aliases: both sanitize to a___ and their
+    # historical eight-hex SHA256 mirrors collide at b1cfc064.
+    data["accounts"][0]["alias"] = "a/Эӆ"
+    data["accounts"].append(data["accounts"][0] | {"alias": "a/ГЎ"})
+    write_config(config, data)
+    arguments = cli_args(config, source)
+    arguments[arguments.index("--account-alias") + 1] = "a/Эӆ"
+    with pytest.raises(SystemExit):
+        main(arguments)
+    assert "collision" in capsys.readouterr().err and not state.exists()

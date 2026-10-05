@@ -240,11 +240,19 @@ before rollback; an old backup is insufficient after native writes. See the full
 
 ## Licensing
 
-MIT remains the intended final 2.0 release license, subject to the retained-source
-provenance and shipped-dependency audit. This initial development slice still
-uses the repository's GPL-3.0-only metadata. Removing apix does not automatically
-relicense retained work. Historical releases keep their original licenses;
-existing GPL releases and artifacts are not rewritten.
+The native 2.0 package and its new tests/documentation now use MIT after the
+retained-source and runtime-dependency inventory in [LICENSE_REVIEW.md](LICENSE_REVIEW.md).
+The apix-backed references were moved to `legacy_reference/` under their original
+GPL-3.0-only license and are excluded from the wheel/sdist. Removing apix alone
+was not treated as authority to relicense external work. Dependencies retain their
+own terms, including lxml's additional notices. Historical licenses, tags and
+release artifacts are not rewritten. No MCP 2.0 release has been published.
+
+Windows configuration files require a local fixed NTFS path and a conservative
+private ACL. Only the current user, SYSTEM and Administrators may have allow
+entries; a null/broad ACL, hardlinks and reparse-point components are rejected.
+The reader pins the path and validates the opened handle before reading secrets.
+Existing permissions are never repaired automatically.
 
 API notes/observation cards (#26) and daily credentialed CI (#27) remain parked.
 

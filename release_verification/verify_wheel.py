@@ -312,10 +312,17 @@ def verify_wheel(repository: Path, wheel: Path, *, consumer_tests: bool = False)
         if "librus_mcp/cli.py" not in names:
             raise VerificationError("wheel is missing the native entry point")
         for name in names:
+            if "legacy_reference/" in name or name.startswith("tests/"):
+                raise VerificationError("wheel contains historical source or tests")
             if name.endswith(".py") or name.endswith("/METADATA"):
                 body = archive.read(name)
                 if b"librus_apix" in body or b"Requires-Dist: librus-apix" in body:
                     raise VerificationError("wheel contains an apix import or dependency")
+            if name.endswith("/METADATA") and b"License-Expression: MIT" not in archive.read(name):
+                raise VerificationError("wheel license metadata is not MIT")
+        licenses = [name for name in names if name.endswith("/licenses/LICENSE")]
+        if len(licenses) != 1 or not archive.read(licenses[0]).startswith(b"MIT License\n"):
+            raise VerificationError("wheel license notice is not MIT")
     expected_version = read_project_version(repository / "pyproject.toml")
     with tempfile.TemporaryDirectory(prefix="librus-mcp-release-") as temporary_name:
         temporary_directory = Path(temporary_name).resolve()

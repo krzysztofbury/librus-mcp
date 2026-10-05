@@ -1,11 +1,18 @@
 """Native durable replay/ack over real MCP and SQLite, never live consumption."""
 
+import os
+from functools import partial
+
 import anyio
 import pytest
+from librus_python_api import ConnectionSettings, LibrusService
 from librus_python_api.files import prepare_attachment_directory
 from mcp.client import ClientSession
 from mcp.client.stdio import stdio_client
 
+from librus_mcp.config import ConfigError, load_config
+from librus_mcp.migration import notification_state
+from tests_native.test_config import config_data, write_config
 from tests_native.test_native_stdio import server_process
 from tests_native.wire import Wire
 
@@ -104,6 +111,79 @@ async def test_notification_consent_restart_exact_replay_ack_and_account_isolati
                 )
                 assert not other.is_error and other.structured_content["data"]["first_run"]
                 assert len(other.structured_content["data"]["items"]) == 5
+
+
+@pytest.mark.asyncio
+@pytest.mark.skipif(os.name != "posix", reason="operator recovery is POSIX-only")
+async def test_lost_consume_response_remains_uncertain_until_explicit_loss_acceptance(
+    tmp_path, monkeypatch
+):
+    async with Wire().serve() as wire:
+        wire.schedule_disconnect = True
+        state = tmp_path / "state"
+        process = server_process(
+            wire.origin, [("account", "71")], features={"notifications": True}, state_dir=state
+        )
+        query = {"account_alias": "account", "categories": ["agenda"], "allow_consume_events": True}
+        with anyio.fail_after(30):
+            async with stdio_client(process) as streams, ClientSession(*streams) as session:
+                await session.initialize()
+                result = await session.call_tool("get_new_notifications", query)
+                assert result.is_error
+                assert (
+                    sum(
+                        path == "/terminarz/dodane_od_ostatniego_logowania"
+                        for _, path, _ in wire.calls
+                    )
+                    == 1
+                )
+            async with stdio_client(process) as streams, ClientSession(*streams) as session:
+                await session.initialize()
+                calls = len(wire.calls)
+                status = await session.call_tool(
+                    "get_notification_status", {"account_alias": "account"}
+                )
+                assert status.structured_content["data"]["uncertain_consume"] is True
+                again = await session.call_tool("get_new_notifications", query)
+                assert again.is_error and again.structured_content == {
+                    "error": {"code": "CHECKPOINT"}
+                }
+                assert len(wire.calls) == calls
+            path = tmp_path / "config.json"
+            data = config_data() | {"state_dir": str(state), "features": {"notifications": True}}
+            data["accounts"][0].update(
+                alias="account",
+                username="71",
+                password="not-a-real-password",  # pragma: allowlist secret - loopback only
+            )  # pragma: allowlist secret - loopback credentials
+            write_config(path, data)
+            settings = load_config(path)
+            # The operator normally uses production origins. Bind this isolated
+            # invocation to the same independently configured loopback context.
+            monkeypatch.setattr(
+                "librus_mcp.migration.LibrusService",
+                partial(
+                    LibrusService,
+                    connection=ConnectionSettings(
+                        synergia_origin=wire.origin,
+                        api_origin=wire.origin,
+                        messages_origin=wire.origin,
+                        download_origin=wire.origin,
+                    ),
+                ),
+            )
+            with pytest.raises(ConfigError, match="acceptance"):
+                await notification_state(settings, account_alias="account", resolve_uncertain=True)
+            archive = tmp_path / "uncertainty.json"
+            result = await notification_state(
+                settings, account_alias="account", export_file=archive
+            )
+            assert result["uncertain_consume"] is True and archive.exists()
+            result = await notification_state(
+                settings, account_alias="account", resolve_uncertain=True, accept_possible_loss=True
+            )
+            assert result["uncertainty_resolved"] is True and not result["uncertain_consume"]
+            assert len(wire.calls) == calls
 
 
 @pytest.mark.asyncio

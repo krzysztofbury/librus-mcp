@@ -23,7 +23,7 @@ Thank you for your interest in contributing! This document provides guidelines t
 The key rules:
 
 - **Safety first:** Validate inputs and outputs with assertions (~2 per function)
-- **Split assertions:** `assert a; assert b` — never `assert a and b`
+- **Split assertions:** `assert a; assert b` - never `assert a and b`
 - **Functions <= 70 lines**
 - **No abbreviations** in variable names
 - **Comments explain "why"**, not "what"
@@ -53,22 +53,25 @@ uv run ruff format src/librus_mcp/ tests_native/ release_verification/
 ### Testing
 
 The active `tests_native/` suite is offline and uses original synthetic loopback
-HTTP through real MCP stdio and the pinned API. `tests/` remains an unshipped 1.x
+HTTP through real MCP stdio and the pinned API. `legacy_reference/tests/` remains an unshipped 1.x
 reference; it imports the removed apix backend and is not native CI evidence.
 See [verification ownership](NATIVE_TEST_PLAN.md). Do not restore apix as a dev
 dependency to run old tests. Port consumer invariants, not private wrapper mocks.
 
-Do not run the old `verify_connection.py` helper on this branch. Native live
-qualification is pending and requires separate explicit approval and bounded
+Do not run `legacy_reference/verify_connection.py` on this branch. Native live
+qualification uses `scripts/qualify_native.py` and requires explicit approval and bounded
 operation scope. Ordinary CI never uses school credentials.
 
 ### Mutation Testing
 
-The following campaigns are historical 1.x evidence. Their line filters and
-source targets are not valid for the native package; replacement campaigns are
-pending after native consumer boundaries land.
+The following campaigns are historical 1.x evidence. Their configurations are
+preserved in `legacy_reference/mutation/`; they do not target the native package.
+Cosmic Ray is no longer a native development dependency. Native fault-injection
+and protocol cancellation tests protect the remaining consumer safety branches.
+No mutation-score target is a release gate; a new tool must first prove that its
+instrumentation reaches the actual stdio child process.
 
-Active focused configurations live in `mutation/`, one per source module. For
+Historical focused configurations live in `legacy_reference/mutation/`. For
 example, run the attachment cancellation and parser campaign with:
 
 ```bash
@@ -150,6 +153,13 @@ Open a GitHub issue with:
 ## Security Issues
 
 **Do not open public issues for security vulnerabilities.** See [SECURITY.md](SECURITY.md) for responsible disclosure instructions.
+
+## License
+
+Native 2.0 contributions are MIT. Unshipped 1.x references retain GPL-3.0-only.
+Do not copy GPL client implementations or external fixtures into the native
+package. See [LICENSE_REVIEW.md](LICENSE_REVIEW.md) before changing dependencies
+or artifact inventories. Historical release licenses remain unchanged.
 
 ## Questions?
 

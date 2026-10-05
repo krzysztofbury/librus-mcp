@@ -28,11 +28,13 @@ class Wire:
         self.peak = 0
         self.bad_profile = False
         self.grade_suffix = "3"
+        self.message_count = 3
         self.sent_payloads = []
         self.send_unknown = False
         self.attachment_body = b"Fixture attachment bytes\x00"
         self.attachment_location = None
         self.schedule_malformed = False
+        self.schedule_disconnect = False
         self.send_started = asyncio.Event()
         self.send_release = asyncio.Event()
         self.send_release.set()
@@ -128,6 +130,9 @@ class Wire:
                 }
             )
         if request.path == "/terminarz/dodane_od_ostatniego_logowania":
+            if self.schedule_disconnect:
+                request.transport.close()
+                return web.Response()
             return web.Response(
                 text="<html><p>Malformed checkpoint</p></html>"
                 if self.schedule_malformed
@@ -180,8 +185,13 @@ class Wire:
         if request.path in {"/api/inbox/messages", "/api/outbox/messages"}:
             page, size = int(request.query["page"]), int(request.query["limit"])
             received = "inbox" in request.path
-            rows = [self.message_row(str(value), received, owner) for value in range(81, 84)]
-            return web.json_response({"data": rows[(page - 1) * size : page * size], "total": 3})
+            rows = [
+                self.message_row(str(value), received, owner)
+                for value in range(81, 81 + self.message_count)
+            ]
+            return web.json_response(
+                {"data": rows[(page - 1) * size : page * size], "total": self.message_count}
+            )
         if request.path.startswith(("/api/inbox/messages/", "/api/outbox/messages/")):
             received = "inbox" in request.path
             row = self.message_row(request.path.rsplit("/", 1)[1], received, owner)

@@ -81,4 +81,6 @@ jobs:
         run: uv build --no-build-isolation
 
       - name: Verify installed wheel and MCP stdio
-        run: uv run python release_verification/verify_wheel.py dist --consumer-tests
+        run: |
+          uv run python -m release_verification.verify_sdist --sdist dist --out-dir dist/from-sdist
+          uv run python release_verification/verify_wheel.py dist/from-sdist --consumer-tests
