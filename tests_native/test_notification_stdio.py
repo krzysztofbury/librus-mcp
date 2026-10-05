@@ -2,6 +2,7 @@
 
 import anyio
 import pytest
+from librus_python_api.files import prepare_attachment_directory
 from mcp.client import ClientSession
 from mcp.client.stdio import stdio_client
 
@@ -10,11 +11,14 @@ from tests_native.wire import Wire
 
 
 @pytest.mark.asyncio
-async def test_notification_consent_restart_exact_replay_ack_and_account_isolation(tmp_path):
+@pytest.mark.parametrize("backend", ["modern", "legacy"])
+async def test_notification_consent_restart_exact_replay_ack_and_account_isolation(
+    tmp_path, backend
+):
     async with Wire().serve() as wire:
         process = server_process(
             wire.origin,
-            [("first", "71"), ("second", "72")],
+            [("first", "71", backend), ("second", "72", backend)],
             features={"notifications": True},
             state_dir=tmp_path / "state",
         )
@@ -40,7 +44,7 @@ async def test_notification_consent_restart_exact_replay_ack_and_account_isolati
                 assert not batch.is_error, batch
                 payload = batch.structured_content
                 assert (
-                    payload["data"]["first_run"] and payload["data"]["messages_backend"] == "modern"
+                    payload["data"]["first_run"] and payload["data"]["messages_backend"] == backend
                 )
                 assert {item["category"] for item in payload["data"]["items"]} == {
                     "messages",
@@ -105,7 +109,7 @@ async def test_notification_consent_restart_exact_replay_ack_and_account_isolati
 @pytest.mark.asyncio
 async def test_legacy_state_quarantines_poll_not_other_accounts_or_academic_reads(tmp_path):
     state = tmp_path / "state"
-    state.mkdir(mode=0o700)
+    await prepare_attachment_directory(state)
     source = state / "old.notifications.json"
     source.write_bytes(b"malformed old state, do not overwrite")
     source.chmod(0o600)

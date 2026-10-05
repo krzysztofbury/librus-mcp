@@ -5,6 +5,7 @@ import importlib.util
 import json
 import os
 import sys
+import time
 from pathlib import Path
 
 import anyio
@@ -32,8 +33,10 @@ def server_process(
                         "alias": alias,
                         "username": login,
                         "password": "not-a-real-password",  # pragma: allowlist secret - loopback only
+                        **({"messaging_backend": account[2]} if len(account) == 3 else {}),
                     }
-                    for alias, login in accounts
+                    for account in accounts
+                    for alias, login in [account[:2]]
                 ]
             ),
             "LIBRUS_CONTEXT_KEY": bytes(range(32)).hex(),
@@ -109,6 +112,7 @@ async def test_four_logins_share_traffic_but_not_sessions_and_catalog_does_not_l
                         "items": [{"account_alias": alias} for alias, _ in accounts]
                     }
                     assert wire.calls == []
+                    workload_started = time.monotonic()
                     results = await asyncio.gather(
                         *[
                             session.call_tool("get_student_information", {"account_alias": alias})
@@ -140,9 +144,11 @@ async def test_four_logins_share_traffic_but_not_sessions_and_catalog_does_not_l
                     }
                     assert len(wire.calls) == calls
                     # One shared default token budget, not a burst per alias.
-                    first = wire.dispatch_times[0]
+                    # Include connection establishment in the client workload
+                    # clock. Arrival timestamps can be compressed by DNS/TCP
+                    # delays and are not exact scheduler dispatch timestamps.
                     for index, dispatched_at in enumerate(wire.dispatch_times, start=1):
-                        assert index <= 11 + 5 * (dispatched_at - first)
+                        assert index <= 11 + 5 * (dispatched_at - workload_started)
 
 
 @pytest.mark.asyncio

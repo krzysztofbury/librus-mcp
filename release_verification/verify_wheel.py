@@ -210,6 +210,28 @@ def run_cli_checks(executable: Path, working_directory: Path, expected_version: 
     )
     if os.name == "posix":
         credentials.chmod(0o600)
+    elif os.name == "nt":
+        import win32api
+        import win32con
+        import win32security
+
+        token = win32security.OpenProcessToken(win32api.GetCurrentProcess(), win32con.TOKEN_QUERY)
+        try:
+            user = win32security.GetTokenInformation(token, win32security.TokenUser)[0]
+        finally:
+            token.Close()
+        acl = win32security.ACL()
+        acl.AddAccessAllowedAce(win32security.ACL_REVISION, win32con.GENERIC_ALL, user)
+        win32security.SetNamedSecurityInfo(
+            str(credentials),
+            win32security.SE_FILE_OBJECT,
+            win32security.DACL_SECURITY_INFORMATION
+            | win32security.PROTECTED_DACL_SECURITY_INFORMATION,
+            None,
+            None,
+            acl,
+            None,
+        )
     commands = [
         (["--version"], f"librus-mcp {expected_version}"),
         (["--config", str(credentials), "--check-config"], "[OK] Configuration is valid."),

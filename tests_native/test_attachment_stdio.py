@@ -19,11 +19,12 @@ from tests_native.wire import Wire
 
 
 @pytest.mark.asyncio
-async def test_native_publication_binding_resource_restart_and_failed_download(tmp_path):
+@pytest.mark.parametrize("backend", ["modern", "legacy"])
+async def test_native_publication_binding_resource_restart_and_failed_download(tmp_path, backend):
     async with Wire().serve() as wire:
         process = server_process(
             wire.origin,
-            [("first", "71"), ("second", "72")],
+            [("first", "71", backend), ("second", "72", backend)],
             features={"attachments": True},
             download_dir=tmp_path / "downloads",
         )

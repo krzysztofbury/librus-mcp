@@ -1,10 +1,12 @@
 """Configuration security and precedence at the new CLI/config boundary."""
 
+import asyncio
 import json
 import os
 from pathlib import Path
 
 import pytest
+from librus_python_api.files import prepare_attachment_directory
 
 from librus_mcp.cli import main
 from librus_mcp.config import ConfigError, load_config
@@ -36,6 +38,37 @@ def write_config(path: Path, data=None):
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(config_data() if data is None else data))
     path.chmod(0o600)
+    if os.name == "nt":
+        set_windows_acl(path)
+
+
+def set_windows_acl(path, *, shared=False):
+    import win32api
+    import win32con
+    import win32security
+
+    token = win32security.OpenProcessToken(win32api.GetCurrentProcess(), win32con.TOKEN_QUERY)
+    try:
+        user = win32security.GetTokenInformation(token, win32security.TokenUser)[0]
+    finally:
+        token.Close()
+    acl = win32security.ACL()
+    acl.AddAccessAllowedAce(win32security.ACL_REVISION, win32con.GENERIC_ALL, user)
+    if shared:
+        acl.AddAccessAllowedAce(
+            win32security.ACL_REVISION,
+            win32con.GENERIC_READ,
+            win32security.CreateWellKnownSid(win32security.WinWorldSid),
+        )
+    win32security.SetNamedSecurityInfo(
+        str(path),
+        win32security.SE_FILE_OBJECT,
+        win32security.DACL_SECURITY_INFORMATION | win32security.PROTECTED_DACL_SECURITY_INFORMATION,
+        None,
+        None,
+        acl,
+        None,
+    )
 
 
 def test_xdg_selection_ignores_cwd_and_explicit_cli_wins(tmp_path, monkeypatch):
@@ -146,7 +179,7 @@ def test_configuration_rejects_large_files_and_symlinks(tmp_path):
         symlink.symlink_to(path)
     except OSError:
         pytest.skip("symlink creation is not permitted on this host")
-    with pytest.raises(ConfigError, match="symlink"):
+    with pytest.raises(ConfigError, match="symlink|regular|reparse"):
         load_config(symlink)
     path.write_bytes(b" " * (1024 * 1024 + 1))
     with pytest.raises(ConfigError, match="size limit"):
@@ -164,6 +197,24 @@ def test_shared_and_special_credential_files_are_rejected(tmp_path):
     os.mkfifo(fifo)
     with pytest.raises(ConfigError, match="regular file"):
         load_config(fifo)
+
+
+@pytest.mark.skipif(os.name != "nt", reason="actual Windows credential ACL boundary")
+def test_windows_config_rejects_shared_acl_and_hardlink_without_modifying_file(tmp_path):
+    path = tmp_path / "config.json"
+    write_config(path)
+    assert load_config(path).accounts[0].alias == "fixture"
+    original = path.read_bytes()
+    set_windows_acl(path, shared=True)
+    with pytest.raises(ConfigError, match="owner-private Windows ACL"):
+        load_config(path)
+    assert path.read_bytes() == original
+    set_windows_acl(path)
+    link = tmp_path / "hardlink.json"
+    os.link(path, link)
+    with pytest.raises(ConfigError, match="regular"):
+        load_config(path)
+    assert path.read_bytes() == original
 
 
 def test_key_generation_is_explicit_and_does_not_touch_storage(tmp_path, capsys, monkeypatch):
@@ -199,7 +250,7 @@ def test_doctor_is_offline_and_explicit_storage_probe_leaves_existing_state_unto
     report = json.loads(capsys.readouterr().out)
     assert report["network"] == "not_attempted" and not report["storage_checked"]
     assert not state.exists()
-    state.mkdir(mode=0o700)
+    asyncio.run(prepare_attachment_directory(state))
     existing = state / "fixture.notifications.json"
     existing.write_bytes(b"Original old state")
     main(["--config", str(path), "--doctor", "--doctor-storage"])

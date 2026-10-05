@@ -14,6 +14,9 @@ from html import escape
 
 from aiohttp import web
 
+from tests_native.academic_wire import academic_response
+from tests_native.legacy_wire import legacy_response
+
 
 class Wire:
     def __init__(self):
@@ -30,6 +33,11 @@ class Wire:
         self.attachment_body = b"Fixture attachment bytes\x00"
         self.attachment_location = None
         self.schedule_malformed = False
+        self.send_started = asyncio.Event()
+        self.send_release = asyncio.Event()
+        self.send_release.set()
+        self.send_rejected = False
+        self.send_disconnect = False
 
     @asynccontextmanager
     async def serve(self):
@@ -95,6 +103,12 @@ class Wire:
             return web.Response(body=self.attachment_body, content_type="application/octet-stream")
         if not owner:
             return web.Response(status=401)
+        legacy = await legacy_response(request, self)
+        if legacy is not None:
+            return legacy
+        academic = await academic_response(request)
+        if academic is not None:
+            return academic
         if request.path == "/api/attachments/91/messages/81":
             return web.json_response(
                 {
@@ -141,6 +155,13 @@ class Wire:
         if request.path == "/api/messages":
             assert request.method == "POST"
             self.sent_payloads.append(await request.json())
+            self.send_started.set()
+            await self.send_release.wait()
+            if self.send_disconnect:
+                request.transport.close()
+                return web.Response()
+            if self.send_rejected:
+                return web.json_response({"code": "DUPLICATED_RECEIVERS"}, status=422)
             return web.json_response(
                 {"data": {"messageId": 91, "status": "sent"}}
                 if not self.send_unknown

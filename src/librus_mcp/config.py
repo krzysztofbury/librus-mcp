@@ -112,6 +112,13 @@ def _json(value: str | bytes, *, source: str) -> Any:
 
 
 def read_config_file(path: Path) -> dict[str, Any]:
+    if os.name == "nt":
+        from librus_mcp.windows_config import read_private_config
+
+        data = _json(read_private_config(path, MAX_CONFIG_BYTES), source="configuration file")
+        if not isinstance(data, dict):
+            raise ConfigError("configuration file must contain a JSON object")
+        return data
     # Bound special-file reads and reject symlinks on platforms with O_NOFOLLOW.
     descriptor = -1
     try:
