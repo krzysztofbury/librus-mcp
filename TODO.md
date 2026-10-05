@@ -13,8 +13,8 @@ not a release commitment:
 The direct native-backend migration is planned in
 [MCP_2_0_PLAN.md](MCP_2_0_PLAN.md), based on remote MCP main `0aaf658` and API
 main `01b32e0` reviewed on 2026-10-05. Work branch: `feat/2.0.0-native-api`.
-Stable API `1.0.0` is on PyPI and pinned for development; consumer integration
-and final release gates remain open.
+Stable API `1.0.0` is on PyPI and pinned. Native consumer integration, declared
+hosted platform profiles and MIT review are qualified; publication remains open.
 
 - [x] Review both main branches, the API's native cutover matrix and all 18
   existing MCP 2.0 roadmap items; create the dedicated MCP branch.
@@ -47,11 +47,14 @@ and final release gates remain open.
 - [x] W6: remove apix and duplicated runtime HTTP/parsers/workers/caches/JSON state.
   Historical source/tests/tooling are preserved, GPL-scoped and excluded from
   imports/builds in `legacy_reference/`. Cosmic Ray is removed from native dev deps.
-- [ ] W7: qualify installed artifacts, protocol contracts, representative workloads,
+- [x] W7: qualify installed artifacts, protocol contracts, representative workloads,
   declared platforms and the source/dependency provenance required for MIT.
   Local isolated MIT wheel-from-sdist passes 73 tests (1 Windows-only skip), CLI,
   both catalog profiles and artifact inventories. MIT source/dependency review is
-  recorded in `LICENSE_REVIEW.md`. Final hosted Windows matrix remains required.
+  recorded in `LICENSE_REVIEW.md`. Run `37372839458` passed at `bc10abe`: Linux and
+  macOS 73 passed/1 skip each; Windows 56 passed/18 declared-profile skips,
+  including executed private/shared credential ACL and hardlink guards.
+  No performance improvement or unapproved live side-effect compatibility is claimed.
 - [ ] W8: publish the exact API prerequisite and MCP 2.0.0, verify remote artifacts
   and fresh `uvx` startup.
 
@@ -64,7 +67,8 @@ New tool requests/responses may break 1.x compatibility. Durable history and
 uncertain sends must remain recoverable. MIT is the license of the new native
 2.0 release; existing GPL releases and notices are not retroactively changed.
 Runtime implementation has started as `2.0.0.dev1`; dependency replacement is
-complete with no apix fallback. Final hosted acceptance and publication remain open.
+complete with no apix fallback. Hosted acceptance is complete for the declared
+profiles; PR #39 remains draft and unmerged. Publication requires separate approval.
 
 ## Remaining Work After 1.7.0
 

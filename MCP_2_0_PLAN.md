@@ -527,5 +527,9 @@ is not MCP 2.0 or daily live verification.
   a platform gap; new DTOs cost migration effort but remove legacy coercion.
 
 The original planning review performed no implementation tests or live calls.
-Current implementation verification is recorded separately; it does not imply
-completed release qualification, production-state migration or live compatibility.
+Current implementation verification is recorded in [NATIVE_TEST_PLAN.md](NATIVE_TEST_PLAN.md).
+W0-W7 are complete for the implemented native contracts and declared offline
+platform profiles. Hosted run `37372839458` passed at `bc10abe` on Linux, macOS and
+Windows, including audited MIT artifacts and actual NTFS credential checks.
+W8 remains pending separate merge/publication approval. No production-state
+migration, live write qualification or performance improvement is implied.

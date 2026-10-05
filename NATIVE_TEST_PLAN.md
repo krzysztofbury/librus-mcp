@@ -21,9 +21,9 @@ do not delete an old safety test until its owning replacement is identified.
 | CLI, config, credential files, feature gates | MCP; native tests cover selection, redaction, private-file limits, duplicate aliases, unavailable features and explicit offline doctor/storage diagnostics. Key-file support remains deferred. |
 | MCP stdio/catalog/output models, tool errors, context budgets | MCP; native tests cover the 22-tool default and 30-tool optional catalog, schema compilation, effects/projections, input/domain redaction, whole-result byte caps, pre-I/O cursor/reference guards and host-wide budget exhaustion. Both catalogs pass installed schema and byte-budget checks. |
 | Login cookies, retries, request limits, metadata caches, parser rules | API; use its existing public transport/parser proof. MCP retains real service-to-loopback tests for routing/traffic integration, not duplicate parsers. |
-| Notification files, locks, pending spools, collision handling | API owns native transactions; MCP tests cover real old files -> reviewed bootstrap -> restart -> historical poll/ack, mirror/hash conflicts, malformed input, capacity rejection, manifest interruption and per-account quarantine. Raw checkpoint retention, archive round-trip and loss-consenting uncertainty resolution use public contracts. Final host qualification remains open; no automatic rollback is promised. |
+| Notification files, locks, pending spools, collision handling | API owns native transactions; MCP tests cover real old files -> reviewed bootstrap -> restart -> historical poll/ack, mirror/hash conflicts, malformed input, capacity rejection, manifest interruption and per-account quarantine. Raw checkpoint retention, archive round-trip and loss-consenting uncertainty resolution use public contracts. Supported platform profiles pass hosted acceptance; no automatic rollback is promised. |
 | Send preview/confirmation, feature consent and UNKNOWN recovery | API owns durable claims/outcomes; MCP stdio tests cover both backends, exact token/payload binding, consent, native HTTP, restart recovery, accepted/rejected/unknown outcomes, cancellation/disconnect and no resubmission. Store-error projection is consumer-owned; claim/save transaction internals remain API-owned. |
-| Attachment destination policy, consent and resources | API owns stream/publication; MCP stdio tests cover both backends, context binding, private publication, credential-free download, no implicit body open, incomplete-stream cleanup, inert snapshots/restart and post-publication snapshot fallback. Resource tests own capacity/expiry/no-follow checks. Final Windows/macOS host qualification remains open. |
+| Attachment destination policy, consent and resources | API owns stream/publication; MCP stdio tests cover both backends, context binding, private publication, credential-free download, no implicit body open, incomplete-stream cleanup, inert snapshots/restart and post-publication snapshot fallback. Resource tests own capacity/expiry/no-follow checks. Windows native publication and POSIX snapshots pass their declared hosted profiles. |
 | Wheel, sdist, installed console entry, stdio identity | MCP; verifier updated for native namespace/CLI/catalog and absence of apix. Include full installed public integration tests in local qualification. |
 | Mutation safety evidence | Re-scope to MCP-owned policy branches after integration; legacy mutation configurations are not native evidence. No score target or test-only production code. |
 
@@ -153,15 +153,37 @@ imported into native tests. Reusable parser/storage/scheduler invariants are own
 by the API, as mapped above; obsolete mocks/return shapes do not count as 2.0 proof.
 Cosmic Ray's old configurations are scoped with those historical references.
 
-## Required future qualification
+## Final hosted platform qualification
 
-- Finish the final hosted MIT sdist-rebuilt wheel matrix, including Windows ACLs.
+Run [37372839458](https://github.com/krzysztofbury/librus-mcp/actions/runs/37372839458)
+completed successfully for remote PR head
+`bc10abeea473a1492739bab76e03515953f9fbf7`. Runner acquisition failures were retried;
+only actual executed jobs count as qualification.
+
+| Hosted profile | Installed consumer result | Additional acceptance |
+| --- | --- | --- |
+| Linux | 73 passed, 1 Windows-only skip | Audited MIT sdist, rebuilt wheel, private CLI config, stdio identity and both schema/catalog budgets |
+| macOS | 73 passed, 1 Windows-only skip | Same installed artifact/CLI/stdio/catalog checks; POSIX migration/recovery and resources |
+| Windows | 56 passed, 18 skipped | Same artifact/CLI/stdio/catalog checks; real NTFS private/shared credential ACL and hardlink guards, native durable stores and local file publication |
+
+Windows skips retain the declared POSIX-only migration/operator recovery,
+credential mode/FIFO and no-follow snapshot boundaries. No skips are treated as
+evidence for unavailable Windows features. The lint/test/build job also passed.
+Both messaging backends and the four-login mixed workload are exercised by the
+applicable installed suite, not just startup or a low-load live window.
+
+The remaining release step is separately authorized merge/version/tag/publication
+and fresh remote installation verification. This qualification does not authorize
+production migration or claim live send, received-body, download or read-once
+compatibility. The current candidate remains `2.0.0.dev1` and PR #39 remains draft.
+
+## Ongoing and release-time requirements
+
+- Requalify applicable installed profiles when runtime/dependency/build behavior changes.
 - Record equivalent old/new representative workloads before claiming performance
   gains, including warm/cold request counts, latency distribution, peak memory,
   rate/burst/queue saturation, concurrent tools and cancellation.
-- Exercise Linux, macOS and Windows on actual respective CI hosts. Local Linux
-  success and upstream Windows CI are not consumer Windows qualification.
-- Qualify public API #22-25 at their released contracts; keep #26-27 deferred.
+- API #22-25 are qualified through their released consumer contracts; keep #26-27 deferred.
 - Keep [LICENSE_REVIEW.md](LICENSE_REVIEW.md) current as dependencies/artifacts change.
 - Keep ordinary CI offline. Release-time live checks need separate scoped approval;
   no routine read-once events, message-open mark-read operations or sends.
