@@ -321,7 +321,9 @@ def verify_wheel(repository: Path, wheel: Path, *, consumer_tests: bool = False)
             if name.endswith("/METADATA") and b"License-Expression: MIT" not in archive.read(name):
                 raise VerificationError("wheel license metadata is not MIT")
         licenses = [name for name in names if name.endswith("/licenses/LICENSE")]
-        if len(licenses) != 1 or not archive.read(licenses[0]).startswith(b"MIT License\n"):
+        if len(licenses) != 1 or not archive.read(licenses[0]).startswith(
+            (b"MIT License\n", b"MIT License\r\n")
+        ):
             raise VerificationError("wheel license notice is not MIT")
     expected_version = read_project_version(repository / "pyproject.toml")
     with tempfile.TemporaryDirectory(prefix="librus-mcp-release-") as temporary_name:

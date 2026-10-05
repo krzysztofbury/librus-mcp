@@ -42,7 +42,11 @@ def verify_sdist(repository: Path, archive: Path, output: Path) -> None:
             if original.is_file() and original.read_bytes() != body:
                 raise VerificationError("source distribution differs from the reviewed source")
         required = {"LICENSE", "LICENSE_REVIEW.md", "src/librus_mcp/cli.py", "tests_native/wire.py"}
-        if not required <= files.keys() or not files["LICENSE"].startswith(b"MIT License\n"):
+        # Git can check text out with CRLF on Windows. Keep the exact header
+        # requirement while accepting either platform's newline bytes.
+        if not required <= files.keys() or not files["LICENSE"].startswith(
+            (b"MIT License\n", b"MIT License\r\n")
+        ):
             raise VerificationError("source distribution is missing native license/source proof")
         if b"License-Expression: MIT" not in files.get("PKG-INFO", b""):
             raise VerificationError("source distribution license metadata is not MIT")

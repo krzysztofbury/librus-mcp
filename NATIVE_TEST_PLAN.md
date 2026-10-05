@@ -19,11 +19,11 @@ do not delete an old safety test until its owning replacement is identified.
 | Legacy tests/concerns | Final owner and required evidence |
 | --- | --- |
 | CLI, config, credential files, feature gates | MCP; native tests cover selection, redaction, private-file limits, duplicate aliases, unavailable features and explicit offline doctor/storage diagnostics. Key-file support remains deferred. |
-| MCP stdio/catalog/output models, tool errors, context budgets | MCP; native tests cover the 22-tool default and 30-tool optional catalog, schema compilation, effects/projections, input/domain redaction, whole-result byte caps, pre-I/O cursor/reference guards and host-wide budget exhaustion. Final catalog review remains open. |
+| MCP stdio/catalog/output models, tool errors, context budgets | MCP; native tests cover the 22-tool default and 30-tool optional catalog, schema compilation, effects/projections, input/domain redaction, whole-result byte caps, pre-I/O cursor/reference guards and host-wide budget exhaustion. Both catalogs pass installed schema and byte-budget checks. |
 | Login cookies, retries, request limits, metadata caches, parser rules | API; use its existing public transport/parser proof. MCP retains real service-to-loopback tests for routing/traffic integration, not duplicate parsers. |
-| Notification files, locks, pending spools, collision handling | API owns native transactions; MCP tests now cover real old files -> reviewed bootstrap -> restart -> historical poll/ack, mirror conflicts, malformed input and per-account quarantine. Raw checkpoint retention and archive round-trip are exercised through public contracts. Broader failure/platform/rollback qualification remains W5 work. |
-| Send preview/confirmation, feature consent and UNKNOWN recovery | API owns durable claims/outcomes; MCP stdio tests cover exact token/payload binding, consent, native HTTP, restart recovery, accepted/unknown outcomes and no resubmission. Legacy/cancellation/disconnect qualification remains open. |
-| Attachment destination policy, consent and resources | API owns stream/publication; MCP stdio tests cover context binding, private publication, credential-free download, no implicit body open, incomplete-stream cleanup, inert snapshots/restart. Resource tests own capacity/expiry/no-follow checks. Actual Windows/macOS consumer and legacy backend qualification remain open. |
+| Notification files, locks, pending spools, collision handling | API owns native transactions; MCP tests cover real old files -> reviewed bootstrap -> restart -> historical poll/ack, mirror/hash conflicts, malformed input, capacity rejection, manifest interruption and per-account quarantine. Raw checkpoint retention, archive round-trip and loss-consenting uncertainty resolution use public contracts. Final host qualification remains open; no automatic rollback is promised. |
+| Send preview/confirmation, feature consent and UNKNOWN recovery | API owns durable claims/outcomes; MCP stdio tests cover both backends, exact token/payload binding, consent, native HTTP, restart recovery, accepted/rejected/unknown outcomes, cancellation/disconnect and no resubmission. Store-error projection is consumer-owned; claim/save transaction internals remain API-owned. |
+| Attachment destination policy, consent and resources | API owns stream/publication; MCP stdio tests cover both backends, context binding, private publication, credential-free download, no implicit body open, incomplete-stream cleanup, inert snapshots/restart and post-publication snapshot fallback. Resource tests own capacity/expiry/no-follow checks. Final Windows/macOS host qualification remains open. |
 | Wheel, sdist, installed console entry, stdio identity | MCP; verifier updated for native namespace/CLI/catalog and absence of apix. Include full installed public integration tests in local qualification. |
 | Mutation safety evidence | Re-scope to MCP-owned policy branches after integration; legacy mutation configurations are not native evidence. No score target or test-only production code. |
 
@@ -128,6 +128,17 @@ Hosted macOS passed the expanded pre-license suite at `acc10a0` in run
 That run's Linux/Windows jobs never acquired hosted runners and are not test
 evidence. The final source/sdist matrix is required after the coordinated MIT
 cutover. Windows's positive/negative credential ACL case must execute there.
+
+The final MIT candidate at `57d56ce` passed hosted Linux installed-wheel-from-sdist
+acceptance and the lint/test/build job in run
+[37367482358](https://github.com/krzysztofbury/librus-mcp/actions/runs/37367482358).
+macOS again failed to acquire a hosted runner. Windows ran and stopped at an
+artifact-verifier bug before consumer tests: its CRLF license header was rejected
+by an LF-only prefix check. The fix accepts only the exact MIT header followed by
+LF or CRLF; inventory and license metadata checks remain unchanged. A disposable
+CRLF checkout reproduced the pre-fix failure on real artifacts, then passed sdist
+verification, rebuilt-wheel CLI/stdio and all 73 consumer tests after the fix.
+This reproduction is Linux evidence, not actual Windows qualification.
 
 The 1.x source/tests were preserved under `legacy_reference/`, not deleted or
 imported into native tests. Reusable parser/storage/scheduler invariants are owned
