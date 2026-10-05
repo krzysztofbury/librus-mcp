@@ -140,6 +140,14 @@ CRLF checkout reproduced the pre-fix failure on real artifacts, then passed sdis
 verification, rebuilt-wheel CLI/stdio and all 73 consumer tests after the fix.
 This reproduction is Linux evidence, not actual Windows qualification.
 
+At `bdbc664`, hosted macOS passed the full MIT installed-wheel-from-sdist suite
+in run [37371176343](https://github.com/krzysztofbury/librus-mcp/actions/runs/37371176343).
+Windows passed the artifact checks and reached the installed CLI, exposing a
+wrong pywin32 constant namespace: `FILE_FLAG_OPEN_REPARSE_POINT` must come from
+`win32file`, not `win32con`. Both parent and file opens retain the same no-follow
+flag after correction. Windows's full consumer suite still requires actual host
+execution; the Linux/lint jobs in that run did not acquire runners.
+
 The 1.x source/tests were preserved under `legacy_reference/`, not deleted or
 imported into native tests. Reusable parser/storage/scheduler invariants are owned
 by the API, as mapped above; obsolete mocks/return shapes do not count as 2.0 proof.

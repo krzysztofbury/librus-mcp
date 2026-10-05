@@ -72,7 +72,7 @@ def read_private_config(path: Path, maximum: int) -> bytes:
                 win32con.FILE_SHARE_READ | win32con.FILE_SHARE_WRITE,
                 None,
                 win32con.OPEN_EXISTING,
-                win32con.FILE_FLAG_BACKUP_SEMANTICS | win32con.FILE_FLAG_OPEN_REPARSE_POINT,
+                win32con.FILE_FLAG_BACKUP_SEMANTICS | win32file.FILE_FLAG_OPEN_REPARSE_POINT,
                 None,
             )
             handles.append(handle)
@@ -88,7 +88,7 @@ def read_private_config(path: Path, maximum: int) -> bytes:
             win32con.FILE_SHARE_READ,
             None,
             win32con.OPEN_EXISTING,
-            win32con.FILE_FLAG_OPEN_REPARSE_POINT,
+            win32file.FILE_FLAG_OPEN_REPARSE_POINT,
             None,
         )
         handles.append(handle)
