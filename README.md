@@ -7,6 +7,16 @@ An [MCP (Model Context Protocol)](https://modelcontextprotocol.io/) server that 
 
 ## Quick Start
 
+> **2.0 is a breaking change, currently in development.** All versions before
+> 2.0 use `librus-apix`. The 2.0 development build uses only the independent
+> `librus-python-api==1.0.0`, with no apix dependency or fallback. Tool arguments,
+> responses, configuration and durable workflows are being replaced. See
+> [the 2.0 migration guide](MIGRATION_2_0.md) for implemented tools and remaining
+> work. This is not yet a published or feature-complete 2.0 release. The setup
+> and feature descriptions below document the published 1.x line, not the partial
+> native development build. MIT is the planned final 2.0 license; current development
+> metadata remains GPL until the provenance gate passes.
+
 You do not need to clone this repository or install Python yourself. The setup
 uses [uv](https://github.com/astral-sh/uv), which installs the correct Python
 version and Librus MCP automatically.

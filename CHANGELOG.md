@@ -2,6 +2,49 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.0.0] - Unreleased
+
+### Breaking changes
+
+- Replace the `librus-apix` backend with the independently implemented
+  `librus-python-api`. **All versions before 2.0 use `librus-apix`; 2.0 serves
+  exclusively through the native API, without an apix dependency or fallback.**
+- Rename the installed Python package to `librus_mcp`, retaining the `librus-mcp`
+  console command via `librus_mcp.cli:main`.
+- Replace `list_students` / `student_alias` with `list_accounts` / `account_alias`,
+  and grade/attendance `sort_by` with `scope`. Return explicit typed native records
+  and observation envelopes rather than preserving 1.x response shapes.
+- Remove cwd/project credential discovery. Require explicit config/environment or
+  XDG config selection and a persistent caller-provided context key.
+
+### Implemented development slice
+
+- Pin the published `librus-python-api==1.0.0` and share one async service across
+  independent account logins. Serve account listing, profiles, final grades,
+  academic reads and messaging/directory operations without an eager login or
+  consumer transport wrapper.
+- Add native attendance details/frequencies, calendar/timetable/homework/detail
+  reads, announcements, bounded completed lessons and date-filtered grade/attendance
+  presentation cursors. Bind school/message references to account context.
+- Select messaging backends explicitly, with no fallback. Require separate
+  mark-read consent for received message content; expose bounded native mailbox
+  cursors and backend-specific directory capabilities.
+- Bound complete tool results and redact validation/domain errors. Annotate
+  grade/attendance scope selection as session-changing rather than read-only.
+- Add offline real-stdio/native-HTTP integration and native configuration tests;
+  keep obsolete apix-era tests unshipped as a reference for invariant migration.
+- Integrate opt-in durable send previews/claims/outcomes, native attachment
+  publication and bounded runtime-only binary resource snapshots.
+- Integrate opt-in native notification poll/status/ack, retained checkpoint
+  recovery, POSIX legacy-state inventory/reviewed bootstrap, native archive export
+  and explicit loss-consenting uncertainty resolution. Preserve original state.
+- Add offline doctor and explicitly requested disposable native storage diagnostics.
+
+The current local version is `2.0.0.dev1`, not the final release. Remaining
+backend/platform, failure-path and MIT provenance qualification
+are release gates. Unimplemented optional features fail when enabled. Historical
+releases retain their original licenses. See [migration guidance](MIGRATION_2_0.md).
+
 ## [1.7.0] - 2026-09-29
 
 ### Added

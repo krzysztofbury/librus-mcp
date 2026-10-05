@@ -4,15 +4,36 @@ This document describes how AI agents and bots should interact with this codebas
 
 ## Project Overview
 
-**librus-mcp** is an MCP (Model Context Protocol) server that wraps the [librus-apix](https://github.com/RustySnek/librus-apix) library to expose Librus Synergia gradebook data as tools for AI assistants.
+**librus-mcp 2.0** is a thin MCP application over the independently implemented
+`librus-python-api`. All versions before 2.0 use `librus-apix`. The native runtime
+has no apix dependency or fallback. This branch is an incomplete `2.0.0.dev1`
+slice, described in [MIGRATION_2_0.md](MIGRATION_2_0.md).
 
 - **Language:** Python 3.14+
 - **Package manager:** [uv](https://github.com/astral-sh/uv) (preferred) or pip
 - **Formatter/Linter:** [ruff](https://github.com/astral-sh/ruff) (line-length: 100, target: py314)
 - **Build system:** hatchling
-- **License:** GPL-3.0-only. The project uses the strongest license terms shipped
-  with the required `librus-apix` dependency because its MIT package metadata
-  conflicts with the GPL-3.0 text bundled in both upstream distribution formats.
+- **License:** GPL-3.0-only during development; the intended final 2.0 MIT release
+  requires the provenance gate. Historical GPL releases remain unchanged.
+
+## Native development architecture
+
+`src/librus_mcp/` is the sole packaged runtime. `runtime.py` owns one async API
+service; `server.py` registers typed ordinary tools; `schemas.py` projects native
+domain values; `config.py` owns explicit private configuration; `cli.py` routes
+the installed console command. All upstream fetching, parsing, authentication,
+retry and shared traffic control belong to the library. Never call private API
+helpers or bring back consumer scraping/session pools to fill an integration gap.
+
+`tests_native/` is the active offline suite. Old source at `src/*.py` and old
+`tests/` remain unshipped migration references, not fallbacks or current evidence.
+See [the proof-owner map](NATIVE_TEST_PLAN.md). Do not run the old live helper.
+
+## Historical 1.x specification below
+
+The following architecture, commands and contracts describe the apix-backed
+1.x implementation, not the packaged 2.0 development runtime. Retained temporarily
+for requirements/provenance review; do not use it as implementation guidance.
 
 ## Architecture
 

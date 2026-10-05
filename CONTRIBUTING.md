@@ -36,9 +36,10 @@ Before submitting, run the same checks as CI:
 ```bash
 uv lock --check
 uv sync --locked --python 3.14
-uv run ruff check src/ tests/ release_verification/
-uv run ruff format --check src/ tests/ release_verification/
-uv run bandit -c pyproject.toml -r src/
+uv run ruff check src/librus_mcp/ tests_native/ release_verification/
+uv run ruff format --check src/librus_mcp/ tests_native/ release_verification/
+uv run bandit -c pyproject.toml -r src/librus_mcp/
+uv run mypy
 uv run pytest -q
 uv build --no-build-isolation
 ```
@@ -46,21 +47,26 @@ uv build --no-build-isolation
 To apply formatting before rerunning the format check:
 
 ```bash
-uv run ruff format src/ tests/ release_verification/
+uv run ruff format src/librus_mcp/ tests_native/ release_verification/
 ```
 
 ### Testing
 
-The unit suite is self-contained and does not require Librus credentials. If you
-have a test account, you may optionally run the live credential smoke test:
+The active `tests_native/` suite is offline and uses original synthetic loopback
+HTTP through real MCP stdio and the pinned API. `tests/` remains an unshipped 1.x
+reference; it imports the removed apix backend and is not native CI evidence.
+See [verification ownership](NATIVE_TEST_PLAN.md). Do not restore apix as a dev
+dependency to run old tests. Port consumer invariants, not private wrapper mocks.
 
-```bash
-uv run python verify_connection.py [--all-accounts]
-```
-
-The live test calls Librus and is not required for contributions or CI.
+Do not run the old `verify_connection.py` helper on this branch. Native live
+qualification is pending and requires separate explicit approval and bounded
+operation scope. Ordinary CI never uses school credentials.
 
 ### Mutation Testing
+
+The following campaigns are historical 1.x evidence. Their line filters and
+source targets are not valid for the native package; replacement campaigns are
+pending after native consumer boundaries land.
 
 Active focused configurations live in `mutation/`, one per source module. For
 example, run the attachment cancellation and parser campaign with:

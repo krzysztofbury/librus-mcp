@@ -1,6 +1,30 @@
 # MCP response contract
 
-This is the current, backward-compatible response shape. The server returns its
+## Native 2.0 development contract
+
+The breaking native contract is described in [MIGRATION_2_0.md](MIGRATION_2_0.md).
+The authoritative current input/output schemas are generated from `librus_mcp`
+annotations and returned by `tools/list`. Every schema must compile in the
+client's JSON Schema validator. Run
+`uv run python release_verification/measure_tools.py` to measure the native catalog.
+The 22-tool default catalog has a 96 KiB regression budget. The supported optional
+profile has 30 tools and a 128 KiB budget; measure it with `--all-features`.
+This is not a final catalog freeze or a performance-improvement claim.
+
+Native responses use typed record arrays/envelopes, account/context-bound
+references and best-effort cursor metadata. Domain/protocol errors return
+`isError=true` with `{"error":{"code":"CLOSED_CODE"}}`, not exception text.
+Complete results above 512 KiB return `LIMIT` instead of silent truncation.
+Received-message content requires explicit mark-read consent. Opt-in sends use
+native durable previews/claims/outcomes. Notifications require poll/deliver/ack,
+with retained raw recovery and no implicit consume consent. Attachments use native
+publication and bounded inert resource snapshots, with a server-local file fallback.
+Remaining backend/platform/failure qualification is not implied by these contracts.
+
+## Historical published 1.x contract
+
+The following is the earlier, backward-compatible response shape, not the native
+2.0 contract. The published 1.x server returns its
 existing text content, and the MCP SDK also validates and advertises typed
 `outputSchema` and `structuredContent`. Pydantic models live in
 `src/output_models.py`; the `uv.lock`-pinned `mcp` SDK generates the published

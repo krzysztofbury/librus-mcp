@@ -8,6 +8,60 @@ not a release commitment:
   resource controls, safety fixes, and documentation.
 - Major release (`2.0.0`): deliberate tool, response, package, or configuration contract changes.
 
+## Active 2.0.0 Plan
+
+The direct native-backend migration is planned in
+[MCP_2_0_PLAN.md](MCP_2_0_PLAN.md), based on remote MCP main `0aaf658` and API
+main `01b32e0` reviewed on 2026-10-05. Work branch: `feat/2.0.0-native-api`.
+Stable API `1.0.0` is on PyPI and pinned for development; consumer integration
+and final release gates remain open.
+
+- [x] Review both main branches, the API's native cutover matrix and all 18
+  existing MCP 2.0 roadmap items; create the dedicated MCP branch.
+- [x] File API gaps [#22-27](https://github.com/krzysztofbury/librus-python-api/issues)
+  with evidence and acceptance criteria; distinguish required and conditional gates.
+- [ ] Approve W0 contract choices: backend/platform scope, tool catalog,
+  poll/ack delivery, context key, configuration and migration/rollback policy.
+- [x] W1: API #22-25 are closed and included in published stable API `1.0.0`,
+  pinned for native development. Consumer acceptance of durable integrations
+  remains part of W4/W5; upstream completion alone is not MCP qualification.
+- [ ] W2: establish `librus_mcp` packaging, native lifespan and explicit config.
+  Package/entry point, shared service, XDG selection, persistent-key input and
+  offline validation and explicit doctor/storage diagnostics are implemented;
+  actual macOS/Windows consumer qualification remains pending.
+- [ ] W3: replace ordinary reads with native typed operations and MCP 2.0 DTOs.
+  All planned ordinary read families, date windows, bound school references and
+  presentation/native cursors are implemented. Complete family-wide offline proof
+  and final catalog review remain release gates.
+- [ ] W4: integrate native messaging, durable sends, streams and file publication.
+  Message summaries/content and recipient discovery/selection are implemented,
+  with explicit backend/context binding and received-open consent. Modern stdio
+  paging/content/directory, durable sends/outcomes and publication/resources now
+  pass offline stdio/restart proof. Legacy-backend and host qualification, plus
+  cancellation/disconnect invariants, remain open.
+- [ ] W5: implement notification poll/status/ack and explicit old-state migration.
+  Poll/status/ack, POSIX old-file inventory/reviewed bootstrap, per-account old-state
+  quarantine, explicit archive export and loss-consenting recovery are integrated.
+  Historical event replay/ack and malformed checkpoint retention pass offline
+  restart proof. Broader migration/platform/failure qualification remains open;
+  lossless reverse migration is not promised.
+- [ ] W6: remove apix, duplicated HTTP/parsers/workers/caches and runtime JSON state.
+- [ ] W7: qualify installed artifacts, protocol contracts, representative workloads,
+  declared platforms and the source/dependency provenance required for MIT.
+- [ ] W8: publish the exact API prerequisite and MCP 2.0.0, verify remote artifacts
+  and fresh `uvx` startup.
+
+Parked by the owner: API #26 (notes/observation cards, missing qualifying examples)
+and #27 (daily credentialed CI, noncritical). Neither blocks MCP 2.0.0. Notes
+remain unavailable/unregistered; offline E2E and release qualification remain required.
+
+The target is a thin MCP client with reusable heavy work in `librus-python-api`.
+New tool requests/responses may break 1.x compatibility. Durable history and
+uncertain sends must remain recoverable. MIT is the target for the qualified
+2.0 release; existing GPL releases and notices are not retroactively changed.
+Runtime implementation has started as `2.0.0.dev1`; dependency replacement is
+complete with no apix fallback. The remaining work and final MIT gate are open.
+
 ## Remaining Work After 1.7.0
 
 Preserve the existing text response shapes and feature gates until a documented
@@ -177,6 +231,10 @@ available, before enabling the feature by default.
 
 ### Stable Domain-Oriented Tool Contract
 
+Library foundations for A01-A09 already exist; MCP schemas and adapters are still
+pending. See the plan's complete A01-A18 readiness map rather than recreating
+native functionality in this repository.
+
 - [ ] Standardize collection responses on one envelope with `items`, pagination,
   truncation, and snapshot metadata.
 - [ ] Replace dynamic subject, recipient, and schedule maps with arrays of typed records.
@@ -196,7 +254,7 @@ available, before enabling the feature by default.
 ### Package And Configuration Cleanup
 
 - [ ] Move the generic top-level `src` package to `src/librus_mcp` and update the
-  console entry point to `librus_mcp.server:main`.
+  console entry point to `librus_mcp.cli:main`, preserving version/config/doctor routing.
 - [ ] Replace Cosmic Ray with mutmut 3 after removing the unsupported `src`
   import package name.
 - [ ] Prefer an explicit `LIBRUS_CONFIG` or XDG configuration path over silently
