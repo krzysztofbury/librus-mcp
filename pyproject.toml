@@ -1,9 +1,9 @@
 [project]
 name = "librus-mcp"
-version = "1.7.0"
-description = "MCP server for Librus Synergia — access grades, messages, attendance, homework, timetables, and announcements from AI assistants"
+version = "2.0.0"
+description = "MCP server for Librus Synergia using the independent librus-python-api"
 authors = [{name = "Krzysztof Bury", email = "contact@datacraze.io"}]
-license = "GPL-3.0-only"
+license = "MIT"
 license-files = ["LICENSE"]
 readme = "README.md"
 requires-python = ">=3.14"
@@ -11,33 +11,18 @@ keywords = ["mcp", "librus", "synergia", "gradebook", "llm", "claude", "gemini"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
-    "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
+    "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.14",
 ]
-# librus-apix exposes no public timeout/session hook; pin the release whose
-# private Client._session behavior is covered by this server's tests.
-#
 # mcp 2.x is required: the 1.x FastMCP entry point this server was built on was
 # renamed to MCPServer in mcp.server.mcpserver, so 1.x and 2.x are not
 # interchangeable here.
-#
-# Lower bounds on lxml, requests, and aiohttp are the first patched releases for
-# published advisories. This server is stdio-only and uses aiohttp purely as a
-# client, so none of those advisories are reachable here, but the floors keep a
-# resolver from selecting an affected version for an installed copy of this
-# package.
 dependencies = [
     "mcp>=2.1.1,<3",
-    "librus-apix==1.5.2",
-    "pydantic>=2.7,<3",
-    "pydantic-settings>=2.7,<3",
-    "beautifulsoup4>=4.12,<5",
-    "lxml>=6.1.0,<7",
-    "requests>=2.33.0,<3",
-    "aiohttp>=3.14.2,<4",
-    "yarl>=1.20,<2",
-    "tzdata>=2025.2; sys_platform == 'win32'",
+    "librus-python-api==1.0.2",
+    "pydantic>=2.12,<3",
+    "pywin32>=312; sys_platform == 'win32'",
 ]
 
 [project.urls]
@@ -46,23 +31,31 @@ Repository = "https://github.com/krzysztofbury/librus-mcp"
 Issues = "https://github.com/krzysztofbury/librus-mcp/issues"
 
 [project.scripts]
-librus-mcp = "src.cli:main"
+librus-mcp = "librus_mcp.cli:main"
 
 [build-system]
 requires = ["hatchling==1.27.0"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src"]
+packages = ["src/librus_mcp"]
+
+[tool.hatch.build.targets.sdist]
+only-include = ["src/librus_mcp", "tests_native", "release_verification", "scripts/qualify_native.py", "pyproject.toml", "uv.lock", "README.md", "CHANGELOG.md", "LICENSE", "LICENSE_REVIEW.md", "MCP_2_0_PLAN.md", "MIGRATION_2_0.md", "NATIVE_TEST_PLAN.md", "MUTATION_TESTING.md", "SPEC.md", "MCP_CONTRACT.md"]
 
 [dependency-groups]
 dev = [
     "ruff>=0.11.0",
     "bandit[toml]>=1.8.0",
-    "cosmic-ray>=8.7,<9",
     "hatchling==1.27.0",
     "pytest>=8.0.0",
     "pytest-asyncio>=0.24.0",
+    "mypy>=1.19,<3",
+]
+mutation = [
+    # mutmut's fork-based runner is POSIX-only; normal platform CI stays offline
+    # and installs the dev group without mutation tooling.
+    "mutmut==3.7.0; sys_platform != 'win32'",
 ]
 
 [tool.uv]
@@ -70,9 +63,9 @@ dev = [
 # resolution (with a global rolling "30 days" exclude-newer) and CI (with no
 # global config) produce byte-identical lockfiles. Bump when updating deps.
 exclude-newer = "2026-09-01T00:00:00Z"
-# Keep the global quarantine while admitting the reviewed 1.5.2 artifacts,
-# uploaded on 2026-09-16, without exposing unrelated packages to newer uploads.
-exclude-newer-package = { librus-apix = "2026-09-17T00:00:00Z" }
+# Admit the reviewed stable native release and its Windows runtime prerequisites
+# without relaxing the quarantine for unrelated dependencies.
+exclude-newer-package = { librus-python-api = "2026-10-07T00:00:00Z", pywin32 = "2026-10-06T00:00:00Z", tzdata = "2026-10-06T00:00:00Z", mypy = "2026-10-06T00:00:00Z" }
 
 [tool.ruff]
 line-length = 100
@@ -114,7 +107,24 @@ line-ending = "auto"
 
 [tool.pytest.ini_options]
 asyncio_mode = "strict"
-testpaths = ["tests"]
+testpaths = ["tests_native"]
+
+[tool.mutmut]
+source_paths = ["src/librus_mcp"]
+only_mutate = ["src/librus_mcp/presentation.py", "src/librus_mcp/message_tools.py"]
+also_copy = ["tests_native"]
+pytest_add_cli_args_test_selection = ["tests_native/test_read_boundaries.py", "tests_native/test_message_stdio.py"]
+pytest_add_cli_args = ["--basetemp=.mutation-pytest"]
+timeout_multiplier = 3.0
+timeout_constant = 5.0
+use_git_change_detection = false
+
+[tool.mypy]
+python_version = "3.14"
+strict = true
+files = ["src/librus_mcp"]
+mypy_path = "src"
+explicit_package_bases = true
 
 [tool.bandit]
 exclude_dirs = [".venv", "venv", "__pycache__"]

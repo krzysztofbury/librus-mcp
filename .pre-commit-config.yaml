@@ -36,18 +36,20 @@ repos:
 
   # Python linting
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.11.11
+    rev: v0.16.5
     hooks:
       - id: ruff
         args: ['--fix']
+        exclude: ^legacy_reference/
       - id: ruff-format
+        exclude: ^legacy_reference/
 
   # Security checks for Python code
   - repo: https://github.com/PyCQA/bandit
     rev: 1.8.3
     hooks:
       - id: bandit
-        args: ['-q', '-c', 'pyproject.toml', '-r', 'src']
+        args: ['-q', '-c', 'pyproject.toml', '-r', 'src/librus_mcp']
         pass_filenames: false
         language_version: python3.14
         additional_dependencies: ['bandit[toml]']

@@ -5,13 +5,17 @@ import argparse
 import asyncio
 import json
 import os
+import secrets
+import shutil
 import subprocess
 import tempfile
 import tomllib
+import zipfile
 from pathlib import Path
 from typing import Any
 
 import anyio
+from jsonschema.validators import validator_for
 from mcp.client import ClientSession
 from mcp.client.stdio import StdioServerParameters, stdio_client
 
@@ -59,7 +63,9 @@ def parse_initialize_response(stdout: str) -> dict[str, Any]:
     return responses[0]
 
 
-def synthetic_environment(temporary_directory: Path) -> dict[str, str]:
+def synthetic_environment(
+    temporary_directory: Path, *, all_features: bool = False
+) -> dict[str, str]:
     environment = os.environ.copy()
     for name in list(environment):
         if name.startswith("LIBRUS_") or name in {"PYTHONHOME", "PYTHONPATH", "VIRTUAL_ENV"}:
@@ -67,16 +73,17 @@ def synthetic_environment(temporary_directory: Path) -> dict[str, str]:
     environment.update(
         {
             "LIBRUS_ACCOUNTS": json.dumps(
-                [{"alias": "release-smoke", "username": "synthetic", "password": "synthetic"}]
+                [
+                    {
+                        "alias": "release-smoke",
+                        "username": "synthetic",
+                        "password": "synthetic",  # pragma: allowlist secret - fixture only
+                    }
+                ]
             ),
-            "LIBRUS_FEATURES": json.dumps(
-                {
-                    "notifications": False,
-                    "attachments": False,
-                    "behaviour_notes": False,
-                    "send_message": False,
-                }
-            ),
+            "LIBRUS_CONTEXT_KEY": secrets.token_hex(32),
+            # The default profile uses the shipped feature defaults.
+            "LIBRUS_FEATURES": json.dumps({"send_message": True} if all_features else {}),
             "LIBRUS_STATE_DIR": str(temporary_directory / "state"),
             "LIBRUS_DOWNLOAD_DIR": str(temporary_directory / "downloads"),
             "HTTP_PROXY": "http://127.0.0.1:1",
@@ -134,28 +141,45 @@ def run_handshake(executable: Path, working_directory: Path, expected_version: s
         raise VerificationError(f"unexpected server version: {server_info.get('version')!r}")
 
 
-async def run_tool_checks(executable: Path, working_directory: Path) -> None:
+async def run_tool_checks(
+    executable: Path, working_directory: Path, *, all_features: bool = False
+) -> None:
     """Check the installed server's catalog and a credential-free tool call."""
     server = StdioServerParameters(
         command=str(executable),
         cwd=working_directory,
-        env=synthetic_environment(working_directory),
+        env=synthetic_environment(working_directory, all_features=all_features),
     )
     try:
         with anyio.fail_after(HANDSHAKE_TIMEOUT_SECONDS):
             async with stdio_client(server) as streams:
                 async with ClientSession(*streams) as session:
                     await session.initialize()
-                    tools = {tool.name: tool for tool in (await session.list_tools()).tools}
+                    catalog = await session.list_tools()
+                    tools = {tool.name: tool for tool in catalog.tools}
+                    if len(tools) != (30 if all_features else 26):
+                        raise VerificationError(
+                            "installed catalog has an unexpected feature profile"
+                        )
+                    for tool in catalog.tools:
+                        validator_for(tool.input_schema).check_schema(tool.input_schema)
+                        if tool.output_schema is None:
+                            raise VerificationError("installed tool has no output schema")
+                        validator_for(tool.output_schema).check_schema(tool.output_schema)
+                    if (
+                        len(catalog.model_dump_json(by_alias=True, exclude_unset=True).encode())
+                        > 128 * 1024
+                    ):
+                        raise VerificationError("installed catalog exceeds its context budget")
                     grades_tool = tools.get("get_grades")
                     if grades_tool is None or grades_tool.output_schema is None:
                         raise VerificationError("installed get_grades has no output schema")
-                    result = await session.call_tool("list_students", {})
+                    result = await session.call_tool("list_accounts", {})
                     if result.is_error or result.structured_content != {
-                        "result": ["release-smoke"]
+                        "items": [{"account_alias": "release-smoke"}]
                     }:
                         raise VerificationError(
-                            "installed list_students returned an invalid result"
+                            "installed list_accounts returned an invalid result"
                         )
     except Exception as error:  # noqa: BLE001 - redact SDK and subprocess failures at this boundary
         raise VerificationError(
@@ -169,23 +193,45 @@ def run_cli_checks(executable: Path, working_directory: Path, expected_version: 
     password = "release-cli-private-password"  # pragma: allowlist secret
     credentials.write_text(
         json.dumps(
-            {"accounts": [{"alias": "release-smoke", "username": username, "password": password}]}
+            {
+                "accounts": [
+                    {"alias": "release-smoke", "username": username, "password": password}
+                ],
+                "context_key": secrets.token_hex(32),
+            }
         ),
         encoding="utf-8",
     )
     if os.name == "posix":
         credentials.chmod(0o600)
+    elif os.name == "nt":
+        import win32api
+        import win32con
+        import win32security
+
+        token = win32security.OpenProcessToken(win32api.GetCurrentProcess(), win32con.TOKEN_QUERY)
+        try:
+            user = win32security.GetTokenInformation(token, win32security.TokenUser)[0]
+        finally:
+            token.Close()
+        acl = win32security.ACL()
+        acl.AddAccessAllowedAce(win32security.ACL_REVISION, win32con.GENERIC_ALL, user)
+        win32security.SetNamedSecurityInfo(
+            str(credentials),
+            win32security.SE_FILE_OBJECT,
+            win32security.DACL_SECURITY_INFORMATION
+            | win32security.PROTECTED_DACL_SECURITY_INFORMATION,
+            None,
+            None,
+            acl,
+            None,
+        )
     commands = [
         (["--version"], f"librus-mcp {expected_version}"),
         (["--config", str(credentials), "--check-config"], "[OK] Configuration is valid."),
-        (["--config", str(credentials), "doctor"], "Result: all local checks passed."),
     ]
     for arguments, expected_output in commands:
         environment = synthetic_environment(working_directory)
-        if arguments[-1] == "doctor":
-            environment["LIBRUS_FEATURES"] = json.dumps(
-                {"notifications": True, "attachments": True}
-            )
         result = subprocess.run(
             [str(executable), *arguments],
             cwd=working_directory,
@@ -200,20 +246,81 @@ def run_cli_checks(executable: Path, working_directory: Path, expected_version: 
             raise VerificationError(f"installed CLI exited with code {result.returncode}: {output}")
         if expected_output not in result.stdout:
             raise VerificationError(f"installed CLI output is missing {expected_output!r}")
-        if arguments[-1] == "doctor" and not all(
-            marker in result.stdout
-            for marker in (
-                "[OK] Notification storage is ready.",
-                "[OK] Attachment storage is ready.",
-            )
-        ):
-            raise VerificationError("installed doctor did not verify local storage")
         if username in output or password in output or "Traceback" in output:
             raise VerificationError("installed CLI exposed private data or a traceback")
 
 
-def verify_wheel(repository: Path, wheel: Path) -> None:
+def run_consumer_tests(repository: Path, python: Path, working_directory: Path) -> None:
+    """Run copied offline consumer tests against the installed wheel, never source."""
+    requirements = working_directory / "test-requirements.txt"
+    subprocess.run(
+        ["uv", "export", "--frozen", "--no-emit-project", "--output-file", str(requirements)],
+        cwd=repository,
+        check=True,
+        stdout=subprocess.DEVNULL,
+    )
+    subprocess.run(
+        [
+            "uv",
+            "pip",
+            "install",
+            "--python",
+            str(python),
+            "--require-hashes",
+            "--requirements",
+            str(requirements),
+        ],
+        cwd=working_directory,
+        check=True,
+    )
+    tests = working_directory / "consumer-tests"
+    tests.mkdir()
+    shutil.copytree(
+        repository / "tests_native",
+        tests / "tests_native",
+        ignore=shutil.ignore_patterns("__pycache__"),
+    )
+    (tests / "pytest.ini").write_text(
+        "[pytest]\nasyncio_mode = strict\ntestpaths = tests_native\n",
+        encoding="utf-8",
+    )
+    subprocess.run(
+        [str(python), "-m", "pytest", "-q", "--basetemp", str(working_directory / "pytest")],
+        cwd=tests,
+        env={
+            key: value
+            for key, value in synthetic_environment(working_directory).items()
+            if not key.startswith("LIBRUS_")
+        },
+        # Hosted Windows runs the suite in ~155-165s; a whole-suite cap is a hang
+        # guard, not a performance gate, so leave headroom for runner variance.
+        timeout=600,
+        check=True,
+    )
+
+
+def verify_wheel(repository: Path, wheel: Path, *, consumer_tests: bool = False) -> None:
     wheel = resolve_wheel(wheel)
+    with zipfile.ZipFile(wheel) as archive:
+        names = archive.namelist()
+        if any(name.startswith("src/") for name in names):
+            raise VerificationError("wheel contains the legacy src package")
+        if "librus_mcp/cli.py" not in names:
+            raise VerificationError("wheel is missing the native entry point")
+        for name in names:
+            if "legacy_reference/" in name or name.startswith("tests/"):
+                raise VerificationError("wheel contains historical source or tests")
+            if name.endswith(".py") or name.endswith("/METADATA"):
+                body = archive.read(name)
+                if b"librus_apix" in body or b"Requires-Dist: librus-apix" in body:
+                    raise VerificationError("wheel contains an apix import or dependency")
+            if name.endswith("/METADATA") and b"License-Expression: MIT" not in archive.read(name):
+                raise VerificationError("wheel license metadata is not MIT")
+        licenses = [name for name in names if name.endswith("/licenses/LICENSE")]
+        if len(licenses) != 1 or not archive.read(licenses[0]).startswith(
+            (b"MIT License\n", b"MIT License\r\n")
+        ):
+            raise VerificationError("wheel license notice is not MIT")
     expected_version = read_project_version(repository / "pyproject.toml")
     with tempfile.TemporaryDirectory(prefix="librus-mcp-release-") as temporary_name:
         temporary_directory = Path(temporary_name).resolve()
@@ -268,6 +375,9 @@ def verify_wheel(repository: Path, wheel: Path) -> None:
         run_cli_checks(executable, temporary_directory, expected_version)
         run_handshake(executable, temporary_directory, expected_version)
         asyncio.run(run_tool_checks(executable, temporary_directory))
+        asyncio.run(run_tool_checks(executable, temporary_directory, all_features=True))
+        if consumer_tests:
+            run_consumer_tests(repository, python, temporary_directory)
 
 
 def main() -> None:
@@ -275,11 +385,21 @@ def main() -> None:
     parser.add_argument(
         "wheel", type=Path, help="a built wheel or directory containing exactly one wheel"
     )
+    parser.add_argument(
+        "--consumer-tests",
+        action="store_true",
+        help="also run the offline consumer suite against the isolated installed wheel",
+    )
     arguments = parser.parse_args()
     repository = Path(__file__).resolve().parents[1]
     try:
-        verify_wheel(repository, arguments.wheel)
-    except (OSError, subprocess.CalledProcessError, VerificationError) as error:
+        verify_wheel(repository, arguments.wheel, consumer_tests=arguments.consumer_tests)
+    except (
+        OSError,
+        subprocess.CalledProcessError,
+        subprocess.TimeoutExpired,
+        VerificationError,
+    ) as error:
         raise SystemExit(f"wheel verification failed: {error}") from None
     print("verified installed wheel MCP identity")
 

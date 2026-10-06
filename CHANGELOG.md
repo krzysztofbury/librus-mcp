@@ -2,6 +2,92 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.0.0] - 2026-10-06
+
+### Setup without operator steps
+
+- Create and reuse a persistent context key in `state_dir/context.key` when none
+  is configured. An explicit key still wins; a damaged key file stops startup
+  instead of being replaced.
+- Restrict the current user's own shared configuration file (0600) and state/
+  download directories (0700) in place on POSIX, with a notice, instead of
+  refusing to start. Files owned by others, symlinks and special files still fail.
+- Adopt 1.x notification files on an account's first poll: import consumed but
+  undelivered agenda events, start the native baseline from Librus' own "new"
+  views and move the originals to `state_dir/legacy-1x`. Malformed files stay in
+  place and keep that account's polls blocked.
+- Keep notifications and attachments on by default, as in 1.x; sending stays
+  opt-in. The default catalog is 26 tools, within a 128 KiB budget.
+- Accept the 1.x default `~/.config/librus-mcp/secrets.json` when `config.json`
+  is absent, and ignore the removed `behaviour_notes` setting with a notice.
+- Page `get_grades` and `get_attendance` with `limit`/`cursor` (grade averages on
+  every page), so whole-year results stay within the response limit.
+- Report a completed send even if the follow-up local outcome read fails
+  (`durable: null`; `get_send_outcome` has the record).
+- Require `librus-python-api==1.0.2`. 1.0.1 bounds subject-frequency requests
+  (1.0.0 failed with `LIMIT` for students with about 15 or more subjects), and
+  1.0.2 raises the shared request policy to 10 requests/second, burst 20 and
+  four in flight (one per login).
+- Publish tool schemas without generated `title` annotations: the default tool
+  list shrinks from about 115 KB to 93 KB with identical validation.
+
+- License the independent native package under MIT after the source/dependency
+  review. Preserve unshipped apix-era references under GPL-3.0-only and leave
+  historical release licenses untouched.
+- Qualify both messaging backends, dispatch cancellation/disconnects, explicit
+  notification uncertainty recovery and interrupted migration manifests offline.
+- Harden Windows credential-file reads with pinned local-NTFS handles and
+  conservative private ACL checks. Snapshot failures after native file publication
+  return the complete local file instead of reporting a failed transfer.
+- Create absent private ancestors of the state/download directories, so enabling a
+  durable feature with the default `~/.librus-mcp` paths works on a fresh host.
+  Unusable existing directories stop startup with one redacted line instead of a
+  lifespan traceback; permissions are still never repaired implicitly.
+- Serialize the text duplicate of typed results as compact JSON. It carries the
+  same value as `structuredContent` and is about 40% smaller for live grade and
+  timetable reads.
+- Align the publishing workflow with native CI: native lint paths, strict typing
+  and audited sdist rebuild with installed consumer acceptance before publication.
+
+### Breaking changes
+
+- Replace the `librus-apix` backend with the independently implemented
+  `librus-python-api`. **All versions before 2.0 use `librus-apix`; 2.0 serves
+  exclusively through the native API, without an apix dependency or fallback.**
+- Rename the installed Python package to `librus_mcp`, retaining the `librus-mcp`
+  console command via `librus_mcp.cli:main`.
+- Replace `list_students` / `student_alias` with `list_accounts` / `account_alias`,
+  and grade/attendance `sort_by` with `scope`. Return explicit typed native records
+  and observation envelopes rather than preserving 1.x response shapes.
+- Remove cwd/project credential discovery. Require explicit config/environment or
+  XDG config selection and a persistent caller-provided context key.
+
+### Implemented development slice
+
+- Pin the published native API and share one async service across
+  independent account logins. Serve account listing, profiles, final grades,
+  academic reads and messaging/directory operations without an eager login or
+  consumer transport wrapper.
+- Add native attendance details/frequencies, calendar/timetable/homework/detail
+  reads, announcements, bounded completed lessons and date-filtered grade/attendance
+  presentation cursors. Bind school/message references to account context.
+- Select messaging backends explicitly, with no fallback. Require separate
+  mark-read consent for received message content; expose bounded native mailbox
+  cursors and backend-specific directory capabilities.
+- Bound complete tool results and redact validation/domain errors. Annotate
+  grade/attendance scope selection as session-changing rather than read-only.
+- Add offline real-stdio/native-HTTP integration and native configuration tests;
+  keep obsolete apix-era tests unshipped as a reference for invariant migration.
+- Integrate opt-in durable send previews/claims/outcomes, native attachment
+  publication and bounded runtime-only binary resource snapshots.
+- Integrate opt-in native notification poll/status/ack, retained checkpoint
+  recovery, POSIX legacy-state inventory/reviewed bootstrap, native archive export
+  and explicit loss-consenting uncertainty resolution. Preserve original state.
+- Add offline doctor and explicitly requested disposable native storage diagnostics.
+
+Historical releases retain their original licenses. See
+[migration guidance](MIGRATION_2_0.md).
+
 ## [1.7.0] - 2026-09-29
 
 ### Added

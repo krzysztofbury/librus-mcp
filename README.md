@@ -1,19 +1,23 @@
 # Librus MCP Server
 
-[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![PyPI](https://img.shields.io/pypi/v/librus-mcp)](https://pypi.org/project/librus-mcp/)
 
-An [MCP (Model Context Protocol)](https://modelcontextprotocol.io/) server that provides AI assistants with access to the **Librus Synergia** electronic gradebook. It supports multiple student accounts simultaneously and exposes tools for grades (numeric, GPA, and descriptive), messages, attendance, homework, schedules, timetables, announcements, completed lessons, and student information.
+An [MCP](https://modelcontextprotocol.io/) server that gives AI assistants access
+to the **Librus Synergia** school gradebook: grades, attendance, timetable,
+homework, calendar, announcements, messages and student information. It supports
+several logins at once, built on the independent
+[`librus-python-api`](https://github.com/krzysztofbury/librus-python-api).
 
-## Quick Start
+Version 2.0 replaces the `librus-apix` backend used by every earlier version.
+Upgrading from 1.x? See [Upgrading from 1.x](#upgrading-from-1x).
 
-You do not need to clone this repository or install Python yourself. The setup
-uses [uv](https://github.com/astral-sh/uv), which installs the correct Python
-version and Librus MCP automatically.
+## Quick start
 
-You need your parent login and password for
-[Librus Synergia](https://synergia.librus.pl/). Accounts requiring interactive
-two-factor authentication are not supported by the underlying library.
+You do not need to clone this repository or install Python yourself.
+[uv](https://docs.astral.sh/uv/) downloads Python 3.14 and the server
+automatically. You need your Librus Synergia login and password. Accounts that
+require interactive two-factor authentication are not supported.
 
 ### 1. Install uv
 
@@ -29,508 +33,165 @@ On Windows, open PowerShell and run:
 powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
 ```
 
-Close and reopen your AI assistant after installing uv. You can verify the
-installation in a new terminal with `uvx --version`.
+Close and reopen your AI assistant afterwards.
 
-### 2. Create a private credentials file
+### 2. Create a private configuration file
 
-Create a file named `secrets.json` in a private folder under your user account,
-outside projects and shared or synchronized folders:
+Save this as `config.json` in a private folder under your user account, outside
+projects and synchronized folders, and fill in the login and password:
 
 ```json
 {
   "accounts": [
-    {
-      "alias": "daughter",
-      "username": "12345",
-      "password": ""
-    }
+    {"alias": "daughter", "username": "12345", "password": "YOUR_PASSWORD"}
   ]
 }
 ```
 
-Replace the empty `password` value with your Librus password. The `alias` is the
-short name you will use when asking your assistant about this student. For more
-than one child, add another account object to the array.
+The `alias` is the short name you use when asking about this login. For more
+logins, add more objects to `accounts`. Suggested locations:
 
-Use the absolute path to this file in the next step. Example paths:
+- macOS: `/Users/YOUR_NAME/.config/librus-mcp/config.json`
+- Linux: `/home/YOUR_NAME/.config/librus-mcp/config.json`
+- Windows: `C:\Users\YOUR_NAME\.config\librus-mcp\config.json`
 
-- macOS: `/Users/YOUR_NAME/.config/librus-mcp/secrets.json`
-- Linux: `/home/YOUR_NAME/.config/librus-mcp/secrets.json`
-- Windows JSON: `C:\\Users\\YOUR_NAME\\AppData\\Roaming\\librus-mcp\\secrets.json`
+On first start the server restricts the file to your user (macOS/Linux),
+creates its private state directory (`~/.librus-mcp`) and a persistent key there.
+There is nothing else to set up. Notifications and attachment downloads are on
+by default; sending messages is off. To change that, add for example:
 
-On macOS or Linux, protect the finished file so only your user can read it:
-
-```bash
-chmod 600 /absolute/path/to/secrets.json
+```json
+"features": {"notifications": true, "attachments": false, "send_message": true}
 ```
 
-### 3. Connect your AI assistant
+### 3. Connect your assistant
 
-Choose only the client you use. Replace `/absolute/path/to/secrets.json` with
-the path created above.
+Replace the path with your file's absolute path.
 
-#### Claude Desktop
+**Claude Code**
 
-Open **Settings > Developer > Edit Config** and add this MCP server. The config
-file is normally at `~/Library/Application Support/Claude/claude_desktop_config.json`
-on macOS or `%APPDATA%\Claude\claude_desktop_config.json` on Windows.
+```bash
+claude mcp add --scope user --transport stdio librus \
+  -- uvx --python 3.14 librus-mcp==2.0.0 --config /absolute/path/to/config.json
+```
+
+**Claude Desktop** (Settings > Developer > Edit Config)
 
 ```json
 {
   "mcpServers": {
     "librus": {
       "command": "uvx",
-      "args": ["librus-mcp==1.7.0", "--config", "/absolute/path/to/secrets.json"]
+      "args": ["--python", "3.14", "librus-mcp==2.0.0", "--config", "/absolute/path/to/config.json"]
     }
   }
 }
 ```
 
-#### Claude Code
-
-Run this once in a terminal:
-
-```bash
-claude mcp add --scope user --transport stdio librus \
-  -- uvx librus-mcp==1.7.0 --config /absolute/path/to/secrets.json
-```
-
-#### Gemini CLI
-
-Run this once in a terminal. User scope keeps school credentials out of project files.
+**Gemini CLI**
 
 ```bash
 gemini mcp add --scope user --transport stdio \
-  librus uvx librus-mcp==1.7.0 --config /absolute/path/to/secrets.json
+  librus uvx --python 3.14 librus-mcp==2.0.0 --config /absolute/path/to/config.json
 ```
 
-#### OpenAI Codex CLI
-
-Run this once in a terminal:
+**OpenAI Codex CLI**
 
 ```bash
 codex mcp add librus \
-  -- uvx librus-mcp==1.7.0 --config /absolute/path/to/secrets.json
+  -- uvx --python 3.14 librus-mcp==2.0.0 --config /absolute/path/to/config.json
 ```
 
-#### OpenCode V2
-
-Run this once in a terminal. `--global` keeps the server configuration out of
-project files; the credentials remain in the private file created above:
+**OpenCode**
 
 ```bash
 opencode mcp add librus --global -- \
-  uvx librus-mcp==1.7.0 --config /absolute/path/to/secrets.json
-opencode mcp list
+  uvx --python 3.14 librus-mcp==2.0.0 --config /absolute/path/to/config.json
 ```
 
-Alternatively, add this entry under `mcp.servers` in
-`~/.config/opencode/opencode.json`. If the file already exists, add only the
-`librus` entry and keep its other settings and servers:
-
-```json
-{
-  "$schema": "https://opencode.ai/config.json",
-  "mcp": {
-    "servers": {
-      "librus": {
-        "type": "local",
-        "command": [
-          "uvx",
-          "librus-mcp==1.7.0",
-          "--config",
-          "/absolute/path/to/secrets.json"
-        ]
-      }
-    }
-  }
-}
-```
-
-V2 connects configured servers automatically. Do not add `enabled`; set
-`disabled: true` only when you deliberately want to keep a server disconnected.
-On a fresh OpenCode start, the first `opencode mcp list` can run before the
-server has finished connecting. Run it again; look for `librus connected`.
-If it stays missing or reports a failure, reopen OpenCode and check the status
-again. Do not assume Librus is available to the assistant until it connects.
-
-#### OpenCode V1 (older installations)
-
-OpenCode 1.x used a different configuration shape. If you are still on V1,
-put `librus` directly under `mcp` in your global `opencode.json`:
-
-```json
-{
-  "$schema": "https://opencode.ai/config.json",
-  "mcp": {
-    "librus": {
-      "type": "local",
-      "command": [
-        "uvx",
-        "librus-mcp==1.7.0",
-        "--config",
-        "/absolute/path/to/secrets.json"
-      ],
-      "enabled": true
-    }
-  }
-}
-```
-
-V2 also supports existing V1 configuration; migrating to `mcp.servers` is
-optional. For new V2 setups, prefer the V2 example above. Use
-`opencode --version` if you are unsure which version you have. Do not copy
-both examples into the same file.
-
-Never put a Librus password or `LIBRUS_ACCOUNTS` in a project-level MCP
-configuration. Project files can be committed, synchronized, or shared.
-
-### 4. Restart and verify
-
-1. Completely restart Claude Desktop, or reconnect Librus in your CLI client.
-2. Ask: **"Use Librus to list the configured students."**
-3. Check that your chosen aliases appear.
-4. Ask: **"Use Librus to show grades for daughter."** Replace `daughter` with
-   your alias. This second request performs a real Librus login.
-
-For CLI status checks, use `claude mcp list`, `gemini mcp list`,
-`codex mcp list`, or `opencode mcp list`. Claude Code and Gemini CLI also
-expose status through `/mcp`; OpenCode V2 uses `/mcps`.
-
-Repeat the restart or reconnect step after changing credentials, enabled
-features, storage folders, or the Librus MCP version. A running MCP process does
-not reload configuration changes.
-
-### 5. Diagnose problems
-
-These commands are safe to run in a terminal. Replace the example path with the
-same credentials path used in your MCP configuration.
+Check the setup without contacting Librus:
 
 ```bash
-uvx librus-mcp==1.7.0 --version
-uvx librus-mcp==1.7.0 --config /absolute/path/to/secrets.json --check-config
-uvx librus-mcp==1.7.0 --config /absolute/path/to/secrets.json doctor
+uvx --python 3.14 librus-mcp==2.0.0 --config /absolute/path/to/config.json --check-config
 ```
 
-`--check-config` validates the file without signing in. `doctor` also prepares
-and checks local notification and attachment storage without contacting Librus.
-Neither command prints usernames or passwords.
+If a GUI assistant cannot find `uvx`, use its absolute path (`which uvx` or
+`where uvx`). Restart or reconnect the assistant after changing the file.
 
-For an explicit sign-in and read-only check of every configured account, run:
+## Upgrading from 1.x
+
+Change the version in your assistant's configuration to `librus-mcp==2.0.0`, add
+`--python 3.14` before it and keep your existing `--config` file. On first start
+2.0 adapts the old setup automatically: it creates the key, restricts shared
+1.x folders to your user, ignores the removed behaviour-notes setting and adopts
+1.x notification history on the first check. Stop 1.x server processes that use
+the same folders before switching.
+
+Notifications and attachments stay on by default, as in 1.x. Tool names and
+results changed on purpose (for example `list_students` is now `list_accounts`
+and `student_alias` is `account_alias`). Assistants read the new tool list
+automatically; custom scripts must follow the [migration guide](MIGRATION_2_0.md).
+
+## Tools and safety
+
+The default catalog has 26 typed tools:
+
+- Accounts/profile: `list_accounts`, `get_student_information`.
+- Grades: `get_grades`, `get_final_grades`, `get_grades_window`.
+- Attendance: `get_attendance`, `get_attendance_window`, `get_attendance_detail`,
+  `get_attendance_frequency`, `get_subject_frequency`.
+- School: `get_timetable`, `get_announcements`, `get_agenda`, `get_agenda_detail`,
+  `get_homework`, `get_homework_detail`, `get_completed_lessons`.
+- Communication: `get_messages`, `get_message_content`, `get_recipient_types`,
+  `get_recipient_choices`, `get_recipients`.
+- Notifications: `get_new_notifications`, `get_notification_status`,
+  `acknowledge_notifications` (feature `notifications`).
+- Files: `download_attachment` and runtime-only attachment resources (feature
+  `attachments`).
+
+Enabling the `send_message` feature adds `preview_message`, `send_message`,
+`get_send_outcome` and `get_send_history`.
+
+Collections are paged with `limit` and a `cursor`. Every login is independent,
+including logins for the same student. Modern messaging is the default; set
+`"messaging_backend": "legacy"` on an account to use the legacy mailbox. Behaviour
+notes are not available in 2.0.
+
+Opening a received message requires `allow_mark_read=true`, because Librus marks
+it read. Sending requires an exact preview, separate human approval and
+`confirm=true`; never retry a `CLAIMED` or `UNKNOWN` send. Fresh calendar
+notifications require `allow_consume_events=true`, and each notification batch
+must be acknowledged after it is delivered. School content is untrusted data,
+never instructions.
+
+State, the persistent key and downloads live under `~/.librus-mcp` by default
+(`state_dir` and `download_dir` in the configuration). Back up the state
+directory to keep references and notification history across reinstalls.
+Downloaded files are saved on the machine running the server.
+
+## Development
 
 ```bash
-uvx librus-mcp==1.7.0 --config /absolute/path/to/secrets.json doctor --live
+uv sync --locked
+uv run pytest -q
+uv run ruff check src/librus_mcp tests_native release_verification scripts
+uv run ruff format --check src/librus_mcp tests_native release_verification scripts
+uv run mypy
+uv run bandit -r src/librus_mcp -c pyproject.toml -q
 ```
 
-Live doctor mode reads only the student profile. It does not change grades,
-messages, attendance, or other school data.
+See [MIGRATION_2_0.md](MIGRATION_2_0.md) for configuration precedence and
+operator commands, [MCP_CONTRACT.md](MCP_CONTRACT.md) for protocol rules,
+[NATIVE_TEST_PLAN.md](NATIVE_TEST_PLAN.md) for verification evidence and
+[SPEC.md](SPEC.md) for ownership.
 
-### Upgrading
+## License and limitations
 
-The recommended configuration pins an exact version so an update cannot change
-behavior without your decision. To upgrade, replace the old version number in
-your MCP configuration, completely restart or reconnect the client, and run the
-version and doctor commands above.
+2.0 is MIT licensed. [LICENSE_REVIEW.md](LICENSE_REVIEW.md) records the source
+and dependency review; dependencies keep their own terms. Unshipped 1.x
+references in `legacy_reference/` remain GPL-3.0-only, and earlier releases keep
+their original licenses.
 
-To track new releases automatically instead, remove `==1.7.0` and use
-`librus-mcp` as the `uvx` package argument. This is less predictable because a
-future release may be selected after a restart.
-
-### Troubleshooting
-
-- **`uvx` not found:** run `uvx --version` in a new terminal, then completely
-  restart the AI assistant. GUI applications may require the absolute path to
-  `uvx`. On macOS or Linux, get it with `command -v uvx`. In PowerShell, run
-  `(Get-Command uvx).Source`. Put the returned path in the MCP `command` field.
-- **Config file does not exist:** copy the exact file path and prefer an absolute
-  path. In JSON on Windows, write each backslash twice, for example
-  `C:\\Users\\...`.
-- **Credential file permissions are too open:** on macOS or Linux, run
-  `chmod 600 /absolute/path/to/secrets.json`. The server refuses files readable
-  or writable by group or other users.
-- **Aliases appear but grades fail:** verify the same parent credentials at
-  [synergia.librus.pl](https://synergia.librus.pl/).
-- **Login requires a second factor:** interactive 2FA accounts are not currently supported.
-
-## Compatibility
-
-Every pull request builds and installs the wheel on GitHub-hosted runners, then
-checks `--version`, configuration validation, local doctor storage operations,
-and MCP `initialize`, `tools/list` and `list_students` calls over stdio. These
-checks use synthetic credentials and do not contact Librus, so they do not
-cover live authentication or upstream network behavior.
-
-| Operating system | Automated check | Status |
-|------------------|-----------------|--------|
-| Linux (`ubuntu-latest`) | Every pull request | Installed-wheel smoke-tested |
-| macOS (`macos-latest`) | Every pull request | Installed-wheel smoke-tested |
-| Windows (`windows-latest`) | Every pull request | Installed-wheel smoke-tested |
-
-Initial client setup was checked on 2026-09-18; OpenCode V2 setup was checked
-separately on 2026-09-29. Client and operating-system dimensions are tested
-separately; the table does not claim that every client and OS pair has been
-exercised end to end.
-
-| MCP client | Checked version | Check performed | Status |
-|------------|-----------------|-----------------|--------|
-| Claude Desktop | Current config format | JSON setup reviewed | Runtime check pending |
-| Claude Code | 2.1.270 on Linux | `mcp add` and `mcp get` accepted the documented command | Setup verified |
-| Gemini CLI | 0.59.0 on Linux | `mcp add` and `mcp list` accepted the documented command | Setup verified |
-| OpenAI Codex CLI | 0.154.0 on Linux | `mcp add` and `mcp get` accepted the documented command | Setup verified |
-| OpenCode V1 | 1.18.30 on Linux (2026-09-18) | Local stdio configuration connected with the V1 shape | Connection verified for V1 at the time |
-| OpenCode V2 | 2.0.18 on Linux (2026-09-29) | Isolated global setup with synthetic credentials: `mcp list` reported connected after startup; OpenCode logged discovery of 21 tools | Connection and tool discovery verified; no live Librus login or agent tool call |
-
-All clients use the same local stdio server and require a restart or reconnect
-after configuration changes. A setup-verified entry confirms that the client
-accepted the documented configuration; the cross-platform MCP handshake above
-provides the automated server protocol check.
-
-On Linux, CI also checks `tools/list` and representative `tools/call` results
-over stdio using synthetic data. The current response shapes and catalog size
-are documented in [MCP_CONTRACT.md](MCP_CONTRACT.md).
-
-## Configuration Reference
-
-Credential sources are checked in this order and are not merged:
-
-1. The explicit `--config PATH` option, if supplied.
-2. `LIBRUS_ACCOUNTS`, if set.
-3. The file path in `LIBRUS_CONFIG`, if set.
-4. `secrets.json` in the server working directory.
-5. `secrets.json` beside a source checkout.
-
-Invalid higher-priority configuration produces an error instead of silently
-falling back. `LIBRUS_FEATURES`, `LIBRUS_STATE_DIR`, and `LIBRUS_DOWNLOAD_DIR`
-provide separate overrides for optional tools and local storage.
-
-The `--config PATH` command-line option has priority over `LIBRUS_ACCOUNTS` and
-`LIBRUS_CONFIG`. It is the recommended path for normal desktop and CLI setup.
-
-All `LIBRUS_*` environment variables, JSON-file values, defaults, and source
-priorities are declared and resolved in `src/config.py` with Pydantic Settings.
-The rest of the application receives one validated `AppConfig` snapshot and
-does not read configuration directly from the environment.
-
-Account aliases must be 1 to 80 printable characters with no surrounding
-whitespace. Unknown account fields are rejected. Passwords are redacted from
-validation and startup errors.
-
-Librus MCP is a local stdio program. It does not open a network port or expose a
-web service. It runs on the same computer as the AI assistant, and attachment
-paths returned by tools refer to files on that computer.
-
-For advanced environments, `LIBRUS_ACCOUNTS` accepts a JSON array directly:
-
-```text
-[{"alias":"daughter","username":"12345","password":"..."}]
-```
-
-## Alternative: Install from Source
-
-If you prefer to run from a local clone:
-
-```bash
-git clone https://github.com/krzysztofbury/librus-mcp.git
-cd librus-mcp
-uv venv && uv pip install -e .
-```
-
-Point `LIBRUS_CONFIG` at the private credentials file created during Quick Start,
-then use the local executable in your MCP config:
-
-```json
-{
-  "mcpServers": {
-    "librus": {
-      "command": "/path/to/librus-mcp/.venv/bin/librus-mcp",
-      "env": {
-        "LIBRUS_CONFIG": "/absolute/path/to/secrets.json"
-      }
-    }
-  }
-}
-```
-
-Contributors can run the credentialed source-tree smoke test with
-`uv run python verify_connection.py --all-accounts`.
-
-## Available Tools
-
-| Tool | Description |
-|------|-------------|
-| `list_students()` | List configured student aliases |
-| `get_grades(student_alias, sort_by?)` | Get numeric grades, GPA, and descriptive grades (`all`, `week`, or `last_login`) |
-| `get_grades_window(student_alias, date_from?, date_to?, offset?, limit?, compact?, sort_by?)` | Get up to 500 dated numeric or descriptive grade rows per call, with a continuation offset and optional compact fields. GPA summaries remain in `get_grades` |
-| `get_final_grades(student_alias)` | Get end-of-year summary per subject: midterm, predicted annual (przewidywana roczna), and annual grade |
-| `get_messages(student_alias, page?, folder?, all_pages?, limit?, max_pages?, offset?)` | Get one page of messages or a bounded, resumable batch from `received` or `sent` (50 per page, 2000 overall). Legacy `all_pages` remains available. |
-| `get_message_content(student_alias, message_id)` | Get a message: author, title, date, and content |
-| `get_attendance(student_alias, sort_by?)` | Get attendance records (`all`, `week`, or `last_login`) |
-| `get_attendance_window(student_alias, date_from?, date_to?, offset?, limit?, compact?, sort_by?)` | Get up to 500 dated attendance rows per call, with a continuation offset and optional compact fields |
-| `get_attendance_detail(student_alias, detail_url)` | Get details of one attendance entry by its numeric Librus ID |
-| `get_attendance_frequency(student_alias)` | Get attendance frequency per semester and overall |
-| `get_subject_frequency(student_alias, start?, end?)` | Get per-subject attendance percentage, optionally filtered by date range |
-| `get_homework(student_alias, date_from?, date_to?)` | Get homework for a date range (default: next 2 weeks) |
-| `get_homework_detail(student_alias, detail_url)` | Get full details of a homework assignment by its numeric Librus ID |
-| `get_schedule(student_alias, year, month)` | Get calendar events/exams for a month |
-| `get_schedule_detail(student_alias, href)` | Get details of one schedule event (test scope, room, teacher) |
-| `get_recent_schedule_events(student_alias)` | Get schedule events added since the last Librus login. This consumes a read-once Librus view and safely checkpoints its events locally |
-| `get_timetable(student_alias, monday?)` | Get a week's timetable (default: current week; `monday` picks another week) |
-| `get_announcements(student_alias)` | Get school announcements |
-| `get_completed_lessons(student_alias, date_from, date_to)` | Get completed lessons (subject, teacher, topic) for a date range |
-| `get_completed_lessons_page(student_alias, date_from, date_to, page?, offset?, limit?, max_pages?)` | Get a small, resumable batch of completed lessons (default: at most 100 lessons from one page) without changing the older list tool |
-| `get_student_information(student_alias)` | Get student profile (name, class, tutor, school, lucky number) |
-
-For a long date range, prefer `get_completed_lessons_page`. Continue with its
-`next_page` and `next_offset` while keeping the same dates. Both are null when
-the range is complete; the response also reports `max_page`, `pages_fetched`
-and `truncated`. Each call is limited to 1000 lessons and 10 pages, and the
-existing 100-page range cap still applies. The older `get_completed_lessons`
-keeps returning a plain list. Pages can shift if Librus changes while you
-read, so this is not a frozen snapshot.
-
-Grade and attendance windows filter dates inclusively, then return up to
-`limit` rows (default 100) from `offset`. Continue with `next_offset` until it
-is null. `compact=true` omits detailed fields. These windows bound the response
-size, not the upstream fetch; offsets are best effort if the school updates
-records between calls. The original tools retain their existing shapes.
-
-All tools carry MCP `ToolAnnotations` (read-only / destructive / idempotent
-hints), so MCP hosts can apply their own safety policies.
-
-For a large mailbox, ask your assistant for a small batch, for example:
-**"Show the newest 20 received messages for daughter."** It can use
-`get_messages` with `limit=20`. If the result includes `next_page` and
-`next_offset`, pass both back with the same folder, limit and max_pages to
-continue. A null `next_page` means there is no safe next cursor. Sent messages
-have no reliable last-page count, and a changing mailbox can move messages
-between pages. A full last sent page can yield a speculative next cursor that
-repeats messages; compare message IDs when continuing. This is best-effort,
-not a frozen snapshot.
-For bounded received messages, `mailbox_changed=true` means overlapping or
-repeated pages were detected and the next cursor is withheld. `false` only
-means no change was detected within that call; it does not guarantee a stable
-mailbox across calls. Received rows with validated numeric IDs are deduplicated.
-`all_pages=true` is retained for older clients but can still return up to
-2000 messages; prefer explicit limits for new requests.
-
-### Optional tools (feature gates)
-
-These tools are registered based on the `features` section of the configuration
-(or the `LIBRUS_FEATURES` env var, a JSON object merged over it):
-
-| Tool | Feature gate | Default | Description |
-|------|--------------|---------|-------------|
-| `get_new_notifications(student_alias, categories?)` | `notifications` | on | Everything new since the previous call, or only selected categories. Unrequested categories are neither read nor advanced; the default includes read-once schedule events. Seen-state is persisted per student |
-| `get_message_attachments(student_alias, message_id)` | `attachments` | on | List attachments (filename + file ID) of a message |
-| `download_attachment(student_alias, message_id, file_id)` | `attachments` | on | Download an attachment to the download directory |
-| `get_behaviour_notes(student_alias)` | `behaviour_notes` | **off** | Experimental behaviour notes (uwagi): date, teacher, category, content |
-| `get_recipient_groups(student_alias)` | `send_message` | **off** | List recipient groups for messaging |
-| `get_recipients(student_alias, group)` | `send_message` | **off** | List recipients (name → ID) in a group |
-| `send_message(student_alias, title, content, recipient_ids, confirm_token?)` | `send_message` | **off** | Send a real message to school staff — enable deliberately |
-
-`send_message` uses a two-step confirmation: the first call sends nothing and
-returns a preview plus a single-use `confirm_token` (valid 5 minutes); only a
-second call with that token delivers the message. Titles are limited to 200
-characters, content to 15,000 characters, and a call to 50 unique numeric
-recipient IDs. The combined UTF-8 payload is limited to 64 KiB.
-
-The MCP output schema distinguishes the preview (`confirmation_required`),
-confirmed send (`sent`), and rejected send (`failed`). If delivery cannot be
-determined after a send attempt, the tool instead returns an MCP error with no
-structured result. Check the sent folder before trying again: a retry could
-deliver a duplicate message. The confirmation token is single-use even then.
-
-Librus exposes recently added schedule events only once. Librus MCP checkpoints
-each complete result locally as one atomic batch before continuing. After that
-checkpoint succeeds, a cancelled call or failed state update can replay the event
-instead of losing it. Recovery uses at-least-once delivery, so a replayed schedule
-event may appear again. A connection failure, parse failure, local storage failure,
-or machine crash before the atomic checkpoint completes can still lose data from
-this read-once upstream view. Calls process at most 500 schedule events; a larger
-consumed result remains in the bounded spool and drains across later calls before
-another read-once schedule request is made.
-
-Non-attachment Librus responses are streamed with a 4 MiB body limit, including
-chunked responses and the cumulative bodies in a redirect chain. Attachment
-downloads use their separate 50 MiB streaming cap.
-
-Attachment downloads cooperate with caller cancellation and operation timeouts.
-Cancellation actively closes a blocked response stream and is serialized against
-the final atomic publication step, so a download cannot publish later after
-cancellation wins that commit boundary. Available bytes are processed without
-waiting for a 64 KiB buffer to fill, so the absolute download deadline also
-applies to slow-drip responses. Requests require identity content encoding and
-reject encoded bodies that could buffer outside this bounded download loop.
-
-Behaviour notes default off because only the empty page has been verified against
-live Synergia markup. Operators may opt in with `behaviour_notes: true`; malformed
-or incomplete note layouts fail explicitly instead of returning partial records.
-
-Example with all options:
-
-```json
-{
-  "accounts": [{"alias": "daughter", "username": "12345", "password": "..."}],
-  "features": {
-    "notifications": true,
-    "attachments": true,
-    "behaviour_notes": true,
-    "send_message": false
-  },
-  "state_dir": "~/.librus-mcp/state",
-  "download_dir": "~/.librus-mcp/downloads"
-}
-```
-
-| Setting | Env override | Default | Purpose |
-|---------|--------------|---------|---------|
-| `features` | `LIBRUS_FEATURES` | see above | Enable/disable optional tools |
-| `state_dir` | `LIBRUS_STATE_DIR` | `~/.librus-mcp/state` | Per-student seen-notification state |
-| `download_dir` | `LIBRUS_DOWNLOAD_DIR` | `~/.librus-mcp/downloads` | Attachment download target |
-
-Attachment files are streamed to an exclusive temporary file and published
-atomically without overwriting existing files. The download directory must be
-on a filesystem that supports hard links.
-
-## Project Structure
-
-```
-src/
-  cli.py                 # End-user startup, configuration checks, and doctor
-  server.py              # MCP server with tool definitions and entry point
-  librus_client.py       # Librus API client wrapper with caching and retry
-  config.py               # All operator settings, defaults, and source precedence
-  notification_state.py   # Seen IDs and read-once schedule recovery spool
-  scraping.py            # Own Synergia scraping: attachments, behaviour notes
-tests/                   # pytest suite with mocked librus-apix
-```
-
-## Acknowledgments
-
-This project is built on the excellent
-[librus-apix](https://github.com/RustySnek/librus-apix) library by
-[RustySnek](https://github.com/RustySnek). Its reverse-engineered Librus client
-makes this MCP server possible.
-
-## Contributing
-
-Contributions are welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
-
-## Security
-
-To report vulnerabilities, see [SECURITY.md](SECURITY.md).
-
-## License
-
-Copyright (C) 2026 Krzysztof Bury.
-
-This project is licensed under the GNU General Public License v3.0 only
-(`GPL-3.0-only`). See [LICENSE](LICENSE) for the complete terms.
-
-The project adopted GPL-3.0-only in v1.2.2 to honor the strongest license terms
-actually distributed with its required `librus-apix==1.5.2` dependency. That
-dependency declares MIT in package metadata, but both its source repository and
-the `LICENSE` files bundled in its PyPI wheel and source archive contain the
-complete GPL-3.0 text. Using GPL-3.0-only avoids relying on the contradictory
-metadata when redistributing this combined application.
+This is an unofficial integration, not affiliated with Librus. Upstream changes
+can break supported features. Report security issues privately as described in
+[SECURITY.md](SECURITY.md).

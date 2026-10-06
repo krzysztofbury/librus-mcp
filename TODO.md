@@ -1,14 +1,88 @@
 # TODO
 
-This roadmap tracks remaining work after 1.7.0. Each work group can be
-delivered independently. Version numbers below indicate compatibility risk,
-not a release commitment:
+This roadmap records the native 2.0 implementation and the historical 1.x work
+that preceded it. Version numbers indicate compatibility risk, not a release
+commitment:
 
 - Compatible work (`1.x`): additive response schemas, bounded UX,
   resource controls, safety fixes, and documentation.
 - Major release (`2.0.0`): deliberate tool, response, package, or configuration contract changes.
 
-## Remaining Work After 1.7.0
+## Active 2.0.0 Plan
+
+The direct native-backend migration is planned in
+[MCP_2_0_PLAN.md](MCP_2_0_PLAN.md), based on remote MCP main `0aaf658` and API
+main `01b32e0` reviewed on 2026-10-05. Work branch: `feat/2.0.0-native-api`.
+API `1.0.2` is on PyPI and pinned. Native consumer integration, declared hosted
+platform profiles and MIT review are qualified; MCP publication remains open.
+
+- [x] Review both main branches, the API's native cutover matrix and all 18
+  existing MCP 2.0 roadmap items; create the dedicated MCP branch.
+- [x] File API gaps [#22-27](https://github.com/krzysztofbury/librus-python-api/issues)
+  with evidence and acceptance criteria; distinguish required and conditional gates.
+- [x] Approve W0 contract choices: backend/platform scope, tool catalog,
+  poll/ack delivery, context key, configuration and migration/rollback policy.
+- [x] W1: API #22-25 are closed and included in published stable API `1.0.0`,
+  pinned for native development. Consumer acceptance of durable integrations
+  remains part of W4/W5; upstream completion alone is not MCP qualification.
+- [x] W2: establish `librus_mcp` packaging, native lifespan and explicit config.
+  Package/entry point, shared service, XDG selection, persistent-key input and
+  offline validation and explicit doctor/storage diagnostics are implemented;
+  platform acceptance is tracked under W7, including hardened Windows config ACLs.
+- [x] W3: replace ordinary reads with native typed operations and MCP 2.0 DTOs.
+  All planned ordinary read families, date windows, bound school references and
+  presentation/native cursors pass family-wide offline stdio proof. Both catalogs
+  pass the client's schema validators and numeric byte budgets.
+- [x] W4: integrate native messaging, durable sends, streams and file publication.
+  Message summaries/content and recipient discovery/selection are implemented,
+  with explicit backend/context binding and received-open consent. Both backends
+  pass stdio/restart send/read/file proof, including cancellation/disconnect and
+  post-publication snapshot fallback. Final platform acceptance is tracked in W7.
+- [x] W5: implement notification poll/status/ack and explicit old-state migration.
+  Poll/status/ack, POSIX old-file inventory/reviewed bootstrap, per-account old-state
+  quarantine, explicit archive export and loss-consenting recovery are integrated.
+  Historical event replay/ack and malformed checkpoint retention pass offline
+  restart proof, collision/capacity rejection, interrupted manifests and explicit
+  uncertainty recovery. Lossless reverse migration is not promised.
+- [x] W6: remove apix and duplicated runtime HTTP/parsers/workers/caches/JSON state.
+  Historical source/tests/tooling are preserved, GPL-scoped and excluded from
+  imports/builds in `legacy_reference/`. Cosmic Ray is removed from native dev deps.
+- [x] W7: qualify installed artifacts, protocol contracts, representative workloads,
+  declared platforms and the source/dependency provenance required for MIT.
+  Local isolated MIT wheel-from-sdist passes 73 tests (1 Windows-only skip), CLI,
+  both catalog profiles and artifact inventories. MIT source/dependency review is
+  recorded in `LICENSE_REVIEW.md`. Run `37372839458` passed at `bc10abe`: Linux and
+  macOS 73 passed/1 skip each; Windows 56 passed/18 declared-profile skips,
+  including executed private/shared credential ACL and hardlink guards.
+  No performance improvement or unapproved live side-effect compatibility is claimed.
+- [ ] W8: publish the exact API prerequisite and MCP 2.0.0, verify remote artifacts
+  and fresh `uvx` startup.
+  API `1.0.2` (bounded subject frequency, faster request policy) is the pinned prerequisite. The
+  publishing workflow runs native lint, strict typing and audited sdist rebuild
+  with installed consumer acceptance. Setup no longer needs operator steps: the
+  context key, private permissions and 1.x notification state are handled on
+  first start. Version is `2.0.0`; tag, publication and remote install
+  verification remain.
+
+Parked by the owner: API #26 (notes/observation cards, missing qualifying examples)
+and #27 (daily credentialed CI, noncritical). Neither blocks MCP 2.0.0. Notes
+remain unavailable/unregistered; offline E2E and release qualification remain required.
+
+The target is a thin MCP client with reusable heavy work in `librus-python-api`.
+New tool requests/responses may break 1.x compatibility. Durable history and
+uncertain sends must remain recoverable. MIT is the license of the new native
+2.0 release; existing GPL releases and notices are not retroactively changed.
+The release candidate is `2.0.0`; dependency replacement is complete with no
+apix fallback. Hosted acceptance is complete for the declared
+profiles; PR #39 remains draft and unmerged. Publication requires separate approval.
+
+## Historical 1.x Roadmap
+
+The foundations and compatible follow-ups below describe the shipped 1.x line,
+not the native 2.0 implementation. Their old tool names, shapes, mutation tooling
+and catalog sizes are historical evidence. Native proof ownership is in
+[NATIVE_TEST_PLAN.md](NATIVE_TEST_PLAN.md); the major-release checklist below
+records implemented replacements and explicit scope differences.
 
 Preserve the existing text response shapes and feature gates until a documented
 2.0 migration. The populated behaviour-note fixture is deliberately deferred;
@@ -104,6 +178,8 @@ available, before enabling the feature by default.
 ### Parser And Download Safety
 
 - [ ] Add an anonymized integration fixture for a populated behaviour-notes page.
+  Superseded for 2.0: behaviour notes are not provided; populated contracts are
+  tracked as API #26, parked by the owner.
 - [x] Reproduce `get_final_grades` parse failures with a grades-table fixture
   containing synthetic values and restore merged behaviour-summary parsing.
 - [x] Reproduce the `get_subject_frequency` `CookieConflictError` with synthetic
@@ -173,43 +249,53 @@ available, before enabling the feature by default.
   Defer an extra configuration gate while the expanded 24/28-tool catalogs stay
   below the existing 48/64 KiB budgets; existing feature gates remain available.
 
-## Major Release (2.0.0)
+## Major Release (2.0.0): Reconciled Implementation Checklist
 
 ### Stable Domain-Oriented Tool Contract
 
-- [ ] Standardize collection responses on one envelope with `items`, pagination,
-  truncation, and snapshot metadata.
-- [ ] Replace dynamic subject, recipient, and schedule maps with arrays of typed records.
-- [ ] Normalize upstream Polish labels into stable keys while retaining optional raw fields.
-- [ ] Standardize attendance values on percentages, or encode ratio and percentage
-  units explicitly in field names and bounds.
-- [ ] Rename `sort_by` to `scope` because it filters rather than sorts.
-- [ ] Rename `detail_url` to `attendance_id` or `homework_id` and `href` to `event_ref`.
-- [ ] Use bounded integer `year` and `month` inputs and consistent `date_from` and
+All A01-A18 have implemented outcomes in the plan's
+[readiness map](MCP_2_0_PLAN.md#7-all-18-mcp-20-todo-items). A checked item means the
+documented native outcome below, not preservation of every illustrative label or
+1.x response shape. W8 publication remains unchecked in the active plan above.
+
+- [x] A01: standardize collection envelopes with `items`, typed pagination,
+  truncation and observations; retain family metadata and best-effort consistency,
+  never claim transactional snapshots.
+- [x] A02: replace dynamic subject, recipient and schedule maps with typed record arrays.
+- [x] A03: preserve stable normalized detail keys alongside raw labels and unknown keys.
+- [x] A04: expose native `ratio` in 0..1/null and count fields, not converted percentages.
+- [x] A05: rename `sort_by` to `scope` because it filters rather than sorts.
+- [x] A06: replace raw route arguments with numeric `attendance_id`, bound
+  `homework_ref` and bound `event_ref`.
+- [x] A07: use bounded integer `year` and `month` inputs and consistent `date_from` and
   `date_to` names across tools.
-- [ ] Introduce stable error categories such as `CONFIG_INVALID`, `AUTH_FAILED`,
-  `UPSTREAM_TIMEOUT`, `LAYOUT_CHANGED`, and `DELIVERY_UNKNOWN`.
-- [ ] Remove the deprecated `all_pages` mode after bounded pagination is established.
-- [ ] Remove or replace the standalone read-once schedule-events tool once consumers
-  have migrated to stateful notifications.
+- [x] A08: introduce closed native error categories and MCP input/internal errors,
+  with redaction and explicit uncertain delivery; illustrative old names are not
+  the authoritative codes.
+- [x] A09: remove deprecated `all_pages`; use bounded cursor/window operations.
+- [x] A10: replace standalone read-once reads with consent-gated durable
+  notification polling, explicit acknowledgement and offline recovery.
 
 ### Package And Configuration Cleanup
 
-- [ ] Move the generic top-level `src` package to `src/librus_mcp` and update the
-  console entry point to `librus_mcp.server:main`.
-- [ ] Replace Cosmic Ray with mutmut 3 after removing the unsupported `src`
-  import package name.
-- [ ] Prefer an explicit `LIBRUS_CONFIG` or XDG configuration path over silently
+- [x] A11: move the generic top-level `src` package to `src/librus_mcp` and update the
+  console entry point to `librus_mcp.cli:main`, preserving version/config/doctor routing.
+- [x] A12: replace Cosmic Ray with the optional POSIX mutmut 3 campaign for native
+  MCP-owned safety boundaries. Real stdio instrumentation, baseline and survivor
+  review are documented in [MUTATION_TESTING.md](MUTATION_TESTING.md).
+- [x] A13: prefer an explicit `LIBRUS_CONFIG` or XDG configuration path over silently
   discovering a generic `secrets.json` in the current working directory.
-- [ ] Provide a documented migration path before removing current-directory config discovery.
-- [ ] Remove the legacy eight-character notification-state mirror after its migration window.
-- [ ] Reject any remaining legacy state-path collisions before compatibility support is removed.
+- [x] A14: document explicit config/key/state migration and recovery before removing cwd discovery.
+  Serving now also provisions the key and permissions and adopts 1.x state itself.
+- [x] A15: retire legacy mirror writes immediately in the breaking native cutover;
+  old mirrors are adoption/import inputs, archived to `legacy-1x`, never a fallback.
+- [x] A16: reject legacy collisions/conflicts before bootstrap; never silently rebind aliases.
 
 ### Attachment Delivery Contract
 
-- [ ] Evaluate exposing downloaded attachments as MCP resources where host support
-  permits it instead of returning only a server-local absolute path.
-- [ ] Keep explicit byte limits and avoid placing large attachment content directly
+- [x] A17: expose bounded POSIX attachment snapshots where supported; keep complete
+  server-local files as the explicit Windows/host/capacity/expiry fallback.
+- [x] A18: keep explicit byte limits and avoid placing large attachment content directly
   into the agent context.
 
 ## Completed Work

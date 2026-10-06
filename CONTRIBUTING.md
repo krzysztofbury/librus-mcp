@@ -23,7 +23,7 @@ Thank you for your interest in contributing! This document provides guidelines t
 The key rules:
 
 - **Safety first:** Validate inputs and outputs with assertions (~2 per function)
-- **Split assertions:** `assert a; assert b` — never `assert a and b`
+- **Split assertions:** `assert a; assert b` - never `assert a and b`
 - **Functions <= 70 lines**
 - **No abbreviations** in variable names
 - **Comments explain "why"**, not "what"
@@ -36,9 +36,10 @@ Before submitting, run the same checks as CI:
 ```bash
 uv lock --check
 uv sync --locked --python 3.14
-uv run ruff check src/ tests/ release_verification/
-uv run ruff format --check src/ tests/ release_verification/
-uv run bandit -c pyproject.toml -r src/
+uv run ruff check src/librus_mcp/ tests_native/ release_verification/
+uv run ruff format --check src/librus_mcp/ tests_native/ release_verification/
+uv run bandit -c pyproject.toml -r src/librus_mcp/
+uv run mypy
 uv run pytest -q
 uv build --no-build-isolation
 ```
@@ -46,40 +47,40 @@ uv build --no-build-isolation
 To apply formatting before rerunning the format check:
 
 ```bash
-uv run ruff format src/ tests/ release_verification/
+uv run ruff format src/librus_mcp/ tests_native/ release_verification/
 ```
 
 ### Testing
 
-The unit suite is self-contained and does not require Librus credentials. If you
-have a test account, you may optionally run the live credential smoke test:
+The active `tests_native/` suite is offline and uses original synthetic loopback
+HTTP through real MCP stdio and the pinned API. `legacy_reference/tests/` remains an unshipped 1.x
+reference; it imports the removed apix backend and is not native CI evidence.
+See [verification ownership](NATIVE_TEST_PLAN.md). Do not restore apix as a dev
+dependency to run old tests. Port consumer invariants, not private wrapper mocks.
 
-```bash
-uv run python verify_connection.py [--all-accounts]
-```
-
-The live test calls Librus and is not required for contributions or CI.
+Do not run `legacy_reference/verify_connection.py` on this branch. Native live
+qualification uses `scripts/qualify_native.py` and requires explicit approval and bounded
+operation scope. Ordinary CI never uses school credentials.
 
 ### Mutation Testing
 
-Active focused configurations live in `mutation/`, one per source module. For
-example, run the attachment cancellation and parser campaign with:
+The native campaign uses the optional locked mutmut 3 group and exercises
+MCP-owned safety boundaries through real stdio children. Run instructions,
+instrumentation proof, exact scope and reviewed survivors are in
+[MUTATION_TESTING.md](MUTATION_TESTING.md). Do not run mutmut directly in the
+checkout; the script owns disposable copies and cleanup. No mutation-score
+target is a release gate.
 
-```bash
-rm -f cosmic-ray.sqlite
-uv run cosmic-ray init mutation/scraping.toml cosmic-ray.sqlite
-uv run cr-filter-lines --config mutation/scraping.toml cosmic-ray.sqlite
-uv run cr-filter-operators cosmic-ray.sqlite mutation/scraping.toml
-uv run cosmic-ray exec mutation/scraping.toml cosmic-ray.sqlite
-uv run cosmic-ray dump cosmic-ray.sqlite
-```
+#### Historical 1.x evidence
 
-Replace `scraping` with `client`, `optimizations`, or `config` for the other
-active campaigns. The filter steps are required: `cosmic-ray init` records all
-candidates before the focused line and operator filters narrow the session.
-Review line filters whenever the corresponding source file changes. Historical
-configurations remain available from their release tags rather than accumulating
-in the current tree.
+The following campaigns are historical 1.x evidence. Their configurations are
+preserved in `legacy_reference/mutation/`; they do not target the native package.
+Cosmic Ray is no longer a native development dependency. These counts and the
+commands in the historical release tags are not current developer instructions.
+
+Historical focused configurations live in `legacy_reference/mutation/` and
+their original release tags. Do not reinstall apix or Cosmic Ray in the native
+environment to run them.
 
 The v1.2.2 baseline produced this evidence:
 
@@ -104,8 +105,8 @@ The remaining survivors are equivalent over validated nonnegative page indexes,
 capped collection lengths, single-event legacy files, redundant per-event size
 checks, and subset cardinalities, or replace value equality with object identity.
 
-The v1.2.5 parser and cancellation campaigns are the active configurations under
-`mutation/`. They killed all 142 selected scraping mutants, all 11 selected client
+The v1.2.5 parser and cancellation campaigns killed all 142 selected scraping
+mutants, all 11 selected client
 mutants, all 23 selected gateway-validation mutants, and the selected
 experimental-feature default mutant.
 
@@ -144,6 +145,13 @@ Open a GitHub issue with:
 ## Security Issues
 
 **Do not open public issues for security vulnerabilities.** See [SECURITY.md](SECURITY.md) for responsible disclosure instructions.
+
+## License
+
+Native 2.0 contributions are MIT. Unshipped 1.x references retain GPL-3.0-only.
+Do not copy GPL client implementations or external fixtures into the native
+package. See [LICENSE_REVIEW.md](LICENSE_REVIEW.md) before changing dependencies
+or artifact inventories. Historical release licenses remain unchanged.
 
 ## Questions?
 

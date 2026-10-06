@@ -3,7 +3,10 @@
 import argparse
 import asyncio
 import json
+import os
+import secrets
 import sys
+import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -17,29 +20,43 @@ TIMEOUT_SECONDS = 30
 
 
 async def list_tools(all_features: bool) -> ListToolsResult:
-    features = {
-        "notifications": True,
-        "attachments": True,
-        "behaviour_notes": all_features,
-        "send_message": all_features,
-    }
+    # The default profile uses the shipped feature defaults.
+    features = {"send_message": True} if all_features else {}
     environment = {
-        "LIBRUS_ACCOUNTS": json.dumps(
-            [{"alias": "synthetic", "username": "synthetic", "password": "synthetic"}]
-        ),
-        "LIBRUS_FEATURES": json.dumps(features),
+        name: value for name, value in os.environ.items() if not name.startswith("LIBRUS_")
     }
-    server = StdioServerParameters(
-        command=sys.executable,
-        args=["-m", "src.cli"],
-        cwd=REPOSITORY,
-        env=environment,
+    environment.update(
+        {
+            "LIBRUS_ACCOUNTS": json.dumps(
+                [
+                    {
+                        "alias": "synthetic",
+                        "username": "synthetic",
+                        "password": "synthetic",  # pragma: allowlist secret - fixture only
+                    }
+                ]
+            ),
+            "LIBRUS_FEATURES": json.dumps(features),
+            "LIBRUS_CONTEXT_KEY": secrets.token_hex(32),
+        }
     )
-    with anyio.fail_after(TIMEOUT_SECONDS):
-        async with stdio_client(server) as streams:
-            async with ClientSession(*streams) as session:
-                await session.initialize()
-                response = await session.list_tools()
+    scratch_root = os.environ.get("AGENT_SCRATCH_DIR")
+    if scratch_root is None and Path("/tmp/opencode").is_dir():
+        scratch_root = "/tmp/opencode"
+    with (
+        tempfile.TemporaryDirectory(prefix="catalog-", dir=scratch_root) as scratch,
+        anyio.fail_after(TIMEOUT_SECONDS),
+    ):
+        environment.update(
+            LIBRUS_STATE_DIR=str(Path(scratch) / "state"),
+            LIBRUS_DOWNLOAD_DIR=str(Path(scratch) / "downloads"),
+        )
+        server = StdioServerParameters(
+            command=sys.executable, args=["-m", "librus_mcp.cli"], cwd=REPOSITORY, env=environment
+        )
+        async with stdio_client(server) as streams, ClientSession(*streams) as session:
+            await session.initialize()
+            response = await session.list_tools()
 
     return response
 
