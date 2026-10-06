@@ -13,7 +13,7 @@ commitment:
 The direct native-backend migration is planned in
 [MCP_2_0_PLAN.md](MCP_2_0_PLAN.md), based on remote MCP main `0aaf658` and API
 main `01b32e0` reviewed on 2026-10-05. Work branch: `feat/2.0.0-native-api`.
-API `1.0.1` is on PyPI and pinned. Native consumer integration, declared hosted
+API `1.0.2` is on PyPI and pinned. Native consumer integration, declared hosted
 platform profiles and MIT review are qualified; MCP publication remains open.
 
 - [x] Review both main branches, the API's native cutover matrix and all 18
@@ -57,7 +57,7 @@ platform profiles and MIT review are qualified; MCP publication remains open.
   No performance improvement or unapproved live side-effect compatibility is claimed.
 - [ ] W8: publish the exact API prerequisite and MCP 2.0.0, verify remote artifacts
   and fresh `uvx` startup.
-  API `1.0.1` (bounded subject frequency) is the pinned prerequisite. The
+  API `1.0.2` (bounded subject frequency, faster request policy) is the pinned prerequisite. The
   publishing workflow runs native lint, strict typing and audited sdist rebuild
   with installed consumer acceptance. Setup no longer needs operator steps: the
   context key, private permissions and 1.x notification state are handled on

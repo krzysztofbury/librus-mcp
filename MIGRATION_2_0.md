@@ -12,7 +12,7 @@ arguments, result schemas, effects and notification acknowledgement change. An
 existing 1.x configuration file and state directory keep working; the server
 adapts them on first start (see [Upgrading an existing setup](#upgrading-an-existing-setup)).
 Library and MCP version numbers are independent: 2.0.0 pins the published native
-library `1.0.1`. Use an explicit version pin when selecting a release.
+library `1.0.2`. Use an explicit version pin when selecting a release.
 
 ## Upgrading an existing setup
 

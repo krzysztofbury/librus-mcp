@@ -10,6 +10,7 @@ from librus_python_api.exceptions import LibrusError
 from mcp.server.mcpserver import Context, MCPServer
 from mcp.server.mcpserver.exceptions import ToolError, UnexpectedToolError
 from mcp.types import CallToolResult, InputRequiredResult, TextContent, ToolAnnotations
+from mcp.types import Tool as MCPTool
 from pydantic import Field
 
 from librus_mcp import __version__
@@ -49,7 +50,51 @@ def _error(code: str) -> CallToolResult:
     )
 
 
+# JSON Schema keywords whose values are schemas, maps of schemas or schema lists.
+# Only these are descended, so a property or default value named "title" is kept.
+_SCHEMA_VALUE = frozenset(
+    {"items", "additionalProperties", "not", "if", "then", "else", "contains", "propertyNames"}
+)
+_SCHEMA_MAP = frozenset({"properties", "$defs", "patternProperties", "dependentSchemas"})
+_SCHEMA_LIST = frozenset({"anyOf", "oneOf", "allOf", "prefixItems"})
+
+
+def compact_schema(schema: Any) -> Any:
+    """Drop generated `title` annotations from a published schema.
+
+    Pydantic titles repeat property/model names and made up about a fifth of the
+    catalog sent to model context. Types, constraints, required fields, enums,
+    defaults and descriptions are unchanged, so validation is identical.
+    """
+    if not isinstance(schema, dict):
+        return schema
+    result: dict[str, Any] = {}
+    for key, value in schema.items():
+        if key == "title" and isinstance(value, str):
+            continue
+        if key in _SCHEMA_VALUE:
+            result[key] = compact_schema(value)
+        elif key in _SCHEMA_MAP and isinstance(value, dict):
+            result[key] = {name: compact_schema(item) for name, item in value.items()}
+        elif key in _SCHEMA_LIST and isinstance(value, list):
+            result[key] = [compact_schema(item) for item in value]
+        else:
+            result[key] = value
+    return result
+
+
 class NativeServer(MCPServer[Runtime]):
+    async def list_tools(self) -> list[MCPTool]:
+        return [
+            tool.model_copy(
+                update={
+                    "input_schema": compact_schema(tool.input_schema),
+                    "output_schema": compact_schema(tool.output_schema),
+                }
+            )
+            for tool in await super().list_tools()
+        ]
+
     async def call_tool(
         self, name: str, arguments: dict[str, Any], context: Context[Runtime, Any] | None = None
     ) -> CallToolResult | InputRequiredResult:

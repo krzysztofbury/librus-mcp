@@ -662,7 +662,7 @@ mutation = [
 
 [package.metadata]
 requires-dist = [
-    { name = "librus-python-api", specifier = "==1.0.1" },
+    { name = "librus-python-api", specifier = "==1.0.2" },
     { name = "mcp", specifier = ">=2.1.1,<3" },
     { name = "pydantic", specifier = ">=2.12,<3" },
     { name = "pywin32", marker = "sys_platform == 'win32'", specifier = ">=312" },
@@ -681,7 +681,7 @@ mutation = [{ name = "mutmut", marker = "sys_platform != 'win32'", specifier = "
 
 [[package]]
 name = "librus-python-api"
-version = "1.0.1"
+version = "1.0.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "aiohttp" },
@@ -691,9 +691,9 @@ dependencies = [
     { name = "tzdata", marker = "sys_platform == 'win32'" },
     { name = "yarl" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/de/df/cd0f01c5b1a9a4df6906b18aa7585146cdf9147891ae8c6b01d343ff1612/librus_python_api-1.0.1.tar.gz", hash = "sha256:afee5772501baa038ce586e569096e6a248215957e3150b16809bdf20f0ec7e0", size = 294209, upload-time = "2026-10-06T08:27:11.823Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/7d/4c/f17a915349abaecd5b20de9672ce54cee8cbe8e5a548610fdf9155f3993d/librus_python_api-1.0.2.tar.gz", hash = "sha256:9f55657b6bfb3d25cf25c233e1be79298d3ab8d07f93dbabe4c12076bf205666", size = 294482, upload-time = "2026-10-06T11:27:04.774Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/e6/b3/28d1557826445242205a9f3ea1955a89a87cb08d7fba1b5e18dcbcb9205c/librus_python_api-1.0.1-py3-none-any.whl", hash = "sha256:3115ed7ce1fcbd337a5915c65a74c6cab7cfde46032fca6a3b4b32fdfadc3eb7", size = 145850, upload-time = "2026-10-06T08:27:10.132Z" },
+    { url = "https://files.pythonhosted.org/packages/c8/c5/124f0e79d3f5257724ec6f7c3ce0b6d4c4ef4a368a7cd0ec86d756b8a201/librus_python_api-1.0.2-py3-none-any.whl", hash = "sha256:c589d525913d8cf3a5a6e18c9cec182f5ee2dd5b788b475ab2774987990e0bb6", size = 145889, upload-time = "2026-10-06T11:27:03.101Z" },
 ]
 
 [[package]]

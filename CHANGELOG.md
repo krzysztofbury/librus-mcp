@@ -24,8 +24,12 @@ All notable changes to this project will be documented in this file.
   every page), so whole-year results stay within the response limit.
 - Report a completed send even if the follow-up local outcome read fails
   (`durable: null`; `get_send_outcome` has the record).
-- Require `librus-python-api==1.0.1`, which bounds subject-frequency requests;
-  1.0.0 failed with `LIMIT` for students with about 15 or more subjects.
+- Require `librus-python-api==1.0.2`. 1.0.1 bounds subject-frequency requests
+  (1.0.0 failed with `LIMIT` for students with about 15 or more subjects), and
+  1.0.2 raises the shared request policy to 10 requests/second, burst 20 and
+  four in flight (one per login).
+- Publish tool schemas without generated `title` annotations: the default tool
+  list shrinks from about 115 KB to 93 KB with identical validation.
 
 - License the independent native package under MIT after the source/dependency
   review. Preserve unshipped apix-era references under GPL-3.0-only and leave

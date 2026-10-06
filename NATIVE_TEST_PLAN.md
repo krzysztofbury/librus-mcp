@@ -221,10 +221,11 @@ the earlier green run is not evidence for a new commit's test/build inputs.
 
 ## Release review and setup automation, 2026-10-06
 
-Version `2.0.0` pins published `librus-python-api==1.0.1` (wheel SHA256
-`3115ed7ce1fcbd337a5915c65a74c6cab7cfde46032fca6a3b4b32fdfadc3eb7`). API 1.0.0
+Version `2.0.0` pins published `librus-python-api==1.0.2` (wheel SHA256
+`c589d525913d8cf3a5a6e18c9cec182f5ee2dd5b788b475ab2774987990e0bb6`). API 1.0.0
 failed `get_subject_frequency` with `LIMIT` on a cold session for students with
-about 15 subjects; 1.0.1 uses 12 requests including login.
+about 15 subjects; 1.0.1 uses 12 requests including login. 1.0.2 raises the
+shared request policy to 10 requests/second, burst 20 and four in flight.
 
 - Setup needs no operator steps: missing context keys are created once in
   `state_dir/context.key`, the user's own shared configuration file and
@@ -236,10 +237,18 @@ about 15 subjects; 1.0.1 uses 12 requests including login.
   `durable: null`; acknowledgement accepts the batch context object verbatim.
 - Notifications and attachments are on by default (as in 1.x); sending stays
   opt-in. Tests and child servers run with an isolated home directory.
-- Offline: 82 passed, 1 Windows-only skip; Ruff/format, strict mypy, Bandit and
-  lock checks pass. Catalogs (measure_tools): default 26 tools/114759 bytes,
-  all features 30 tools/129825 bytes; both budgets are 128 KiB. Mutation
-  campaign unchanged: 62 killed, the same 8 reviewed survivors.
+- Offline: 83 passed, 1 Windows-only skip; Ruff/format, strict mypy, Bandit and
+  lock checks pass. Published schemas omit generated `title` annotations.
+  Catalogs (measure_tools): default 26 tools/92713 bytes, all features 30
+  tools/105452 bytes; both budgets are 128 KiB. Mutation campaign unchanged:
+  62 killed, the same 8 reviewed survivors.
+- Read-only live benchmark against MCP 1.7.0 on the same four logins (cold and
+  warm overviews, statistics, two notification checks without agenda, parallel
+  grades, sent-message opens): 1.7.0 made 264 requests in 27.3 s, peaking at 53
+  requests/second, with 2 failed sent-message opens; 2.0.0 on API 1.0.2 made 182
+  requests in 25.4 s, peaking at 14 requests/second, with no failures. Its tool
+  list is 93 KB against 37 KB for 1.7.0; both publish output schemas, but the
+  native types carry bound references, availability, observations and cursors.
 - Read-only live rehearsal on four independent logins, using copies of a real 1.x
   configuration and state directory: startup restricted the copied 0644 config
   and 0755 download directory, ignored behaviour notes, created the key and

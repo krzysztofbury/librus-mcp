@@ -145,7 +145,8 @@ async def test_four_logins_share_traffic_but_not_sessions_and_catalog_does_not_l
                         assert data["data"]["identity"]["student"]["id"] == "shared-pupil"
                         assert data["observation"]["account"] == alias
                     assert wire.logins == {login: 1 for _, login in accounts}
-                    assert 1 <= wire.peak <= 2
+                    # API 1.0.2 shares four active requests across all logins.
+                    assert 1 <= wire.peak <= 4
                     calls = len(wire.calls)
                     cached = await session.call_tool(
                         "get_student_information", {"account_alias": accounts[0][0]}
@@ -161,12 +162,13 @@ async def test_four_logins_share_traffic_but_not_sessions_and_catalog_does_not_l
                         "error": {"code": "INVALID_INPUT"}
                     }
                     assert len(wire.calls) == calls
-                    # One shared default token budget, not a burst per alias.
+                    # One shared default token budget (API 1.0.2: burst 20, ten per
+                    # second), not a burst per alias.
                     # Include connection establishment in the client workload
                     # clock. Arrival timestamps can be compressed by DNS/TCP
                     # delays and are not exact scheduler dispatch timestamps.
                     for index, dispatched_at in enumerate(wire.dispatch_times, start=1):
-                        assert index <= 11 + 5 * (dispatched_at - workload_started)
+                        assert index <= 21 + 10 * (dispatched_at - workload_started)
 
 
 @pytest.mark.asyncio
@@ -349,4 +351,4 @@ async def test_four_account_cold_and_warm_mixed_workload_remains_bounded_and_iso
                                 for item in items
                             )
                     assert wire.logins == {login: 1 for _, login in accounts}
-                assert wire.peak <= 2
+                assert wire.peak <= 4  # shared API limit, one per login
