@@ -13,8 +13,8 @@ commitment:
 The direct native-backend migration is planned in
 [MCP_2_0_PLAN.md](MCP_2_0_PLAN.md), based on remote MCP main `0aaf658` and API
 main `01b32e0` reviewed on 2026-10-05. Work branch: `feat/2.0.0-native-api`.
-Stable API `1.0.0` is on PyPI and pinned. Native consumer integration, declared
-hosted platform profiles and MIT review are qualified; publication remains open.
+API `1.0.1` is on PyPI and pinned. Native consumer integration, declared hosted
+platform profiles and MIT review are qualified; MCP publication remains open.
 
 - [x] Review both main branches, the API's native cutover matrix and all 18
   existing MCP 2.0 roadmap items; create the dedicated MCP branch.
@@ -178,6 +178,8 @@ available, before enabling the feature by default.
 ### Parser And Download Safety
 
 - [ ] Add an anonymized integration fixture for a populated behaviour-notes page.
+  Superseded for 2.0: behaviour notes are not provided; populated contracts are
+  tracked as API #26, parked by the owner.
 - [x] Reproduce `get_final_grades` parse failures with a grades-table fixture
   containing synthetic values and restore merged behaviour-summary parsing.
 - [x] Reproduce the `get_subject_frequency` `CookieConflictError` with synthetic
@@ -284,8 +286,9 @@ documented native outcome below, not preservation of every illustrative label or
 - [x] A13: prefer an explicit `LIBRUS_CONFIG` or XDG configuration path over silently
   discovering a generic `secrets.json` in the current working directory.
 - [x] A14: document explicit config/key/state migration and recovery before removing cwd discovery.
+  Serving now also provisions the key and permissions and adopts 1.x state itself.
 - [x] A15: retire legacy mirror writes immediately in the breaking native cutover;
-  preserve old mirrors only as reviewed inventory/import inputs, not a runtime fallback.
+  old mirrors are adoption/import inputs, archived to `legacy-1x`, never a fallback.
 - [x] A16: reject legacy collisions/conflicts before bootstrap; never silently rebind aliases.
 
 ### Attachment Delivery Contract

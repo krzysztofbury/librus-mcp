@@ -25,10 +25,10 @@ deviations are documented in [MIGRATION_2_0.md](MIGRATION_2_0.md) and
   Apix is absent from runtime/dev dependencies and lockfile. Old source/tests are
   excluded from native artifacts, retained GPL-scoped in `legacy_reference/` with
   proof ownership mapped in [NATIVE_TEST_PLAN.md](NATIVE_TEST_PLAN.md).
-- Notifications/files/sends default off by policy but can be
-  explicitly enabled. Behaviour notes remain unavailable and reject enablement.
-  A context key can be provided in private config/environment rather than a new
-  key-file workflow. Doctor/storage probes, durable sends/outcomes, file publication/
+- Notifications and files are on by default, as in 1.x; sends stay opt-in.
+  Behaviour notes remain unavailable; an enabled 1.x setting is ignored with a
+  notice. Without a configured key, serving creates and reuses
+  `state_dir/context.key` (see the 2026-10-06 amendment in section 5). Doctor/storage probes, durable sends/outcomes, file publication/
   resources and notification poll/status/ack are integrated. POSIX old-state
   inventory/bootstrap, private manifests and native archive export are implemented;
   qualification covers interrupted apply, capacity/collision guards, offline
@@ -243,7 +243,7 @@ local writes. Only truly local tools have `open_world_hint=false`.
 | `get_recipient_groups` | `get_recipient_types`, preserve backend/hierarchy | `recipient_groups` / `modern_recipient_types` |
 | `get_recipients` | Typed type/selection reference | `recipients` / `modern_recipients`; add `get_recipient_choices` for legacy hierarchy |
 | `send_message` | Split `preview_message` and `send_message` | Native prepare + `PersistenceStore.preview_send` / `execute_send` |
-| `get_new_notifications` | `poll_notifications`, explicit categories/consume permission | `NotificationWorkflow.poll` |
+| `get_new_notifications` | Name retained; explicit categories/consume permission, two-phase poll/ack | `NotificationWorkflow.poll` |
 | `get_recent_schedule_events` | Remove; explicit agenda-category poll | Same workflow and durable checkpoint |
 | `get_behaviour_notes` | Unavailable until API evidence gate closes; no 1.x parser fallback | API issue #26 |
 
@@ -361,6 +361,20 @@ MCP publication implementation to hide that difference.
    to reconstruct. Preserve any separately existing native CLAIMED/UNKNOWN store
    rather than treating it as an empty MCP migration target.
 
+**Amendment (2026-10-06, owner decision for zero-step upgrades).** Items 4 and 6
+are narrowed for serving. On an account's first poll, valid 1.x files in the
+state directory are adopted automatically: pending agenda events (already
+consumed upstream) are imported into an empty native context and delivered, the
+1.x seen-ID baseline is not translated, and the native baseline starts from
+Librus' own "new" views. Delivery stays at-least-once: a few already reported
+items can repeat once, but new items are never hidden. Originals are moved to
+`state_dir/legacy-1x`, never deleted. Malformed or unsafe files are neither
+imported nor moved and keep that account's polls quarantined. The explicit
+`migrate-state` command (items 2-5) remains for carrying the old baseline over
+with independently established native IDs. The context key, private
+permissions and feature defaults are likewise provisioned without operator
+steps; see `MIGRATION_2_0.md`.
+
 ## 6. API issue dependencies
 
 All issues were created after checking open and closed issues for duplicates.
@@ -408,11 +422,11 @@ The implementation pins stable API `1.0.0`, containing the required #22-25 contr
 | A11 | Rename import package/entry point | Done: installed `librus_mcp` and `librus_mcp.cli:main`; offline version/config/doctor routing |
 | A12 | Mutation tool | Done: optional POSIX mutmut 3.7.0 campaign on Python 3.14, real stdio child instrumentation and reviewed survivors; no mutation-score target |
 | A13 | Explicit/XDG config | Done: CLI, explicit environment selector or XDG; no cwd credential discovery |
-| A14 | Config migration guide | Done: `MIGRATION_2_0.md` covers private files/key/config, reviewed state import, recovery and non-transparent rollback |
-| A15 | Remove short-hash mirror | Done: native stores never dual-write old files; old mirrors remain inventory/import inputs, never deleted to force fresh history |
-| A16 | Legacy path collisions | Done: inventory/import reject collisions and conflicts before writing native history; real short-hash collision tested |
+| A14 | Config migration guide | Done: `MIGRATION_2_0.md` covers zero-step upgrades (automatic key, permissions and 1.x state adoption), explicit reviewed import, recovery and non-transparent rollback |
+| A15 | Remove short-hash mirror | Done: native stores never dual-write old files; old mirrors are adoption/import inputs, archived to `legacy-1x` on adoption and never deleted |
+| A16 | Legacy path collisions | Done: inventory/import and automatic adoption reject collisions and conflicts before writing native history; real short-hash collision tested |
 | A17 | MCP attachment resources | Done: bounded POSIX inert snapshots; Windows publishes complete local files only; host/capacity/expiry fallback documented |
-| A18 | Byte/context limits | Done: 512 KiB complete-result cap, 256 KiB snapshots, notification bounds and 96/128 KiB catalog budgets |
+| A18 | Byte/context limits | Done: 512 KiB complete-result cap, 256 KiB snapshots, notification bounds, paged whole grade/attendance reads and 128 KiB catalog budgets |
 
 ## 8. License cutover gate
 

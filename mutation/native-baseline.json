@@ -20,7 +20,7 @@
     "tests_native/test_native_stdio.py": "73b868ebc8ec47486cc061c92d64f3a8522530fe6a18bd12a95d70553f8ab320",
     "tests_native/test_notification_stdio.py": "50cbe834b09fc86e829473b965f91660fe29125c07e5e95bd57b86f52b384e2b",
     "tests_native/test_read_boundaries.py": "45e5788d4274e542930e9d14b27ae28203aabd60b7c89db89ebf56f9581a6caa",
-    "tests_native/test_send_stdio.py": "ba1470bca3dce95e41462e4c6e886a174b8b84dc7acf8bf45c43b057b494071e",
+    "tests_native/test_send_stdio.py": "39b16c655eb345cf031237bdb405b33c0a08ed5dba0dfa5490a7d14923883823",
     "tests_native/wire.py": "e101847f4636b751be571ea27aaeb499c8aeea15d20fb3127c9f4f459cbdfe80",
     "uv.lock": "4fee0e0fe6e2979d8812a2258defeb85fd51b81968969226531b71ed4a8954d5"
   },
@@ -116,7 +116,7 @@
     "src/librus_mcp/resources.py": "56fcfb199b12aad7743988924c605b5b2ef5e49b0e8eef01afca4389e7649ab4",
     "src/librus_mcp/runtime.py": "c16c8aad234ff68cf3290f105af6cf3f1021f8a7a7f27206d61d0eceda05d65c",
     "src/librus_mcp/schemas.py": "58b65dbbf2c2f61ccabe675ddf479e1c9e230a98d3fa4b3a06809fcb99b0a869",
-    "src/librus_mcp/send_schemas.py": "8c31e90a7d59dd8ab22299b2282787e34b5352570083d53fa809739b34e26a18",
+    "src/librus_mcp/send_schemas.py": "dc4a4239e50b09879e88ae3620c0631b94d7f73629885aa9acbec548886fecb0",
     "src/librus_mcp/send_tools.py": "b6e312772fce374ba353b218c01544b9933dc5fc96b5b86ca9b41902b646ebcf",
     "src/librus_mcp/server.py": "fbca2dc6d7fb1b7bfc3d1b9a64115fcbe100a8a676b6d7884cdc5de6ab6e02e6",
     "src/librus_mcp/windows_config.py": "b2539217a4c62054f1a61aff1acf33b7111cc4b5085258b31cd7c6f29de2631a"

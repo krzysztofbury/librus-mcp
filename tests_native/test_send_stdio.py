@@ -126,6 +126,7 @@ async def test_preview_binding_claim_outcome_and_restart_never_replays_send(
                     not outcome.is_error and outcome.structured_content["data"]["phase"] == expected
                 )
                 history = await session.call_tool("get_send_history", {"account_alias": "sender"})
+                assert history.structured_content["pagination"]["truncated"] is False
                 assert {
                     item["outcome"]["phase"] for item in history.structured_content["items"]
                 } == (

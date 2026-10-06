@@ -13,7 +13,7 @@ from librus_python_api.persistence import DurableSendOutcome, DurableSendRecord
 from pydantic import Field
 
 from librus_mcp.read_schemas import AccountAliasInput, NumericID
-from librus_mcp.schemas import HexDigest, WireModel
+from librus_mcp.schemas import HexDigest, Pagination, WireModel
 
 ConfirmationToken = Annotated[
     str, Field(min_length=20, max_length=128, pattern=r"^[A-Za-z0-9_-]+$")
@@ -89,5 +89,7 @@ class SendOutcomeResult(WireModel):
 
 
 class SendHistoryResult(WireModel):
+    # The store returns every retained record (bounded) or fails; never a partial page.
     items: tuple[DurableSendRecord, ...]
     context: HexDigest
+    pagination: Pagination = Field(default_factory=Pagination)
