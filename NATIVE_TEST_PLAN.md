@@ -234,10 +234,12 @@ about 15 subjects; 1.0.1 uses 12 requests including login.
 - `get_grades`/`get_attendance` page by `limit`/`cursor`; text content is compact
   JSON; a failed post-send outcome read returns the completed send with
   `durable: null`; acknowledgement accepts the batch context object verbatim.
-- Offline: 81 passed, 1 Windows-only skip; Ruff/format, strict mypy, Bandit and
-  lock checks pass. Catalogs: 22 tools/95495 bytes and 30 tools/129825 bytes,
-  below the 96/128 KiB budgets. Mutation campaign unchanged: 62 killed, the same
-  8 reviewed survivors.
+- Notifications and attachments are on by default (as in 1.x); sending stays
+  opt-in. Tests and child servers run with an isolated home directory.
+- Offline: 82 passed, 1 Windows-only skip; Ruff/format, strict mypy, Bandit and
+  lock checks pass. Catalogs (measure_tools): default 26 tools/114759 bytes,
+  all features 30 tools/129825 bytes; both budgets are 128 KiB. Mutation
+  campaign unchanged: 62 killed, the same 8 reviewed survivors.
 - Read-only live rehearsal on four independent logins, using copies of a real 1.x
   configuration and state directory: startup restricted the copied 0644 config
   and 0755 download directory, ignored behaviour notes, created the key and

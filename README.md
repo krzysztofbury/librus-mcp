@@ -57,11 +57,11 @@ logins, add more objects to `accounts`. Suggested locations:
 
 On first start the server restricts the file to your user (macOS/Linux),
 creates its private state directory (`~/.librus-mcp`) and a persistent key there.
-There is nothing else to set up. Optional features are off by default; to turn
-them on, add:
+There is nothing else to set up. Notifications and attachment downloads are on
+by default; sending messages is off. To change that, add for example:
 
 ```json
-"features": {"notifications": true, "attachments": true, "send_message": false}
+"features": {"notifications": true, "attachments": false, "send_message": true}
 ```
 
 ### 3. Connect your assistant
@@ -127,18 +127,14 @@ Change the version in your assistant's configuration to `librus-mcp==2.0.0`, add
 1.x notification history on the first check. Stop 1.x server processes that use
 the same folders before switching.
 
-Two things change on purpose:
-
-- Notifications and attachments were on by default in 1.x and are opt-in in 2.0.
-  Add the `features` block above to keep them.
-- Tool names and results changed (for example `list_students` is now
-  `list_accounts` and `student_alias` is `account_alias`). Assistants read the new
-  tool list automatically; custom scripts must follow the
-  [migration guide](MIGRATION_2_0.md).
+Notifications and attachments stay on by default, as in 1.x. Tool names and
+results changed on purpose (for example `list_students` is now `list_accounts`
+and `student_alias` is `account_alias`). Assistants read the new tool list
+automatically; custom scripts must follow the [migration guide](MIGRATION_2_0.md).
 
 ## Tools and safety
 
-The default catalog has 22 typed tools:
+The default catalog has 26 typed tools:
 
 - Accounts/profile: `list_accounts`, `get_student_information`.
 - Grades: `get_grades`, `get_final_grades`, `get_grades_window`.
@@ -148,13 +144,13 @@ The default catalog has 22 typed tools:
   `get_homework`, `get_homework_detail`, `get_completed_lessons`.
 - Communication: `get_messages`, `get_message_content`, `get_recipient_types`,
   `get_recipient_choices`, `get_recipients`.
-
-Optional features add eight tools:
-
-- Sending: `preview_message`, `send_message`, `get_send_outcome`, `get_send_history`.
-- Files: `download_attachment` and runtime-only attachment resources.
 - Notifications: `get_new_notifications`, `get_notification_status`,
-  `acknowledge_notifications`.
+  `acknowledge_notifications` (feature `notifications`).
+- Files: `download_attachment` and runtime-only attachment resources (feature
+  `attachments`).
+
+Enabling the `send_message` feature adds `preview_message`, `send_message`,
+`get_send_outcome` and `get_send_history`.
 
 Collections are paged with `limit` and a `cursor`. Every login is independent,
 including logins for the same student. Modern messaging is the default; set

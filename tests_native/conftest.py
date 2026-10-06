@@ -1,10 +1,19 @@
-"""Bridge mutmut's per-test hit collection across the real stdio process boundary."""
+"""Test isolation and mutmut's per-test hit collection across the stdio boundary."""
 
 import json
 
 import pytest
 
 from tests_native.mutation_support import mutation_is_collecting
+
+
+@pytest.fixture(autouse=True)
+def isolated_home(monkeypatch, tmp_path_factory):
+    # Default features provision ~/.librus-mcp. Tests and their child servers
+    # inherit this disposable home, never the developer's real state.
+    home = tmp_path_factory.mktemp("home")
+    monkeypatch.setenv("HOME", str(home))
+    monkeypatch.setenv("USERPROFILE", str(home))
 
 
 @pytest.fixture(autouse=True)

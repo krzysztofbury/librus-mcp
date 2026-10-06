@@ -82,14 +82,8 @@ def synthetic_environment(
                 ]
             ),
             "LIBRUS_CONTEXT_KEY": secrets.token_hex(32),
-            "LIBRUS_FEATURES": json.dumps(
-                {
-                    "notifications": all_features,
-                    "attachments": all_features,
-                    "behaviour_notes": False,
-                    "send_message": all_features,
-                }
-            ),
+            # The default profile uses the shipped feature defaults.
+            "LIBRUS_FEATURES": json.dumps({"send_message": True} if all_features else {}),
             "LIBRUS_STATE_DIR": str(temporary_directory / "state"),
             "LIBRUS_DOWNLOAD_DIR": str(temporary_directory / "downloads"),
             "HTTP_PROXY": "http://127.0.0.1:1",
@@ -163,7 +157,7 @@ async def run_tool_checks(
                     await session.initialize()
                     catalog = await session.list_tools()
                     tools = {tool.name: tool for tool in catalog.tools}
-                    if len(tools) != (30 if all_features else 22):
+                    if len(tools) != (30 if all_features else 26):
                         raise VerificationError(
                             "installed catalog has an unexpected feature profile"
                         )
@@ -174,7 +168,7 @@ async def run_tool_checks(
                         validator_for(tool.output_schema).check_schema(tool.output_schema)
                     if (
                         len(catalog.model_dump_json(by_alias=True, exclude_unset=True).encode())
-                        > (128 if all_features else 96) * 1024
+                        > 128 * 1024
                     ):
                         raise VerificationError("installed catalog exceeds its context budget")
                     grades_tool = tools.get("get_grades")

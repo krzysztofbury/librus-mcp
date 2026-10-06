@@ -54,9 +54,10 @@ class AccountConfig(BaseModel):
 class FeaturesConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True, strict=True)
 
-    # Development slice: unavailable features fail explicitly when enabled.
-    notifications: bool = False
-    attachments: bool = False
+    # Notifications and attachments are on by default, as in 1.x; sending writes
+    # to the school and stays opt-in. Each can be switched off explicitly.
+    notifications: bool = True
+    attachments: bool = True
     send_message: bool = False
     behaviour_notes: bool = False
 

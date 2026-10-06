@@ -20,12 +20,8 @@ TIMEOUT_SECONDS = 30
 
 
 async def list_tools(all_features: bool) -> ListToolsResult:
-    features = {
-        "notifications": all_features,
-        "attachments": all_features,
-        "behaviour_notes": False,
-        "send_message": all_features,
-    }
+    # The default profile uses the shipped feature defaults.
+    features = {"send_message": True} if all_features else {}
     environment = {
         name: value for name, value in os.environ.items() if not name.startswith("LIBRUS_")
     }

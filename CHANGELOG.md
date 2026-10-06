@@ -16,6 +16,8 @@ All notable changes to this project will be documented in this file.
   undelivered agenda events, start the native baseline from Librus' own "new"
   views and move the originals to `state_dir/legacy-1x`. Malformed files stay in
   place and keep that account's polls blocked.
+- Keep notifications and attachments on by default, as in 1.x; sending stays
+  opt-in. The default catalog is 26 tools, within a 128 KiB budget.
 - Accept the 1.x default `~/.config/librus-mcp/secrets.json` when `config.json`
   is absent, and ignore the removed `behaviour_notes` setting with a notice.
 - Page `get_grades` and `get_attendance` with `limit`/`cursor` (grade averages on

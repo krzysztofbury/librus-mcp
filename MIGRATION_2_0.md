@@ -30,11 +30,9 @@ Change the host's version pin to `librus-mcp==2.0.0` and run it with Python 3.14
   to `state_dir/legacy-1x`. Old seen-IDs cannot be translated, so the first poll
   can repeat a few already reported items once; it never hides new ones.
 
-One deliberate behaviour change needs a setting: notifications and attachments
-were on by default in 1.x and are opt-in in 2.0. Set `"features":
-{"notifications": true, "attachments": true}` to keep them. Assistants must use
-the new tool names below. Stop 1.x server processes that share the state
-directory before switching.
+Notifications and attachments stay on by default, as in 1.x, and sending stays
+off. Assistants must use the new tool names below. Stop 1.x server processes that
+share the state directory before switching.
 
 ## Implemented native contracts
 
@@ -53,8 +51,9 @@ Native service defaults bound combined rate, burst, active requests and queues.
 | Final-grade legacy mappings | `items` with midterm/predicted/annual availability and raw values |
 | Runtime exception text | `isError=true` with a closed `error.code`; no raw input/page/cause text |
 
-The default development catalog has 22 tools. Enabling all supported optional
-features gives 30 tools, each with typed input/output schemas:
+The default catalog has 26 tools, including notifications and attachments.
+Enabling sending gives 30 tools; disabling notifications and attachments leaves
+22. Every tool has typed input/output schemas:
 
 | Family | Tools |
 | --- | --- |
@@ -99,10 +98,10 @@ selection tools are not annotated read-only; message content is explicitly
 annotated with its possible mark-read effect. Input and output schemas must
 compile in the real client's JSON Schema validator, not just Pydantic.
 
-Notifications, attachments and sending are integrated but default off. Enable
-each explicitly through `features` or `LIBRUS_FEATURES`. Behaviour notes remain
-unavailable; an enabled 1.x setting is ignored with a notice. Explicit opt-in is
-the 2.0 policy. The declared backend/platform profiles and MIT review passed
+Notifications and attachments are on by default, as in 1.x; sending writes to
+the school and stays off until enabled. Change any of them through `features` or
+`LIBRUS_FEATURES`. Behaviour notes remain unavailable; an enabled 1.x setting is
+ignored with a notice. The declared backend/platform profiles and MIT review passed
 qualification; exact evidence is recorded in [NATIVE_TEST_PLAN.md](NATIVE_TEST_PLAN.md).
 
 ### Durable sends

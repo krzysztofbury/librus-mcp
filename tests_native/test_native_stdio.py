@@ -114,11 +114,16 @@ async def test_four_logins_share_traffic_but_not_sessions_and_catalog_does_not_l
                         "get_recipient_types",
                         "get_recipient_choices",
                         "get_recipients",
+                        # Default-on features; sending stays opt-in.
+                        "download_attachment",
+                        "get_new_notifications",
+                        "get_notification_status",
+                        "acknowledge_notifications",
                     }
                     assert all(tool.output_schema for tool in catalog)
                     assert (
                         len(listed.model_dump_json(by_alias=True, exclude_unset=True).encode())
-                        < 96 * 1024
+                        < 128 * 1024
                     )
                     result = await session.call_tool("list_accounts", {})
                     assert result.structured_content == {

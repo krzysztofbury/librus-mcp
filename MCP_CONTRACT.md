@@ -8,8 +8,9 @@ compatibility adapter. See [MIGRATION_2_0.md](MIGRATION_2_0.md).
 
 `tools/list` is authoritative, generated from `librus_mcp` annotations. Every input
 and output schema is checked with the client's JSON Schema validator, including
-representative reference/cursor payloads. All 22 default tools have typed outputs.
-Enabling the three supported optional features gives 30 tools. Behaviour notes
+representative reference/cursor payloads. All 26 default tools (including
+notifications and attachments) have typed outputs. Enabling sending gives 30
+tools; disabling notifications and attachments leaves 22. Behaviour notes
 remain unregistered. Catalog listing is offline and does not authenticate.
 
 ```bash
@@ -17,7 +18,7 @@ uv run python release_verification/measure_tools.py
 uv run python release_verification/measure_tools.py --all-features
 ```
 
-The default and optional UTF-8 catalog budgets are 96 KiB and 128 KiB. They count
+The default and all-feature UTF-8 catalog budgets are both 128 KiB. They count
 descriptions, annotations, inputs and outputs. These are context-size gates, not
 performance claims. The text block of a typed result is the same JSON value as
 `structuredContent`, serialized compactly (UTF-8, no indentation) because many
@@ -45,12 +46,12 @@ selection. Catalog annotations are hints, not an authorization mechanism.
   HTTP. Redemption additionally requires `confirm=true` and actual human approval.
   Tokens do not prove approval. Cancellation, lost responses and uncertain native
   outcomes never trigger consumer retries. Inspect `get_send_outcome`/history.
-- Notification polling is opt-in and durably stages delivery. A returned receipt
+- Notification polling is on by default and durably stages delivery. A returned receipt
   must be acknowledged only after delivery. Pending batches replay across process
   restart. Fresh agenda consumption additionally requires
   `allow_consume_events=true`. Malformed checkpoints and uncertain reservations are
   preserved. Explicit POSIX operator recovery can accept possible event loss.
-- Attachment download is opt-in and does not open a message body. Native file
+- Attachment download is on by default and does not open a message body. Native file
   publication is the commit point. Optional POSIX snapshots are inert, bounded,
   expiring and runtime-only. A snapshot failure returns the published local file
   and digest without a URI. Windows currently returns local files only.
