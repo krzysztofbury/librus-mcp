@@ -10,9 +10,10 @@ No apix dependency is retained to make that suite importable.
 
 The active suite is `tests_native/`, selected by the pytest configuration and CI.
 New tests exercise the public native application rather than legacy manager
-mocks. The reduced initial test count is **not full 1.x safety parity**. Remaining
-consumer invariants must be ported before feature integration and final release;
-do not delete an old safety test until its owning replacement is identified.
+mocks. The reduced initial test count alone was **not full 1.x safety parity**.
+The owner map and subsequent qualification below identify the retained native
+consumer invariants. Historical wrapper mocks are not release requirements;
+do not remove an independent safety proof without identifying its owner.
 
 ## Proof-owner map
 
@@ -25,7 +26,7 @@ do not delete an old safety test until its owning replacement is identified.
 | Send preview/confirmation, feature consent and UNKNOWN recovery | API owns durable claims/outcomes; MCP stdio tests cover both backends, exact token/payload binding, consent, native HTTP, restart recovery, accepted/rejected/unknown outcomes, cancellation/disconnect and no resubmission. Store-error projection is consumer-owned; claim/save transaction internals remain API-owned. |
 | Attachment destination policy, consent and resources | API owns stream/publication; MCP stdio tests cover both backends, context binding, private publication, credential-free download, no implicit body open, incomplete-stream cleanup, inert snapshots/restart and post-publication snapshot fallback. Resource tests own capacity/expiry/no-follow checks. Windows native publication and POSIX snapshots pass their declared hosted profiles. |
 | Wheel, sdist, installed console entry, stdio identity | MCP; verifier updated for native namespace/CLI/catalog and absence of apix. Include full installed public integration tests in local qualification. |
-| Mutation safety evidence | Re-scope to MCP-owned policy branches after integration; legacy mutation configurations are not native evidence. No score target or test-only production code. |
+| Mutation safety evidence | Optional mutmut 3.7.0 targets MCP window cursors/pages and message bindings through actual stdio children: 62 killed/8 reviewed survivors. See `MUTATION_TESTING.md`; legacy campaigns are not native evidence. No score target or test-only production code. |
 
 The original synthetic HTTP fixture in `tests_native/wire.py` was authored in this
 repository from source-informed API requirements. It is not copied from API tests
@@ -176,6 +177,31 @@ The remaining release step is separately authorized merge/version/tag/publicatio
 and fresh remote installation verification. This qualification does not authorize
 production migration or claim live send, received-body, download or read-once
 compatibility. The current candidate remains `2.0.0.dev1` and PR #39 remains draft.
+
+## Checklist and mutation reconciliation, 2026-10-06
+
+All 18 original major-release TODO items now record their implemented outcomes
+and deliberate contract/platform differences in `TODO.md` and plan section 7.
+Publication remains W8, not implied by checked implementation items.
+
+The focused mutmut 3 campaign ran offline through real instrumented stdio
+children. It selected 70 mutants: 62 killed, 8 individually reviewed survivors,
+no selected no-test/timeout/suspicious outcomes. Existing owner tests were
+strengthened for consent-enabled independent account/context rejection, exact
+end-offset rejection and public truncation/reason fields. No production code
+was changed for instrumentation. See [MUTATION_TESTING.md](MUTATION_TESTING.md)
+and `mutation/native-baseline.json` for scope, hashes and survivor diffs.
+The earlier hosted matrix remains the runtime qualification baseline; this
+follow-up's new test/tooling checks must be recorded separately.
+
+Local Linux verification for the follow-up passed the 73-test consumer suite
+(one Windows-only skip), strict mypy, Ruff/format, Bandit and lock consistency.
+Its audited MIT sdist was rebuilt into a wheel and installed outside the checkout;
+CLI, stdio identity, both catalogs and all 73 consumer tests passed there without
+mutation dependencies installed. The final focused campaign rechecked the stored
+baseline with the consent-enabled backend guard and again produced 62 killed/8
+reviewed survivors. New hosted results must be checked against the pushed PR head;
+the earlier green run is not evidence for a new commit's test/build inputs.
 
 ## Ongoing and release-time requirements
 

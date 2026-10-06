@@ -12,6 +12,7 @@ that every dependency is itself MIT.
 | `src/librus_mcp/*.py`, `py.typed` | New consumer implementation on the native migration branch. Public API contracts supply types and behavior; no apix code, parser, fixture, private codec or SQL was transferred. MIT. |
 | `tests_native/*.py` | Independently authored synthetic loopback HTTP/HTML/JSON and MCP/CLI tests. No captures or test files copied from another client or the API repository. MIT. |
 | `scripts/qualify_native.py` | New explicit bounded qualifier. No credentials or account data included. MIT. |
+| `scripts/run_mutations.py`, `mutation/native-baseline.json` | New checkout-only mutation runner and synthetic generated evidence, with reviewed diffs. No third-party implementation copied. MIT; excluded from wheel/sdist. Test-only mutmut integration is part of `tests_native/`, never packaged in the wheel. |
 | `release_verification/` | Project-owned packaging/release helpers, updated for the native namespace and installed acceptance. Git author/contributor review identified only the project owner. Relicensed with the owner's authorization, not on authorship evidence alone. MIT. |
 | Root documentation, configuration, workflow files | Project-owned documentation and configuration, including rewritten current README/SPEC/contracts. Historical changelog statements remain historical. Standard license text and public dependency/action references retain their meaning. MIT unless explicitly scoped otherwise. |
 | `legacy_reference/` | Original 1.x source, tests, fixtures, docs, example and mutation configuration preserved under the original GPL-3.0-only license. Excluded from every 2.0 build inventory. No relicensing or runtime fallback. |
@@ -91,6 +92,32 @@ whole installed environment or modifying/repackaging these dependencies must
 review their additional notices, LGPL source/relinking obligations and resource
 terms separately. This review approves the independent MCP distributions and
 ordinary separate dependency installation, not an all-MIT standalone bundle.
+
+## Optional mutation tooling, 2026-10-06
+
+The optional POSIX `mutation` group adds separate development distributions,
+not runtime dependencies or vendored source. Installed metadata/license files
+were reviewed for the newly locked packages:
+
+| Distribution | Version | Published terms |
+| --- | --- | --- |
+| mutmut | 3.7.0 | BSD-3-Clause |
+| coverage | 7.16.0 | Apache-2.0 |
+| libcst | 1.9.0 | MIT with PSF-derived parser/tokenizer files and Apache-2.0 `_add_slots.py` |
+| linkify-it-py | 2.2.0 | MIT |
+| mdit-py-plugins | 0.6.1 | MIT |
+| platformdirs | 4.11.5 | MIT |
+| setproctitle | 1.3.7 | BSD-3-Clause |
+| textual | 8.2.8 | MIT |
+
+Existing development/runtime dependencies remain separately installed with their
+upstream notices. The additional mutation guide is shipped in the sdist, but
+generated campaign reports and the checkout-only runner remain outside artifacts.
+Nothing in this update relicenses or bundles the tooling under MCP's MIT grant.
+The secret scanner's 39 new high-entropy findings were individually matched to
+the actual public source/test/tooling SHA256 fingerprints in the reviewed report.
+Only those exact findings were added as false positives; all existing entries
+and scanner filters remain unchanged.
 
 ## Artifact and maintenance gates
 

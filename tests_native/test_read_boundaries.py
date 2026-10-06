@@ -1,5 +1,7 @@
 """Consumer cursor/reference/consent guards over actual native stdio and HTTP."""
 
+import sys
+
 import anyio
 import pytest
 from mcp.client import ClientSession
@@ -14,7 +16,8 @@ async def test_window_cursor_rejects_wrong_query_account_and_changed_source():
     async with Wire().serve() as wire:
         with anyio.fail_after(30):
             async with stdio_client(
-                server_process(wire.origin, [("first", "login"), ("second", "other")])
+                server_process(wire.origin, [("first", "login"), ("second", "other")]),
+                errlog=sys.stderr,
             ) as streams:
                 async with ClientSession(*streams) as session:
                     await session.initialize()
@@ -29,6 +32,8 @@ async def test_window_cursor_rejects_wrong_query_account_and_changed_source():
                     assert first.structured_content["items"][0]["raw"] == "4+"
                     cursor = first.structured_content["pagination"]["next_cursor"]
                     assert cursor is not None
+                    assert first.structured_content["pagination"]["truncated"] is True
+                    assert first.structured_content["pagination"]["reason"] == "item_limit"
                     calls = len(wire.calls)
                     for changed in (
                         {"date_from": "2026-09-25"},
@@ -42,12 +47,22 @@ async def test_window_cursor_rejects_wrong_query_account_and_changed_source():
                             "error": {"code": "INVALID_INPUT"}
                         }
                         assert len(wire.calls) == calls
+                    # The synthetic source has exactly two dated grades. A cursor
+                    # at its end must reject, not masquerade as an empty last page.
+                    past_end = await session.call_tool(
+                        "get_grades_window", query | {"cursor": cursor | {"offset": 2}}
+                    )
+                    assert past_end.is_error and past_end.structured_content == {
+                        "error": {"code": "STALE_CURSOR"}
+                    }
                     second = await session.call_tool(
                         "get_grades_window", query | {"cursor": cursor}
                     )
                     assert not second.is_error
                     assert second.structured_content["items"][0]["raw"] == "3"
                     assert second.structured_content["pagination"]["next_cursor"] is None
+                    assert second.structured_content["pagination"]["truncated"] is False
+                    assert second.structured_content["pagination"]["reason"] is None
                     wire.grade_suffix = "2"
                     stale = await session.call_tool("get_grades_window", query | {"cursor": cursor})
                     assert stale.is_error and stale.structured_content == {
@@ -59,7 +74,9 @@ async def test_window_cursor_rejects_wrong_query_account_and_changed_source():
 async def test_reference_backend_context_and_mark_read_guards_are_preflight_only():
     async with Wire().serve() as wire:
         with anyio.fail_after(20):
-            async with stdio_client(server_process(wire.origin, [("account", "login")])) as streams:
+            async with stdio_client(
+                server_process(wire.origin, [("account", "login")]), errlog=sys.stderr
+            ) as streams:
                 async with ClientSession(*streams) as session:
                     await session.initialize()
                     # Obtain an actual context from a bound presentation cursor.
@@ -75,13 +92,20 @@ async def test_reference_backend_context_and_mark_read_guards_are_preflight_only
                         "identifier": "19",
                         "account": "account",
                     }
-                    for ref in (
-                        message,
-                        message | {"backend": "legacy"},
-                        message | {"context": "0" * 64},
+                    # Binding failures must not be hidden by missing consent.
+                    # Independent account/context mutations are covered with
+                    # actual message references in test_message_stdio.py.
+                    for ref, consent in (
+                        (message, False),
+                        (message | {"backend": "legacy"}, True),
                     ):
                         result = await session.call_tool(
-                            "get_message_content", {"account_alias": "account", "message_ref": ref}
+                            "get_message_content",
+                            {
+                                "account_alias": "account",
+                                "message_ref": ref,
+                                "allow_mark_read": consent,
+                            },
                         )
                         assert result.is_error and result.structured_content == {
                             "error": {"code": "INVALID_INPUT"}
@@ -121,7 +145,8 @@ async def test_shared_host_budget_cannot_be_reset_by_another_tool_call():
     async with Wire().serve() as wire:
         with anyio.fail_after(20):
             async with stdio_client(
-                server_process(wire.origin, [("account", "login")], budget_requests=1)
+                server_process(wire.origin, [("account", "login")], budget_requests=1),
+                errlog=sys.stderr,
             ) as streams:
                 async with ClientSession(*streams) as session:
                     await session.initialize()
@@ -137,7 +162,9 @@ async def test_shared_host_budget_cannot_be_reset_by_another_tool_call():
 async def test_invalid_calendar_date_and_collection_inputs_never_authenticate():
     async with Wire().serve() as wire:
         with anyio.fail_after(20):
-            async with stdio_client(server_process(wire.origin, [("account", "login")])) as streams:
+            async with stdio_client(
+                server_process(wire.origin, [("account", "login")]), errlog=sys.stderr
+            ) as streams:
                 async with ClientSession(*streams) as session:
                     await session.initialize()
                     cases = [

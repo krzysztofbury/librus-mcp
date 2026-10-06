@@ -37,10 +37,10 @@ jobs:
           uv sync --locked --python ${{ matrix.python-version }}
 
       - name: Ruff check
-        run: uv run ruff check src/librus_mcp/ tests_native/ release_verification/ scripts/qualify_native.py
+        run: uv run ruff check src/librus_mcp/ tests_native/ release_verification/ scripts/
 
       - name: Ruff format check
-        run: uv run ruff format --check src/librus_mcp/ tests_native/ release_verification/ scripts/qualify_native.py
+        run: uv run ruff format --check src/librus_mcp/ tests_native/ release_verification/ scripts/
 
       - name: Bandit security check
         run: uv run bandit -c pyproject.toml -r src/librus_mcp/

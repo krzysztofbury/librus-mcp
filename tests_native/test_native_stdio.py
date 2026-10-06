@@ -13,6 +13,7 @@ import pytest
 from mcp.client import ClientSession
 from mcp.client.stdio import StdioServerParameters, stdio_client
 
+from tests_native.mutation_support import prepare_mutation_child
 from tests_native.wire import Wire
 
 REPOSITORY = Path(__file__).resolve().parents[1]
@@ -59,7 +60,8 @@ def server_process(
     if download_dir is not None:
         environment["LIBRUS_DOWNLOAD_DIR"] = str(download_dir)
     script = (
-        setup_script
+        prepare_mutation_child(environment)
+        + setup_script
         + "\n"
         + """import os
 from librus_python_api import ConnectionSettings, RequestBudget

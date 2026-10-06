@@ -1,5 +1,7 @@
 """Original offline modern mailbox/directory proof at the consumer wire boundary."""
 
+import sys
+
 import anyio
 import pytest
 from mcp.client import ClientSession
@@ -15,7 +17,8 @@ async def test_paging_content_consent_directory_and_context_binding(backend):
     async with Wire().serve() as wire:
         with anyio.fail_after(30):
             async with stdio_client(
-                server_process(wire.origin, [("first", "71", backend), ("second", "72", backend)])
+                server_process(wire.origin, [("first", "71", backend), ("second", "72", backend)]),
+                errlog=sys.stderr,
             ) as streams:
                 async with ClientSession(*streams) as session:
                     await session.initialize()
@@ -49,6 +52,17 @@ async def test_paging_content_consent_directory_and_context_binding(backend):
                     )
                     reference = payload["items"][0]["reference"]
                     calls = len(wire.calls)
+                    # Consent is present, so a malformed binding cannot pass at
+                    # the separate received-body consent gate instead of this one.
+                    for change in ({"context": "0" * 64}, {"account": "second"}):
+                        invalid = await session.call_tool(
+                            "get_message_content",
+                            base | {"message_ref": reference | change, "allow_mark_read": True},
+                        )
+                        assert invalid.is_error and invalid.structured_content == {
+                            "error": {"code": "INVALID_INPUT"}
+                        }
+                        assert len(wire.calls) == calls
                     rejected = await session.call_tool(
                         "get_message_content", base | {"message_ref": reference}
                     )

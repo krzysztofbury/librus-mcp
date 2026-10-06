@@ -64,31 +64,23 @@ operation scope. Ordinary CI never uses school credentials.
 
 ### Mutation Testing
 
+The native campaign uses the optional locked mutmut 3 group and exercises
+MCP-owned safety boundaries through real stdio children. Run instructions,
+instrumentation proof, exact scope and reviewed survivors are in
+[MUTATION_TESTING.md](MUTATION_TESTING.md). Do not run mutmut directly in the
+checkout; the script owns disposable copies and cleanup. No mutation-score
+target is a release gate.
+
+#### Historical 1.x evidence
+
 The following campaigns are historical 1.x evidence. Their configurations are
 preserved in `legacy_reference/mutation/`; they do not target the native package.
-Cosmic Ray is no longer a native development dependency. Native fault-injection
-and protocol cancellation tests protect the remaining consumer safety branches.
-No mutation-score target is a release gate; a new tool must first prove that its
-instrumentation reaches the actual stdio child process.
+Cosmic Ray is no longer a native development dependency. These counts and the
+commands in the historical release tags are not current developer instructions.
 
-Historical focused configurations live in `legacy_reference/mutation/`. For
-example, run the attachment cancellation and parser campaign with:
-
-```bash
-rm -f cosmic-ray.sqlite
-uv run cosmic-ray init mutation/scraping.toml cosmic-ray.sqlite
-uv run cr-filter-lines --config mutation/scraping.toml cosmic-ray.sqlite
-uv run cr-filter-operators cosmic-ray.sqlite mutation/scraping.toml
-uv run cosmic-ray exec mutation/scraping.toml cosmic-ray.sqlite
-uv run cosmic-ray dump cosmic-ray.sqlite
-```
-
-Replace `scraping` with `client`, `optimizations`, or `config` for the other
-active campaigns. The filter steps are required: `cosmic-ray init` records all
-candidates before the focused line and operator filters narrow the session.
-Review line filters whenever the corresponding source file changes. Historical
-configurations remain available from their release tags rather than accumulating
-in the current tree.
+Historical focused configurations live in `legacy_reference/mutation/` and
+their original release tags. Do not reinstall apix or Cosmic Ray in the native
+environment to run them.
 
 The v1.2.2 baseline produced this evidence:
 
@@ -113,8 +105,8 @@ The remaining survivors are equivalent over validated nonnegative page indexes,
 capped collection lengths, single-event legacy files, redundant per-event size
 checks, and subset cardinalities, or replace value equality with object identity.
 
-The v1.2.5 parser and cancellation campaigns are the active configurations under
-`mutation/`. They killed all 142 selected scraping mutants, all 11 selected client
+The v1.2.5 parser and cancellation campaigns killed all 142 selected scraping
+mutants, all 11 selected client
 mutants, all 23 selected gateway-validation mutants, and the selected
 experimental-feature default mutant.
 

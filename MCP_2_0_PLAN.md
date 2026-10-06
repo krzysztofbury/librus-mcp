@@ -1,8 +1,14 @@
 # MCP 2.0 native API migration plan
 
-Status: implementation started on 2026-10-05. The original architecture proposal
-is retained below; current slice and deviations are documented in
-[MIGRATION_2_0.md](MIGRATION_2_0.md). Final qualification and MIT cutover remain pending.
+Status, 2026-10-06: native implementation, declared hosted platform profiles and
+MIT cutover are complete. Mutmut 3 replaces the historical consumer mutation
+tooling; see [MUTATION_TESTING.md](MUTATION_TESTING.md). Final version/tag/publication
+and fresh remote installation remain W8, requiring separate approval.
+
+Sections 1-6 retain the original planning baseline and proposals, not current
+commands or unfinished implementation promises. Actual contracts and explicit
+deviations are documented in [MIGRATION_2_0.md](MIGRATION_2_0.md) and
+[MCP_CONTRACT.md](MCP_CONTRACT.md). Section 7 reconciles all 18 original TODO items.
 
 ## Implementation progress
 
@@ -10,20 +16,23 @@ is retained below; current slice and deviations are documented in
   `57db02df28f3ce02bed9999a08083759d53c4edb`; stable API `1.0.0` is on PyPI.
   Modern notifications, neutral external bootstrap, offline recovery status and
   pending lookup are public. Windows NTFS disk support is now qualified upstream;
-  unsupported Windows filesystems still fail closed. Consumer Windows tests remain required.
+  unsupported Windows filesystems still fail closed. Consumer Windows NTFS,
+  credential ACL, durable workflow and local file publication tests passed hosted CI.
 - Native package/console entry, explicit config/key provisioning and shared async
    service lifespan are implemented in `2.0.0.dev1`, with 22 default tools and 30
    with supported optional features. Ordinary read families, presentation/native cursors,
   bound detail references and explicit received-open consent are integrated.
   Apix is absent from runtime/dev dependencies and lockfile. Old source/tests are
-  excluded from native artifacts, retained only for future proof/provenance mapping.
-- During this incomplete slice, notifications/files/sends default off but can be
+  excluded from native artifacts, retained GPL-scoped in `legacy_reference/` with
+  proof ownership mapped in [NATIVE_TEST_PLAN.md](NATIVE_TEST_PLAN.md).
+- Notifications/files/sends default off by policy but can be
   explicitly enabled. Behaviour notes remain unavailable and reject enablement.
   A context key can be provided in private config/environment rather than a new
   key-file workflow. Doctor/storage probes, durable sends/outcomes, file publication/
   resources and notification poll/status/ack are integrated. POSIX old-state
   inventory/bootstrap, private manifests and native archive export are implemented;
-  remaining migration/platform/safety qualification is pending. A separate
+  qualification covers interrupted apply, capacity/collision guards, offline
+  restart recovery and explicit uncertainty resolution. A separate
   explicit-live qualification script uses bounded native
   budgets and emits redacted coverage; it does not grant routine CI live access.
 - #26-27 stay parked; no live access or publication is authorized by implementation.
@@ -380,30 +389,30 @@ completed lessons and dedicated read-once live qualification remain evidence gap
 The API can change before consumer release. Prefer closing reusable gaps there
 over freezing rc1 or growing consumer workarounds. Each API issue needs an exact
 merged/released version and consumer acceptance before its MCP gate is checked.
-Plan against rc1 now; pin a newer candidate or stable version when gaps land.
+The implementation pins stable API `1.0.0`, containing the required #22-25 contracts.
 
 ## 7. All 18 MCP 2.0 TODO items
 
-| ID | Original item | Current readiness and implementation owner |
+| ID | Original item | Implemented outcome and explicit scope |
 | --- | --- | --- |
-| A01 | Common collection envelope | Native facts available; MCP defines envelope, limits and honest consistency |
-| A02 | Typed record arrays | Available in API; MCP preserves duplicates without display-name maps |
-| A03 | Normalize Polish labels | `normalized_fields` implemented; MCP projects stable/unknown/raw values |
-| A04 | Attendance units | Native ratios/counts implemented; remove MCP percent conversion |
-| A05 | `sort_by` to `scope` | Native view enums implemented; MCP argument rename only |
-| A06 | Replace `detail_url`/`href` | Native references available; MCP typed DTO/context checks |
-| A07 | Calendar and date inputs | Native integer/date contracts available; MCP schema/default policy |
-| A08 | Error categories | Native ErrorKind available; MCP closed mapping and protocol evidence |
-| A09 | Remove `all_pages` | Native bounded cursors available; remove redundant consumer aggregation |
-| A10 | Remove standalone read-once tool | Native checkpoint workflow available; #22-24 and explicit poll/ack recovery complete the replacement |
-| A11 | Rename import package/entry point | MCP work; preserve CLI as `librus_mcp.cli:main`, not obsolete `server:main` target |
-| A12 | Mutation tool | Evaluate mutmut 3 on renamed package/Python 3.14; retain invariant proof, no mutation-score target |
-| A13 | Explicit/XDG config | MCP work; API construction already explicit |
-| A14 | Config migration guide | MCP work; direct major cutover needs no intermediate deprecation release |
-| A15 | Remove short-hash mirror | MCP importer then retire runtime dual writes; API store owns subsequent durability |
-| A16 | Legacy path collisions | MCP dry-run/import validation; no silent alias rebinding |
-| A17 | MCP attachment resources | API bytes/publication available, #25 platform gap; MCP hosting and lifecycle |
-| A18 | Byte/context limits | API transport limits available; MCP serializes, measures and bounds protocol payloads |
+| A01 | Common collection envelope | Done: `items`, typed pagination, observations and honest best-effort consistency; native family metadata retained rather than inventing transactional snapshots |
+| A02 | Typed record arrays | Done: native records preserve duplicate display labels without dynamic name-keyed maps |
+| A03 | Normalize Polish labels | Done: `normalized_fields` preserve stable/unknown keys, raw labels and inert values |
+| A04 | Attendance units | Done: native `ratio` in 0..1/null and count fields; no percent conversion |
+| A05 | `sort_by` to `scope` | Done: grade/attendance schemas use native view enums through `scope` |
+| A06 | Replace `detail_url`/`href` | Done: numeric `attendance_id` and account/context-bound homework/event references; no raw route input |
+| A07 | Calendar and date inputs | Done: strict integer year/month, civil date bounds and Monday timetable input |
+| A08 | Error categories | Done: closed native `ErrorKind` codes and protocol input/internal errors, not necessarily the illustrative 1.x names; tested redaction |
+| A09 | Remove `all_pages` | Done: bounded native cursors and explicit presentation windows replace consumer fetch-all aggregation |
+| A10 | Remove standalone read-once tool | Done: opt-in agenda polling, durable checkpoint/replay and explicit acknowledgement/recovery use released #22-24 |
+| A11 | Rename import package/entry point | Done: installed `librus_mcp` and `librus_mcp.cli:main`; offline version/config/doctor routing |
+| A12 | Mutation tool | Done: optional POSIX mutmut 3.7.0 campaign on Python 3.14, real stdio child instrumentation and reviewed survivors; no mutation-score target |
+| A13 | Explicit/XDG config | Done: CLI, explicit environment selector or XDG; no cwd credential discovery |
+| A14 | Config migration guide | Done: `MIGRATION_2_0.md` covers private files/key/config, reviewed state import, recovery and non-transparent rollback |
+| A15 | Remove short-hash mirror | Done: native stores never dual-write old files; old mirrors remain inventory/import inputs, never deleted to force fresh history |
+| A16 | Legacy path collisions | Done: inventory/import reject collisions and conflicts before writing native history; real short-hash collision tested |
+| A17 | MCP attachment resources | Done: bounded POSIX inert snapshots; Windows publishes complete local files only; host/capacity/expiry fallback documented |
+| A18 | Byte/context limits | Done: 512 KiB complete-result cap, 256 KiB snapshots, notification bounds and 96/128 KiB catalog budgets |
 
 ## 8. License cutover gate
 

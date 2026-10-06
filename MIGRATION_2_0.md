@@ -13,12 +13,12 @@ change. Do not assume a 1.x assistant integration or state directory can be reus
 Library and MCP version numbers are independent: the initial development build
 pins the published native library `1.0.0`.
 
-The current MCP version is **2.0.0.dev1**, an incomplete local development build.
+The current MCP version is **2.0.0.dev1**, an unpublished native release candidate.
 It is not the final 2.0 release and has not been published by this migration work.
 Published 1.x remains the existing apix-backed implementation. Use an explicit
 version when selecting a backend; an unversioned install currently resolves 1.x.
 
-## Implemented development slice
+## Implemented native contracts
 
 The wheel contains `librus_mcp`, not the generic `src` package. The console entry
 point is `librus_mcp.cli:main`. One async lifespan owns one native service across
@@ -82,9 +82,11 @@ compile in the real client's JSON Schema validator, not just Pydantic.
 
 Notifications, attachments and sending are integrated but default off. Enable
 each explicitly through `features` or `LIBRUS_FEATURES`. Behaviour notes remain
-unavailable and enabling them fails at startup. These development defaults are
-not a decision about final 2.0 feature parity. Platform/backend qualification,
-remaining safety invariants and the final MIT review are still release gates.
+unavailable and enabling them fails at startup. Explicit opt-in is the current
+2.0 policy, not an unresolved feature gate. The declared backend/platform profiles
+and MIT review passed qualification; exact evidence and the scope of subsequent
+changes are recorded in [NATIVE_TEST_PLAN.md](NATIVE_TEST_PLAN.md). Final
+version/tag/publication and fresh remote installation remain a separate step.
 
 ### Durable sends
 
@@ -169,8 +171,9 @@ Oversized history fails closed, never silently truncates or acknowledges data.
   Serving never imports or advances 1.x files.
 - Credential files must be regular and nonsymlink files, up to 1 MiB. POSIX files
   must belong to the current user and disallow group/other access (`chmod 600`).
-  Native Windows storage support does not establish private Windows config ACLs:
-  use a private user directory; stronger Windows config-file checks remain pending.
+  Windows requires local fixed NTFS with a private ACL, verified through pinned
+  handles before credential reads. Shared/null ACLs, hardlinks and reparse-point
+  components fail closed; existing permissions are not repaired implicitly.
 - `--version` requires no config. `--check-config` is offline and does not sign in
   or mutate state. Keep stdout exclusively for protocol messages during serving.
 - `--doctor` reports configuration/features offline without provisioning state.
