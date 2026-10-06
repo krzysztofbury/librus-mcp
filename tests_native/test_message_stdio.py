@@ -7,6 +7,7 @@ import pytest
 from mcp.client import ClientSession
 from mcp.client.stdio import stdio_client
 
+from tests_native.published_schema import assert_matches_published_schema
 from tests_native.test_native_stdio import server_process
 from tests_native.wire import Wire
 
@@ -29,7 +30,7 @@ async def test_paging_content_consent_directory_and_context_binding(backend):
                         "page_size": 2 if backend == "modern" else 50,
                     }
                     listed = await session.call_tool("get_messages", query)
-                    assert not listed.is_error
+                    await assert_matches_published_schema(session, "get_messages", listed)
                     payload = listed.structured_content
                     assert payload["backend"] == backend
                     assert payload["items"][0]["summary"]["subject"] == "Fixture subject 81 for 71"
@@ -74,7 +75,7 @@ async def test_paging_content_consent_directory_and_context_binding(backend):
                         "get_message_content",
                         base | {"message_ref": reference, "allow_mark_read": True},
                     )
-                    assert not opened.is_error
+                    await assert_matches_published_schema(session, "get_message_content", opened)
                     body = opened.structured_content["data"]
                     assert (body if backend == "modern" else body["content"])[
                         "text"
@@ -86,12 +87,12 @@ async def test_paging_content_consent_directory_and_context_binding(backend):
                     sent = await session.call_tool(
                         "get_messages", base | {"folder": "sent", "limit": 1, "max_pages": 1}
                     )
-                    assert not sent.is_error
+                    await assert_matches_published_schema(session, "get_messages", sent)
                     content = await session.call_tool(
                         "get_message_content",
                         base | {"message_ref": sent.structured_content["items"][0]["reference"]},
                     )
-                    assert not content.is_error
+                    await assert_matches_published_schema(session, "get_message_content", content)
                     if backend == "modern":
                         assert content.structured_content["data"]["summary"]["unread"] is None
                     else:

@@ -14,6 +14,7 @@ from mcp.client.stdio import stdio_client
 
 from librus_mcp.config import ConfigError, load_config
 from librus_mcp.migration import notification_state
+from tests_native.published_schema import assert_matches_published_schema
 from tests_native.test_config import config_data, write_config
 from tests_native.test_native_stdio import server_process
 from tests_native.wire import Wire
@@ -50,7 +51,7 @@ async def test_notification_consent_restart_exact_replay_ack_and_account_isolati
                     assert wire.calls == []
                 query = {"account_alias": "first", "categories": ["messages", "grades"]}
                 batch = await session.call_tool("get_new_notifications", query)
-                assert not batch.is_error, batch
+                await assert_matches_published_schema(session, "get_new_notifications", batch)
                 payload = batch.structured_content
                 assert (
                     payload["data"]["first_run"] and payload["data"]["messages_backend"] == backend

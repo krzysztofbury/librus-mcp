@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.0.1] - 2026-10-06
+
+### Fixed
+
+- Publish date-time fields as an ISO 8601 pattern with an optional offset instead
+  of `format: date-time`. Message and homework times are school wall time
+  without an offset, so hosts that enforce RFC 3339 (such as Claude Code)
+  rejected every `get_messages`, `get_message_content` and
+  `get_new_notifications` result.
+
 ## [2.0.0] - 2026-10-06
 
 ### Setup without operator steps
