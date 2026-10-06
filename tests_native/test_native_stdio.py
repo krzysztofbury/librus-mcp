@@ -272,6 +272,36 @@ async def test_full_mcp_result_size_limit_returns_explicit_error(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_text_content_is_the_compact_structured_value():
+    from librus_mcp.config import AppConfig
+    from librus_mcp.server import create_server
+
+    config = AppConfig.model_validate(
+        {
+            "accounts": [
+                {
+                    "alias": "fixture",
+                    "username": "login",
+                    "password": "fixture-only",  # pragma: allowlist secret - fixture only
+                }
+            ],
+            "context_key": bytes(range(32)).hex(),
+        }
+    )
+    server = create_server(config)
+
+    @server.tool()
+    async def fixture_nested_output() -> dict[str, list[str]]:
+        return {"values": ["\u017c\u00f3\u0142w", "plain"]}
+
+    result = await server.call_tool("fixture_nested_output", {})
+    assert not result.is_error and len(result.content) == 1
+    text = result.content[0].text
+    assert json.loads(text) == result.structured_content
+    assert text == '{"values":["\u017c\u00f3\u0142w","plain"]}'
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize("records", [3, 100])
 async def test_four_account_cold_and_warm_mixed_workload_remains_bounded_and_isolated(records):
     accounts = [(f"account-{number}", str(71 + number)) for number in range(4)]

@@ -135,8 +135,23 @@ def main(argv: Sequence[str] | None = None) -> None:
             raise SystemExit(1) from None
         print(json.dumps(report, separators=(",", ":")))
         return
+    from librus_python_api.exceptions import LibrusError
+
+    from librus_mcp.runtime import prepare_directories
     from librus_mcp.server import create_server
 
+    # Fail before the protocol starts with one actionable line, not a lifespan
+    # traceback. The runtime repeats this idempotent check under its lifespan.
+    try:
+        asyncio.run(prepare_directories(config))
+    except LibrusError as error:
+        print(
+            f"librus-mcp: cannot prepare private state/download directories "
+            f"({error.kind.value.upper()}); existing directories must be owned by "
+            "the current user without group/other access (chmod 700)",
+            file=sys.stderr,
+        )
+        raise SystemExit(1) from None
     create_server(config).run(transport="stdio")
 
 

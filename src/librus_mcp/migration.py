@@ -20,7 +20,7 @@ from librus_mcp import __version__
 from librus_mcp.config import AppConfig, ConfigError
 from librus_mcp.legacy_state import inventory_legacy, legacy_stems, migration_json, private_bytes
 from librus_mcp.read_schemas import AccountAliasInput, HexDigest
-from librus_mcp.runtime import notification_limits
+from librus_mcp.runtime import notification_limits, prepare_private_directory
 from librus_mcp.schemas import WireModel
 
 
@@ -132,7 +132,7 @@ async def migrate_state(
             raise ConfigError(
                 "apply requires fully mapped IDs, stopped writers and reviewed login binding"
             )
-        await prepare_attachment_directory(config.state_dir)
+        await prepare_private_directory(config.state_dir)
         target = config.state_dir / "native-v2"
         # Same bounds as serving; no private SQL, codec or native archive parsing.
         async with NotificationStore(target, limits=notification_limits()) as store:

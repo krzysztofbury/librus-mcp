@@ -65,6 +65,28 @@ class NativeServer(MCPServer[Runtime]):
             return _error(
                 "INTERNAL_ERROR" if isinstance(error, UnexpectedToolError) else "INVALID_INPUT"
             )
+        if (
+            isinstance(result, CallToolResult)
+            and result.structured_content is not None
+            and len(result.content) == 1
+            and isinstance(result.content[0], TextContent)
+        ):
+            # The SDK duplicates structured output as indent=2 text, which many
+            # hosts place in model context. Keep the same JSON value, compactly.
+            result = result.model_copy(
+                update={
+                    "content": [
+                        TextContent(
+                            type="text",
+                            text=json.dumps(
+                                result.structured_content,
+                                ensure_ascii=False,
+                                separators=(",", ":"),
+                            ),
+                        )
+                    ]
+                }
+            )
         if len(result.model_dump_json(by_alias=True).encode("utf-8")) > MAX_RESULT_BYTES:
             return _error("LIMIT")
         return result

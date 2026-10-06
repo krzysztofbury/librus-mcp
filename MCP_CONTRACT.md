@@ -19,8 +19,10 @@ uv run python release_verification/measure_tools.py --all-features
 
 The default and optional UTF-8 catalog budgets are 96 KiB and 128 KiB. They count
 descriptions, annotations, inputs and outputs. These are context-size gates, not
-performance claims. The complete result, including structured and text duplicate
-serialization, must fit 512 KiB or return `LIMIT`, never silently truncate.
+performance claims. The text block of a typed result is the same JSON value as
+`structuredContent`, serialized compactly (UTF-8, no indentation) because many
+hosts place it in model context. The complete result, including both
+serializations, must fit 512 KiB or return `LIMIT`, never silently truncate.
 
 Responses preserve native typed arrays, observations and explicit availability.
 Attendance ratios use `0..1` or null, never inferred percentages. Collection

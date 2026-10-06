@@ -167,7 +167,12 @@ Oversized history fails closed, never silently truncates or acknowledges data.
 - `LIBRUS_FEATURES`, `LIBRUS_STATE_DIR`, `LIBRUS_DOWNLOAD_DIR` remain validated
   operator overrides. Feature booleans are strict; directories must be absolute.
   Enabled durable features provision private native directories at startup; the
-  default read-only profile does not. Native databases live in `state_dir/native-v2`.
+  default read-only profile does not. Absent ancestors, such as `~/.librus-mcp` on
+  a fresh host, are created owner-only. Existing directories are used as found and
+  must be owned by the current user without group/other access: a 1.x
+  `download_dir` created as `0755` needs `chmod 700` before enabling attachments.
+  Otherwise startup stops with one redacted line before serving. Native databases
+  live in `state_dir/native-v2`.
   Serving never imports or advances 1.x files.
 - Credential files must be regular and nonsymlink files, up to 1 MiB. POSIX files
   must belong to the current user and disallow group/other access (`chmod 600`).

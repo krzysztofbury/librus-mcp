@@ -12,6 +12,15 @@ All notable changes to this project will be documented in this file.
 - Harden Windows credential-file reads with pinned local-NTFS handles and
   conservative private ACL checks. Snapshot failures after native file publication
   return the complete local file instead of reporting a failed transfer.
+- Create absent private ancestors of the state/download directories, so enabling a
+  durable feature with the default `~/.librus-mcp` paths works on a fresh host.
+  Unusable existing directories stop startup with one redacted line instead of a
+  lifespan traceback; permissions are still never repaired implicitly.
+- Serialize the text duplicate of typed results as compact JSON. It carries the
+  same value as `structuredContent` and is about 40% smaller for live grade and
+  timetable reads.
+- Align the publishing workflow with native CI: native lint paths, strict typing
+  and audited sdist rebuild with installed consumer acceptance before publication.
 
 ### Breaking changes
 

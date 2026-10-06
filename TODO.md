@@ -57,11 +57,10 @@ hosted platform profiles and MIT review are qualified; publication remains open.
   No performance improvement or unapproved live side-effect compatibility is claimed.
 - [ ] W8: publish the exact API prerequisite and MCP 2.0.0, verify remote artifacts
   and fresh `uvx` startup.
-  API `1.0.0` is already published. Before the separately approved MCP release,
-  align `.github/workflows/publish.yml` with native CI: its Ruff steps still name
-  the retired `tests/` path, and its wheel-only smoke must include audited sdist
-  rebuild and installed consumer acceptance. Final version/tag/remote install
-  verification are also outstanding, not implied by W0-W7 qualification.
+  API `1.0.0` is already published. `.github/workflows/publish.yml` now uses the
+  native lint paths, strict typing and audited sdist rebuild with installed
+  consumer acceptance. Final version/README install instructions, tag and remote
+  install verification remain outstanding and require separate approval.
 
 Parked by the owner: API #26 (notes/observation cards, missing qualifying examples)
 and #27 (daily credentialed CI, noncritical). Neither blocks MCP 2.0.0. Notes

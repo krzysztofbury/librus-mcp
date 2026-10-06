@@ -258,3 +258,49 @@ def test_doctor_is_offline_and_explicit_storage_probe_leaves_existing_state_unto
     assert report["status"] == "ok" and report["storage_checked"]
     assert list(state.iterdir()) == [existing]
     assert existing.read_bytes() == b"Original old state"
+
+
+@pytest.mark.skipif(os.name != "posix", reason="POSIX directory mode boundary")
+def test_enabled_features_create_missing_private_ancestors_on_a_fresh_host(tmp_path):
+    from librus_mcp.config import AppConfig
+    from librus_mcp.runtime import prepare_directories
+
+    home = tmp_path / "home"
+    home.mkdir(mode=0o755)
+    config = AppConfig.model_validate(
+        config_data()
+        | {
+            "features": {"notifications": True, "attachments": True},
+            "state_dir": str(home / ".librus-mcp" / "state"),
+            "download_dir": str(home / ".librus-mcp" / "downloads"),
+        }
+    )
+    asyncio.run(prepare_directories(config))
+    for directory in (
+        home / ".librus-mcp",
+        home / ".librus-mcp" / "state",
+        home / ".librus-mcp" / "downloads" / "native-v2",
+    ):
+        assert directory.stat().st_mode & 0o777 == 0o700
+    # Existing ancestors are used as found, never chmodded.
+    assert home.stat().st_mode & 0o777 == 0o755
+
+
+@pytest.mark.skipif(os.name != "posix", reason="POSIX directory mode boundary")
+def test_shared_existing_directory_fails_startup_with_one_line_and_no_repair(tmp_path, capsys):
+    downloads = tmp_path / "downloads"
+    downloads.mkdir(mode=0o755)
+    path = tmp_path / "config.json"
+    write_config(
+        path,
+        config_data() | {"features": {"attachments": True}, "download_dir": str(downloads)},
+    )
+    with pytest.raises(SystemExit) as stopped:
+        main(["--config", str(path)])
+    assert stopped.value.code == 1
+    output = capsys.readouterr()
+    assert output.out == ""
+    assert output.err.count("\n") == 1 and "(STORAGE)" in output.err
+    assert "chmod 700" in output.err and "fixture" not in output.err
+    assert downloads.stat().st_mode & 0o777 == 0o755
+    assert list(downloads.iterdir()) == []

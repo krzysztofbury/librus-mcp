@@ -1,6 +1,10 @@
 """One shared native service per MCP lifespan, with no eager authentication."""
 
+import asyncio
+import os
 from contextlib import AsyncExitStack
+from itertools import takewhile
+from pathlib import Path
 from types import TracebackType
 from typing import Self
 
@@ -24,6 +28,36 @@ def notification_limits() -> NotificationLimits:
     return NotificationLimits(
         batch_bytes=48 * 1024, replay_bytes=32 * 1024, batch_items=128, replay_events=128
     )
+
+
+def _create_missing_ancestors(directory: Path) -> None:
+    # Python applies mkdir modes only to the leaf, so create each absent ancestor
+    # explicitly. Existing components are never chmodded or otherwise repaired.
+    missing = tuple(takewhile(lambda parent: not os.path.lexists(parent), directory.parents))
+    for parent in reversed(missing):
+        parent.mkdir(mode=0o700, exist_ok=True)
+
+
+async def prepare_private_directory(directory: Path) -> None:
+    """Provision a private directory whose absent ancestors are created owner-only.
+
+    The API creates only the final component, so a fresh host's default
+    ``~/.librus-mcp`` parent would otherwise make every durable feature fail.
+    """
+    try:
+        await asyncio.to_thread(_create_missing_ancestors, directory)
+    except OSError:
+        raise LibrusError(ErrorKind.STORAGE) from None
+    await prepare_attachment_directory(directory)
+
+
+async def prepare_directories(config: AppConfig) -> None:
+    """Provision only the directories the enabled durable features require."""
+    if config.features.send_message or config.features.notifications:
+        await prepare_private_directory(config.state_dir)
+    if config.features.attachments:
+        await prepare_private_directory(config.download_dir)
+        await prepare_attachment_directory(config.download_dir / "native-v2")
 
 
 class Runtime:
@@ -71,8 +105,7 @@ class Runtime:
     async def __aenter__(self) -> Self:
         try:
             await self._stack.enter_async_context(self.service)
-            if self.config.features.send_message or self.config.features.notifications:
-                await prepare_attachment_directory(self.config.state_dir)
+            await prepare_directories(self.config)
             if self.config.features.send_message:
                 self._send_store = await self._stack.enter_async_context(
                     PersistenceStore(self.config.state_dir / "native-v2")
@@ -87,9 +120,6 @@ class Runtime:
                         limits=notification_limits(),
                     )
                 )
-            if self.config.features.attachments:
-                await prepare_attachment_directory(self.config.download_dir)
-                await prepare_attachment_directory(self.attachment_resources.directory)
         except BaseException:
             await self._stack.aclose()
             raise
