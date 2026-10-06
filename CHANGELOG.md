@@ -2,7 +2,28 @@
 
 All notable changes to this project will be documented in this file.
 
-## [2.0.0] - Unreleased
+## [2.0.0] - 2026-10-06
+
+### Setup without operator steps
+
+- Create and reuse a persistent context key in `state_dir/context.key` when none
+  is configured. An explicit key still wins; a damaged key file stops startup
+  instead of being replaced.
+- Restrict the current user's own shared configuration file (0600) and state/
+  download directories (0700) in place on POSIX, with a notice, instead of
+  refusing to start. Files owned by others, symlinks and special files still fail.
+- Adopt 1.x notification files on an account's first poll: import consumed but
+  undelivered agenda events, start the native baseline from Librus' own "new"
+  views and move the originals to `state_dir/legacy-1x`. Malformed files stay in
+  place and keep that account's polls blocked.
+- Accept the 1.x default `~/.config/librus-mcp/secrets.json` when `config.json`
+  is absent, and ignore the removed `behaviour_notes` setting with a notice.
+- Page `get_grades` and `get_attendance` with `limit`/`cursor` (grade averages on
+  every page), so whole-year results stay within the response limit.
+- Report a completed send even if the follow-up local outcome read fails
+  (`durable: null`; `get_send_outcome` has the record).
+- Require `librus-python-api==1.0.1`, which bounds subject-frequency requests;
+  1.0.0 failed with `LIMIT` for students with about 15 or more subjects.
 
 - License the independent native package under MIT after the source/dependency
   review. Preserve unshipped apix-era references under GPL-3.0-only and leave
@@ -37,7 +58,7 @@ All notable changes to this project will be documented in this file.
 
 ### Implemented development slice
 
-- Pin the published `librus-python-api==1.0.0` and share one async service across
+- Pin the published native API and share one async service across
   independent account logins. Serve account listing, profiles, final grades,
   academic reads and messaging/directory operations without an eager login or
   consumer transport wrapper.
@@ -58,10 +79,8 @@ All notable changes to this project will be documented in this file.
   and explicit loss-consenting uncertainty resolution. Preserve original state.
 - Add offline doctor and explicitly requested disposable native storage diagnostics.
 
-The current local version is `2.0.0.dev1`, not the final release. Remaining
-backend/platform, failure-path and MIT provenance qualification
-are release gates. Unimplemented optional features fail when enabled. Historical
-releases retain their original licenses. See [migration guidance](MIGRATION_2_0.md).
+Historical releases retain their original licenses. See
+[migration guidance](MIGRATION_2_0.md).
 
 ## [1.7.0] - 2026-09-29
 

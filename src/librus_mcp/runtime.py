@@ -2,6 +2,7 @@
 
 import asyncio
 import os
+import stat
 from contextlib import AsyncExitStack
 from itertools import takewhile
 from pathlib import Path
@@ -19,7 +20,7 @@ from librus_python_api.exceptions import ErrorKind, LibrusError
 from librus_python_api.files import prepare_attachment_directory
 from librus_python_api.persistence import NotificationLimits, NotificationStore, PersistenceStore
 
-from librus_mcp.config import AppConfig
+from librus_mcp.config import AppConfig, notice
 from librus_mcp.resources import AttachmentResources
 
 
@@ -32,22 +33,53 @@ def notification_limits() -> NotificationLimits:
 
 def _create_missing_ancestors(directory: Path) -> None:
     # Python applies mkdir modes only to the leaf, so create each absent ancestor
-    # explicitly. Existing components are never chmodded or otherwise repaired.
+    # explicitly. Existing ancestors are used as found.
     missing = tuple(takewhile(lambda parent: not os.path.lexists(parent), directory.parents))
     for parent in reversed(missing):
         parent.mkdir(mode=0o700, exist_ok=True)
 
 
-async def prepare_private_directory(directory: Path) -> None:
-    """Provision a private directory whose absent ancestors are created owner-only.
+def _restrict_own_directory(directory: Path) -> bool:
+    """Make the current user's existing directory owner-only (0700), in place.
 
-    The API creates only the final component, so a fresh host's default
-    ``~/.librus-mcp`` parent would otherwise make every durable feature fail.
+    1.x created download directories as 0755. Only a real directory owned by the
+    current user is changed, through a no-follow descriptor; anything else is left
+    for the API's private-directory check to reject.
+    """
+    if os.name != "posix":
+        return False
+    try:
+        descriptor = os.open(directory, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    except FileNotFoundError:
+        return False
+    try:
+        status = os.fstat(descriptor)
+        if status.st_uid != os.geteuid() or not stat.S_IMODE(status.st_mode) & 0o077:
+            return False
+        os.fchmod(descriptor, 0o700)
+        return True
+    finally:
+        os.close(descriptor)
+
+
+def _provision(directory: Path) -> bool:
+    _create_missing_ancestors(directory)
+    return _restrict_own_directory(directory)
+
+
+async def prepare_private_directory(directory: Path) -> None:
+    """Provision a private directory without asking the operator to fix modes.
+
+    The API creates only the final component and rejects shared permissions, so
+    absent ancestors are created owner-only and the user's own existing shared
+    directory is restricted to 0700 first.
     """
     try:
-        await asyncio.to_thread(_create_missing_ancestors, directory)
+        restricted = await asyncio.to_thread(_provision, directory)
     except OSError:
         raise LibrusError(ErrorKind.STORAGE) from None
+    if restricted:
+        notice(f"restricted {directory} to owner-only access (0700)")
     await prepare_attachment_directory(directory)
 
 
@@ -57,7 +89,16 @@ async def prepare_directories(config: AppConfig) -> None:
         await prepare_private_directory(config.state_dir)
     if config.features.attachments:
         await prepare_private_directory(config.download_dir)
-        await prepare_attachment_directory(config.download_dir / "native-v2")
+        await prepare_private_directory(config.download_dir / "native-v2")
+
+
+async def prepare_runtime(config: AppConfig) -> AppConfig:
+    """Provision the persistent context key and enabled feature directories."""
+    from librus_mcp.context_key import provision_context_key
+
+    config = await provision_context_key(config)
+    await prepare_directories(config)
+    return config
 
 
 class Runtime:
@@ -73,6 +114,8 @@ class Runtime:
         self._send_store: PersistenceStore | None = None
         self._notification_store: NotificationStore | None = None
         self.attachment_resources = AttachmentResources(config.download_dir / "native-v2")
+        # Serializes one-time 1.x state adoption within this process.
+        self.legacy_lock = asyncio.Lock()
         # Hosts can bound a whole short-lived workflow across multiple tool calls.
         # Normal serving passes None and uses the API's per-operation defaults.
         self.budget = budget

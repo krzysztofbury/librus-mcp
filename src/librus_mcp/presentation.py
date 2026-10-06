@@ -8,7 +8,7 @@ from typing import TypeVar
 from librus_python_api.exceptions import ErrorKind, LibrusError
 from pydantic import TypeAdapter
 
-from librus_mcp.read_schemas import PresentationCursor, WindowPagination
+from librus_mcp.schemas import PresentationCursor, WindowPagination
 
 T = TypeVar("T")
 

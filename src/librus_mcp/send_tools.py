@@ -95,9 +95,14 @@ async def send_message(
     runtime = ctx.request_context.lifespan_context
     attempt = prepare(runtime, account_alias, message)
     result = await runtime.sends().execute_send(confirmation_token, attempt, budget=runtime.budget)
-    durable = await runtime.sends().send_outcome(
-        confirmation_token, context=runtime.account(account_alias).context
-    )
+    try:
+        durable = await runtime.sends().send_outcome(
+            confirmation_token, context=runtime.account(account_alias).context
+        )
+    except LibrusError:
+        # The send completed and its outcome was durably recorded by execute_send.
+        # A failed follow-up read must not present a delivered message as failed.
+        durable = None
     return MessageSendResult(data=result, durable=durable)
 
 

@@ -186,3 +186,47 @@ async def test_invalid_calendar_date_and_collection_inputs_never_authenticate():
                             "error": {"code": "INVALID_INPUT"}
                         }
                     assert wire.calls == []
+
+
+@pytest.mark.asyncio
+async def test_whole_grade_and_attendance_reads_are_paged_with_bound_cursors():
+    async with Wire().serve() as wire:
+        with anyio.fail_after(30):
+            async with stdio_client(
+                server_process(wire.origin, [("first", "login")]), errlog=sys.stderr
+            ) as streams:
+                async with ClientSession(*streams) as session:
+                    await session.initialize()
+                    for tool in ("get_grades", "get_attendance"):
+                        query = {"account_alias": "first", "limit": 1}
+                        whole = await session.call_tool(tool, {"account_alias": "first"})
+                        assert not whole.is_error
+                        total = whole.structured_content["items"]
+                        assert len(total) >= (2 if tool == "get_grades" else 1)
+                        assert whole.structured_content["pagination"]["truncated"] is False
+                        seen = []
+                        cursor = None
+                        while True:
+                            page = await session.call_tool(
+                                tool, query | ({"cursor": cursor} if cursor else {})
+                            )
+                            assert not page.is_error
+                            content = page.structured_content
+                            if tool == "get_grades":
+                                assert content["averages"] == whole.structured_content["averages"]
+                            seen.extend(content["items"])
+                            cursor = content["pagination"]["next_cursor"]
+                            if cursor is None:
+                                break
+                            assert content["pagination"]["reason"] == "item_limit"
+                        assert seen == total
+                    # A cursor is bound to its tool query, not reusable elsewhere.
+                    first = await session.call_tool(
+                        "get_grades", {"account_alias": "first", "limit": 1}
+                    )
+                    cursor = first.structured_content["pagination"]["next_cursor"]
+                    assert cursor is not None
+                    bad = await session.call_tool(
+                        "get_attendance", {"account_alias": "first", "limit": 1, "cursor": cursor}
+                    )
+                    assert bad.structured_content == {"error": {"code": "INVALID_INPUT"}}

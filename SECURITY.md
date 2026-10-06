@@ -1,9 +1,13 @@
 # Security
 
 The native MIT-licensed 2.0 package uses the independent API and does not ship
-the GPL-scoped historical references. Configuration files must be private;
-Windows requires local fixed NTFS and conservative ACLs. No implicit permission
-repair, legacy-state reset, backend fallback or uncertain-send retry is allowed.
+the GPL-scoped historical references. Configuration files and state directories
+must be private. On POSIX, the current user's own shared configuration file and
+directories are restricted in place (0600/0700) through no-follow descriptors;
+anything owned by another user, symlinked or special is rejected. Windows requires
+local fixed NTFS and conservative ACLs, which are never repaired automatically.
+1.x notification files are archived, never deleted; malformed ones are left in
+place. No backend fallback or uncertain-send retry is allowed.
 For consent and recovery boundaries, see [MIGRATION_2_0.md](MIGRATION_2_0.md).
 
 ## Reporting Security Issues

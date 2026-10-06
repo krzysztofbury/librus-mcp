@@ -235,3 +235,43 @@ PersistenceStore.execute_send = unavailable
                     "accepted" if after_execution else "pending"
                 )
                 assert len(wire.sent_payloads) == int(after_execution)
+
+
+@pytest.mark.asyncio
+async def test_failed_outcome_read_after_send_still_reports_delivery(tmp_path):
+    # The first post-send read fails once; the durable record stays authoritative.
+    setup = """from librus_python_api.persistence import PersistenceStore
+from librus_python_api.exceptions import LibrusError, ErrorKind
+original = PersistenceStore.send_outcome
+failures = [1]
+async def flaky(self, token, *, context):
+    if failures:
+        failures.pop()
+        raise LibrusError(ErrorKind.STORAGE)
+    return await original(self, token, context=context)
+PersistenceStore.send_outcome = flaky
+"""
+    async with Wire().serve() as wire:
+        process = server_process(
+            wire.origin,
+            [("sender", "71")],
+            features={"send_message": True},
+            state_dir=tmp_path / "state",
+            setup_script=setup,
+        )
+        with anyio.fail_after(20):
+            async with stdio_client(process) as streams, ClientSession(*streams) as session:
+                await session.initialize()
+                arguments = {"account_alias": "sender", "message": await discover_message(session)}
+                preview = await session.call_tool("preview_message", arguments)
+                token = preview.structured_content["confirmation_token"]
+                result = await session.call_tool(
+                    "send_message", arguments | {"confirmation_token": token, "confirm": True}
+                )
+                assert not result.is_error
+                assert result.structured_content["durable"] is None
+                assert len(wire.sent_payloads) == 1
+                outcome = await session.call_tool(
+                    "get_send_outcome", {"account_alias": "sender", "confirmation_token": token}
+                )
+                assert outcome.structured_content["data"]["phase"] == "accepted"

@@ -51,11 +51,29 @@ def legacy_files(directory: Path, alias: str) -> tuple[Path, ...]:
     return tuple(sorted(found))
 
 
-def require_no_legacy_state(directory: Path, alias: str) -> None:
-    # Do not parse, delete or migrate files from a tool call. Even a corrupt or
-    # dangling source file disables new polls for this alias, not ordinary reads.
-    if legacy_files(directory, alias):
-        raise LibrusError(ErrorKind.STORAGE)
+def restrict_own_files(paths: tuple[Path, ...]) -> None:
+    """Make the current user's own regular 1.x files 0600 before validation.
+
+    Some 1.x versions wrote notification files as 0644. Files owned by another
+    user, symlinks and special files are left for the private read to reject.
+    """
+    if os.name != "posix":
+        return
+    for path in paths:
+        try:
+            descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+        except OSError:
+            continue
+        try:
+            status = os.fstat(descriptor)
+            if (
+                stat.S_ISREG(status.st_mode)
+                and status.st_uid == os.geteuid()
+                and stat.S_IMODE(status.st_mode) & 0o077
+            ):
+                os.fchmod(descriptor, 0o600)
+        finally:
+            os.close(descriptor)
 
 
 @dataclass(frozen=True)

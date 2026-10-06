@@ -12,8 +12,8 @@ from librus_python_api import (
 from librus_python_api.persistence import DurableSendOutcome, DurableSendRecord
 from pydantic import Field
 
-from librus_mcp.read_schemas import AccountAliasInput, HexDigest, NumericID
-from librus_mcp.schemas import WireModel
+from librus_mcp.read_schemas import AccountAliasInput, NumericID
+from librus_mcp.schemas import HexDigest, WireModel
 
 ConfirmationToken = Annotated[
     str, Field(min_length=20, max_length=128, pattern=r"^[A-Za-z0-9_-]+$")
@@ -80,7 +80,8 @@ class MessagePreviewResult(WireModel):
 
 class MessageSendResult(WireModel):
     data: SendResult
-    durable: DurableSendOutcome
+    # Null only when the post-send outcome read failed; use get_send_outcome.
+    durable: DurableSendOutcome | None
 
 
 class SendOutcomeResult(WireModel):

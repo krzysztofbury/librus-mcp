@@ -4,6 +4,7 @@ import json
 import os
 import re
 import stat
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -64,15 +65,16 @@ class AppConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True, hide_input_in_errors=True)
 
     accounts: tuple[AccountConfig, ...] = Field(min_length=1, max_length=MAX_ACCOUNTS)
-    context_key: SecretStr = Field(repr=False)
+    # Optional: when absent, serving creates and reuses state_dir/context.key.
+    context_key: SecretStr | None = Field(default=None, repr=False)
     features: FeaturesConfig = Field(default_factory=FeaturesConfig)
     state_dir: Path = Field(default_factory=lambda: Path.home() / ".librus-mcp" / "state")
     download_dir: Path = Field(default_factory=lambda: Path.home() / ".librus-mcp" / "downloads")
 
     @field_validator("context_key")
     @classmethod
-    def valid_context_key(cls, value: SecretStr) -> SecretStr:
-        if not re.fullmatch(r"[0-9a-fA-F]{64}", value.get_secret_value()):
+    def valid_context_key(cls, value: SecretStr | None) -> SecretStr | None:
+        if value is not None and not valid_key_text(value.get_secret_value()):
             raise ValueError("context_key must encode 32 bytes as hexadecimal")
         return value
 
@@ -95,11 +97,24 @@ class AppConfig(BaseModel):
         return value
 
     def key_bytes(self) -> bytes:
+        if self.context_key is None:
+            raise ConfigError("context key is not provisioned")
         return bytes.fromhex(self.context_key.get_secret_value())
 
     def require_supported_features(self) -> None:
+        # Behaviour notes are not registered in 2.0. A 1.x configuration that
+        # enabled them keeps working without the tool instead of failing startup.
         if self.features.behaviour_notes:
-            raise ConfigError("behaviour notes are unavailable until API qualification")
+            notice("behaviour notes are unavailable in 2.0; the setting is ignored")
+
+
+def valid_key_text(value: str) -> bool:
+    return re.fullmatch(r"[0-9a-fA-F]{64}", value) is not None
+
+
+def notice(message: str) -> None:
+    """One operator line on stderr; stdout belongs to the MCP protocol."""
+    print(f"librus-mcp: {message}", file=sys.stderr)
 
 
 def _json(value: str | bytes, *, source: str) -> Any:
@@ -133,10 +148,13 @@ def read_config_file(path: Path) -> dict[str, Any]:
             status = os.fstat(file.fileno())
             if not stat.S_ISREG(status.st_mode):
                 raise ConfigError("configuration must be a regular file")
-            if os.name == "posix" and (
-                status.st_uid != os.getuid() or stat.S_IMODE(status.st_mode) & 0o077
-            ):
-                raise ConfigError("configuration must be owner-private; use chmod 600")
+            if os.name == "posix" and status.st_uid != os.getuid():
+                raise ConfigError("configuration must be owned by the current user")
+            if os.name == "posix" and stat.S_IMODE(status.st_mode) & 0o077:
+                # Restrict the user's own file in place, through the opened
+                # descriptor, rather than refusing to start.
+                os.fchmod(file.fileno(), 0o600)
+                notice("restricted the configuration file to owner-only access (0600)")
             data = _json(file.read(MAX_CONFIG_BYTES + 1), source="configuration file")
     except OSError:
         raise ConfigError(
@@ -165,7 +183,13 @@ def load_config(config_path: Path | None = None) -> AppConfig:
         root = Path(os.environ.get("XDG_CONFIG_HOME", str(Path.home() / ".config")))
         if not root.is_absolute():
             raise ConfigError("XDG_CONFIG_HOME must be absolute")
-        data = read_config_file(root / "librus-mcp" / "config.json")
+        directory = root / "librus-mcp"
+        # 1.x documented secrets.json in this directory; accept it when the 2.0
+        # name is absent so an upgrade needs no file rename.
+        default = directory / "config.json"
+        if not os.path.lexists(default) and os.path.lexists(directory / "secrets.json"):
+            default = directory / "secrets.json"
+        data = read_config_file(default)
     # Only these explicit operator overrides apply to a selected credential source.
     for name, field in (
         ("LIBRUS_CONTEXT_KEY", "context_key"),
@@ -186,6 +210,7 @@ def load_config(config_path: Path | None = None) -> AppConfig:
         raise ConfigError(
             "invalid configuration: check accounts, unique aliases, context_key, features and paths"
         ) from None
-    # Do not silently enable missing contracts or pretend the partial rewrite is final.
     config.require_supported_features()
-    return config
+    from librus_mcp.context_key import load_context_key
+
+    return load_context_key(config)

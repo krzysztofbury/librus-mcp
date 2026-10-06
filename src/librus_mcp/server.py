@@ -17,8 +17,10 @@ from librus_mcp.attachment_tools import register_attachment_tools
 from librus_mcp.config import ALIAS_PATTERN, AppConfig
 from librus_mcp.message_tools import register_message_tools
 from librus_mcp.notification_tools import register_notification_tools
+from librus_mcp.presentation import validate_window_cursor, window_page
+from librus_mcp.read_schemas import Limit
 from librus_mcp.read_tools import register_read_tools
-from librus_mcp.runtime import Runtime
+from librus_mcp.runtime import Runtime, prepare_runtime
 from librus_mcp.schemas import (
     AccountAlias,
     AccountsResult,
@@ -26,6 +28,7 @@ from librus_mcp.schemas import (
     FinalGradesResult,
     GradeItem,
     GradesResult,
+    PresentationCursor,
     ProfileData,
     ProfileResult,
     descriptive_item,
@@ -98,13 +101,13 @@ def create_server(
     connection: ConnectionSettings | None = None,
     budget: RequestBudget | None = None,
 ) -> NativeServer:
-    config.require_supported_features()
-
     # Connection injection is application-only and validated by the API. It is
     # never a tool argument or an environment-controlled upstream URL.
     @asynccontextmanager
     async def lifespan(server: MCPServer[Runtime]) -> AsyncIterator[Runtime]:
-        async with Runtime(config, connection=connection, budget=budget) as runtime:
+        # Idempotent; the CLI already ran it before serving for a clean error.
+        prepared = await prepare_runtime(config)
+        async with Runtime(prepared, connection=connection, budget=budget) as runtime:
             yield runtime
 
     server = NativeServer(
@@ -186,10 +189,15 @@ async def get_grades(
     account_alias: AccountAliasInput,
     ctx: Context[Runtime, Any],
     scope: GradeView = GradeView.ALL,
+    cursor: PresentationCursor | None = None,
+    limit: Limit = 100,
 ) -> GradesResult:
-    """Read native grade records. Selecting scope changes this login's session filter."""
+    """Read grade records with averages, paged by cursor. Scope changes this login's session filter."""
     runtime = ctx.request_context.lifespan_context
-    result = await runtime.account(account_alias).grades(view=scope, budget=runtime.budget)
+    client = runtime.account(account_alias)
+    query = ("grades-all", scope.value)
+    validate_window_cursor(cursor, client.context.identifier, query)
+    result = await client.grades(view=scope, budget=runtime.budget)
     numeric = tuple(
         GradeItem(
             record_type="numeric",
@@ -207,13 +215,21 @@ async def get_grades(
         )
         for record in result.records.numeric
     )
+    selected, pagination = window_page(
+        numeric + tuple(descriptive_item(record) for record in result.records.descriptive),
+        context=client.context.identifier,
+        query=query,
+        cursor=cursor,
+        limit=limit,
+    )
     return GradesResult(
-        items=numeric + tuple(descriptive_item(record) for record in result.records.descriptive),
+        items=selected,
         averages=result.records.averages,
         descriptive_summaries=result.records.descriptive_summaries,
         scope=result.view,
         identity=result.identity,
         observation=result.observation,
+        pagination=pagination,
     )
 
 
@@ -221,14 +237,27 @@ async def get_attendance(
     account_alias: AccountAliasInput,
     ctx: Context[Runtime, Any],
     scope: AttendanceView = AttendanceView.ALL,
+    cursor: PresentationCursor | None = None,
+    limit: Limit = 100,
 ) -> AttendanceResult:
-    """Read attendance records. Scope selection mutates this login's session filter."""
+    """Read attendance records, paged by cursor. Scope selection mutates this login's session filter."""
     runtime = ctx.request_context.lifespan_context
-    result = await runtime.account(account_alias).attendance(view=scope, budget=runtime.budget)
+    client = runtime.account(account_alias)
+    query = ("attendance-all", scope.value)
+    validate_window_cursor(cursor, client.context.identifier, query)
+    result = await client.attendance(view=scope, budget=runtime.budget)
+    selected, pagination = window_page(
+        result.items,
+        context=client.context.identifier,
+        query=query,
+        cursor=cursor,
+        limit=limit,
+    )
     return AttendanceResult(
-        items=result.items,
+        items=selected,
         semesters=result.semesters,
         scope=result.view,
         identity=result.identity,
         observation=result.observation,
+        pagination=pagination,
     )

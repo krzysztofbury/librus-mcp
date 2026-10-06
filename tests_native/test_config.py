@@ -88,7 +88,6 @@ def test_xdg_selection_ignores_cwd_and_explicit_cli_wins(tmp_path, monkeypatch):
     "change",
     [
         {"context_key": "not-a-key"},
-        {"context_key": None},
         {"accounts": []},
         {"features": {"notifications": "true"}},
         {"features": {"unknown": True}},
@@ -127,27 +126,70 @@ def test_bad_config_is_rejected_without_raw_inputs(change, tmp_path, capsys):
     assert "Traceback" not in captured.err
 
 
-def test_duplicate_alias_and_missing_context_key_fail_closed(tmp_path):
+def test_duplicate_alias_fails_closed_and_loading_never_creates_a_key(tmp_path):
     path = tmp_path / "config.json"
     data = config_data()
     data["accounts"] *= 2
     write_config(path, data)
     with pytest.raises(ConfigError):
         load_config(path)
-    data = config_data()
+    data = config_data() | {"state_dir": str(tmp_path / "state")}
     del data["context_key"]
     write_config(path, data)
-    with pytest.raises(ConfigError):
-        load_config(path)
+    assert load_config(path).context_key is None
     assert list(tmp_path.iterdir()) == [path]
 
 
-@pytest.mark.parametrize("feature", ["behaviour_notes"])
-def test_unimplemented_features_never_silently_register(feature, tmp_path):
+def test_missing_context_key_is_created_once_and_reused(tmp_path, capsys):
+    from librus_mcp.context_key import KEY_FILENAME, provision_context_key
+
     path = tmp_path / "config.json"
-    write_config(path, config_data() | {"features": {feature: True}})
-    with pytest.raises(ConfigError, match="unavailable|not integrated"):
+    state = tmp_path / "fresh" / "state"
+    data = config_data() | {"state_dir": str(state)}
+    del data["context_key"]
+    write_config(path, data)
+
+    async def concurrent_first_starts():
+        config = load_config(path)
+        return await asyncio.gather(*(provision_context_key(config) for _ in range(4)))
+
+    keys = {config.key_bytes() for config in asyncio.run(concurrent_first_starts())}
+    assert len(keys) == 1
+    assert "context key" in capsys.readouterr().err
+    assert load_config(path).key_bytes() in keys
+    assert sorted(item.name for item in state.iterdir()) == [KEY_FILENAME]
+    if os.name == "posix":
+        assert (state / KEY_FILENAME).stat().st_mode & 0o777 == 0o600
+        assert state.stat().st_mode & 0o777 == 0o700
+    # An explicit key always wins over the stored one.
+    write_config(path, data | {"context_key": bytes(range(32)).hex()})
+    assert load_config(path).key_bytes() == bytes(range(32))
+
+
+def test_invalid_stored_context_key_is_never_replaced(tmp_path):
+    from librus_mcp.context_key import KEY_FILENAME
+
+    state = tmp_path / "state"
+    asyncio.run(prepare_attachment_directory(state))
+    write_config(state / KEY_FILENAME, {"context_key": "damaged"})
+    path = tmp_path / "config.json"
+    data = config_data() | {"state_dir": str(state)}
+    del data["context_key"]
+    write_config(path, data)
+    with pytest.raises(ConfigError, match="restore it from backup"):
         load_config(path)
+    assert json.loads((state / KEY_FILENAME).read_text()) == {"context_key": "damaged"}
+
+
+def test_behaviour_notes_from_1x_are_ignored_with_a_notice(tmp_path, capsys):
+    from librus_mcp.server import create_server
+
+    path = tmp_path / "config.json"
+    write_config(path, config_data() | {"features": {"behaviour_notes": True}})
+    config = load_config(path)
+    assert "behaviour notes are unavailable" in capsys.readouterr().err
+    names = {tool.name for tool in asyncio.run(create_server(config).list_tools())}
+    assert not any("behaviour" in name for name in names)
 
 
 def test_environment_secrets_are_hidden_and_overrides_validated(monkeypatch):
@@ -187,12 +229,13 @@ def test_configuration_rejects_large_files_and_symlinks(tmp_path):
 
 
 @pytest.mark.skipif(os.name != "posix", reason="POSIX credential mode boundary")
-def test_shared_and_special_credential_files_are_rejected(tmp_path):
+def test_shared_own_credential_file_is_restricted_and_special_files_rejected(tmp_path):
     path = tmp_path / "config.json"
     write_config(path)
     path.chmod(0o644)
-    with pytest.raises(ConfigError, match="owner-private"):
-        load_config(path)
+    # The user's own file is restricted in place instead of refusing to start.
+    assert load_config(path).accounts[0].alias == "fixture"
+    assert path.stat().st_mode & 0o777 == 0o600
     fifo = tmp_path / "pipe"
     os.mkfifo(fifo)
     with pytest.raises(ConfigError, match="regular file"):
@@ -287,9 +330,25 @@ def test_enabled_features_create_missing_private_ancestors_on_a_fresh_host(tmp_p
 
 
 @pytest.mark.skipif(os.name != "posix", reason="POSIX directory mode boundary")
-def test_shared_existing_directory_fails_startup_with_one_line_and_no_repair(tmp_path, capsys):
+def test_own_shared_1x_directory_is_restricted_instead_of_failing(tmp_path, capsys):
+    from librus_mcp.config import AppConfig
+    from librus_mcp.runtime import prepare_directories
+
     downloads = tmp_path / "downloads"
     downloads.mkdir(mode=0o755)
+    (downloads / "old.pdf").write_bytes(b"kept")
+    config = AppConfig.model_validate(
+        config_data() | {"features": {"attachments": True}, "download_dir": str(downloads)}
+    )
+    asyncio.run(prepare_directories(config))
+    assert downloads.stat().st_mode & 0o777 == 0o700
+    assert (downloads / "old.pdf").read_bytes() == b"kept"
+    assert "owner-only" in capsys.readouterr().err
+
+
+def test_unusable_directory_fails_startup_with_one_line(tmp_path, capsys):
+    downloads = tmp_path / "downloads"
+    downloads.write_bytes(b"not a directory")
     path = tmp_path / "config.json"
     write_config(
         path,
@@ -301,6 +360,5 @@ def test_shared_existing_directory_fails_startup_with_one_line_and_no_repair(tmp
     output = capsys.readouterr()
     assert output.out == ""
     assert output.err.count("\n") == 1 and "(STORAGE)" in output.err
-    assert "chmod 700" in output.err and "fixture" not in output.err
-    assert downloads.stat().st_mode & 0o777 == 0o755
-    assert list(downloads.iterdir()) == []
+    assert "fixture" not in output.err
+    assert downloads.read_bytes() == b"not a directory"

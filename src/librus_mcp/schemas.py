@@ -1,7 +1,7 @@
 """Explicit MCP projections over native types, never apix response aliases."""
 
 from datetime import date
-from typing import Literal
+from typing import Annotated, Literal
 
 from librus_python_api import (
     AttendanceRecord,
@@ -21,6 +21,24 @@ from pydantic import BaseModel, ConfigDict, Field
 
 class WireModel(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
+
+
+HexDigest = Annotated[str, Field(pattern=r"^[0-9a-f]{64}$")]
+
+
+class PresentationCursor(WireModel):
+    version: Literal[1] = 1
+    context: HexDigest
+    query: HexDigest
+    source: HexDigest
+    offset: Annotated[int, Field(strict=True, ge=1, le=4096)]
+
+
+class WindowPagination(WireModel):
+    next_cursor: PresentationCursor | None
+    truncated: bool
+    reason: Literal["item_limit"] | None
+    consistency: Literal["best_effort"] = "best_effort"
 
 
 class Pagination(WireModel):
@@ -82,7 +100,7 @@ class GradesResult(WireModel):
     scope: GradeView
     identity: Identity
     observation: Observation
-    pagination: Pagination = Field(default_factory=Pagination)
+    pagination: WindowPagination
 
 
 class AttendanceResult(WireModel):
@@ -91,7 +109,7 @@ class AttendanceResult(WireModel):
     scope: AttendanceView
     identity: Identity
     observation: Observation
-    pagination: Pagination = Field(default_factory=Pagination)
+    pagination: WindowPagination
 
 
 def descriptive_item(record: DescriptiveGrade) -> GradeItem:

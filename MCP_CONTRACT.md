@@ -27,7 +27,8 @@ serializations, must fit 512 KiB or return `LIMIT`, never silently truncate.
 Responses preserve native typed arrays, observations and explicit availability.
 Attendance ratios use `0..1` or null, never inferred percentages. Collection
 continuation is best effort, account/context/query-bound, and returns explicit
-cursor/truncation information. References are inert identifiers, not upstream URLs.
+cursor/truncation information. Whole grade/attendance reads page by `limit`
+(default 100) like the date-window tools, so results stay bounded by design. References are inert identifiers, not upstream URLs.
 
 Domain/protocol errors return `isError=true` and
 `{"error":{"code":"CLOSED_CODE"}}`. No validation inputs, credentials, tokens,

@@ -78,6 +78,8 @@ def main(argv: Sequence[str] | None = None) -> None:
         if arguments.command:
             parser.error("--check-config cannot be combined with an operator command")
         print("[OK] Configuration is valid.")
+        if config.context_key is None:
+            print("A persistent context key will be created in the state directory on start.")
         return
     if arguments.doctor:
         from librus_python_api.exceptions import LibrusError
@@ -97,9 +99,12 @@ def main(argv: Sequence[str] | None = None) -> None:
     if arguments.command in {"migrate-state", "notification-state"}:
         from librus_python_api.exceptions import LibrusError
 
+        from librus_mcp.context_key import provision_context_key
         from librus_mcp.migration import migrate_state, notification_state
 
         try:
+            # Operator commands bind the same persistent key that serving uses.
+            config = asyncio.run(provision_context_key(config))
             if arguments.command == "migrate-state":
                 report = asyncio.run(
                     migrate_state(
@@ -137,18 +142,21 @@ def main(argv: Sequence[str] | None = None) -> None:
         return
     from librus_python_api.exceptions import LibrusError
 
-    from librus_mcp.runtime import prepare_directories
+    from librus_mcp.runtime import prepare_runtime
     from librus_mcp.server import create_server
 
     # Fail before the protocol starts with one actionable line, not a lifespan
-    # traceback. The runtime repeats this idempotent check under its lifespan.
+    # traceback. The lifespan repeats this idempotent preparation.
     try:
-        asyncio.run(prepare_directories(config))
+        config = asyncio.run(prepare_runtime(config))
+    except ConfigError as error:
+        print(f"librus-mcp: {error}", file=sys.stderr)
+        raise SystemExit(1) from None
     except LibrusError as error:
         print(
             f"librus-mcp: cannot prepare private state/download directories "
-            f"({error.kind.value.upper()}); existing directories must be owned by "
-            "the current user without group/other access (chmod 700)",
+            f"({error.kind.value.upper()}); they must be directories owned by the "
+            "current user on a local disk",
             file=sys.stderr,
         )
         raise SystemExit(1) from None

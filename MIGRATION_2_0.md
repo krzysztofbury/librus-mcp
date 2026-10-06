@@ -7,16 +7,34 @@ development line, the installed server uses only the independently implemented
 [`librus-python-api`](https://github.com/krzysztofbury/librus-python-api).
 There is no apix dependency, compatibility backend or fallback.
 
-This is a **breaking change**, not a drop-in dependency upgrade. Tool names,
-arguments, result schemas, effects, configuration and notification acknowledgement
-change. Do not assume a 1.x assistant integration or state directory can be reused.
-Library and MCP version numbers are independent: the initial development build
-pins the published native library `1.0.0`.
+This is a **breaking change** for assistants and integrations: tool names,
+arguments, result schemas, effects and notification acknowledgement change. An
+existing 1.x configuration file and state directory keep working; the server
+adapts them on first start (see [Upgrading an existing setup](#upgrading-an-existing-setup)).
+Library and MCP version numbers are independent: 2.0.0 pins the published native
+library `1.0.1`. Use an explicit version pin when selecting a release.
 
-The current MCP version is **2.0.0.dev1**, an unpublished native release candidate.
-It is not the final 2.0 release and has not been published by this migration work.
-Published 1.x remains the existing apix-backed implementation. Use an explicit
-version when selecting a backend; an unversioned install currently resolves 1.x.
+## Upgrading an existing setup
+
+Change the host's version pin to `librus-mcp==2.0.0` and run it with Python 3.14
+(`uvx --python 3.14 librus-mcp==2.0.0 ...`). Keep the existing `--config` or
+`LIBRUS_CONFIG` file. On first start the server, without operator steps:
+
+- creates a persistent context key in `state_dir/context.key` when the
+  configuration has none (back up the state directory with it);
+- restricts the user's own configuration file to `0600` and the state/download
+  directories to `0700` when they are shared, as 1.x download directories were;
+- ignores `behaviour_notes`, which 2.0 does not provide, with a notice;
+- adopts 1.x notification files on an account's first poll: consumed but
+  undelivered agenda events are imported and delivered, and the originals move
+  to `state_dir/legacy-1x`. Old seen-IDs cannot be translated, so the first poll
+  can repeat a few already reported items once; it never hides new ones.
+
+One deliberate behaviour change needs a setting: notifications and attachments
+were on by default in 1.x and are opt-in in 2.0. Set `"features":
+{"notifications": true, "attachments": true}` to keep them. Assistants must use
+the new tool names below. Stop 1.x server processes that share the state
+directory before switching.
 
 ## Implemented native contracts
 
@@ -60,7 +78,8 @@ Grade/attendance windows accept `limit` and a presentation cursor bound to the
 account context, selected dates/scope and full selected source. A changed source
 returns `STALE_CURSOR`; changed query/context returns `INVALID_INPUT`.
 These cursors re-read native collections, not stored snapshots or upstream page
-offsets. Undated summaries remain available through the whole-collection tools.
+offsets. The whole-collection `get_grades`/`get_attendance` page the same way
+(`limit`, default 100, and `cursor`), and return grade averages on every page.
 Completed lessons use the native date/account-bound cursor plus `limit` and
 `max_pages`. Continuations are best effort, not a transactional school snapshot.
 Agenda/homework details require the bound references returned by their lists.
@@ -74,19 +93,17 @@ text remain inert, untrusted data. `get_recipient_choices` is legacy-only and
 returns `UNSUPPORTED_CAPABILITY` on a modern account. Select a supported bound
 reference from `get_recipient_types` for `get_recipients`.
 
-Whole-page reads expose best-effort pagination metadata without a cursor or
-silent truncation. Oversized complete MCP results fail with `LIMIT`. Session
+Other whole-page reads expose best-effort pagination metadata without a cursor
+or silent truncation. Oversized complete MCP results fail with `LIMIT`. Session
 selection tools are not annotated read-only; message content is explicitly
 annotated with its possible mark-read effect. Input and output schemas must
 compile in the real client's JSON Schema validator, not just Pydantic.
 
 Notifications, attachments and sending are integrated but default off. Enable
 each explicitly through `features` or `LIBRUS_FEATURES`. Behaviour notes remain
-unavailable and enabling them fails at startup. Explicit opt-in is the current
-2.0 policy, not an unresolved feature gate. The declared backend/platform profiles
-and MIT review passed qualification; exact evidence and the scope of subsequent
-changes are recorded in [NATIVE_TEST_PLAN.md](NATIVE_TEST_PLAN.md). Final
-version/tag/publication and fresh remote installation remain a separate step.
+unavailable; an enabled 1.x setting is ignored with a notice. Explicit opt-in is
+the 2.0 policy. The declared backend/platform profiles and MIT review passed
+qualification; exact evidence is recorded in [NATIVE_TEST_PLAN.md](NATIVE_TEST_PLAN.md).
 
 ### Durable sends
 
@@ -148,53 +165,62 @@ Oversized history fails closed, never silently truncates or acknowledges data.
 
 - Configuration comes from CLI `--config`, otherwise one of `LIBRUS_CONFIG` or
   `LIBRUS_ACCOUNTS`, otherwise `$XDG_CONFIG_HOME/librus-mcp/config.json`
-  (default `~/.config/librus-mcp/config.json`). CLI selection wins. Conflicting
+  (default `~/.config/librus-mcp/config.json`, or the 1.x name `secrets.json` in
+  that directory when `config.json` is absent). CLI selection wins. Conflicting
   environment credential selectors fail. Cwd/project `secrets.json` discovery is
-  removed; pass an old file explicitly only after updating its contents.
+  removed; pass an old file explicitly.
 - Retain `alias`, `username`, `password` account fields. Optional
   `expected_owner_id` / `expected_student_id` bind identity expectations;
   `messaging_backend` is `modern` by default or explicitly `legacy`. Backend
   selection does not merge sessions for accounts representing the same child.
-- Supply a persistent, random 32-byte `context_key` as 64 hexadecimal characters
-  in the private configuration, or in `LIBRUS_CONTEXT_KEY`. Run
-  `librus-mcp --generate-context-key` once and save its output privately. This
-  explicit command does not load credentials or write files. Do not regenerate
-  the key on startup, derive it from credentials or use example/test keys.
-- Keep the key backed up with native state and identical across cooperating
-  processes. Changing the key, login, alias or source origins changes native binding.
-  The application owns key provisioning; a separate private-key-file option is
-  deferred rather than introducing another implicit filesystem workflow now.
+- A persistent random 32-byte context key binds references, cursors and durable
+  state to each login. When neither `context_key` (64 hexadecimal characters) nor
+  `LIBRUS_CONTEXT_KEY` is set, the server creates `state_dir/context.key` once
+  (owner-only, never replaced) and reuses it. An explicit key always wins.
+  `librus-mcp --generate-context-key` still prints one for operators who prefer it.
+  Keep the key with native state and identical across cooperating processes;
+  changing the key, login, alias or source origins changes native binding. A
+  damaged key file stops startup rather than being regenerated over durable state.
 - `LIBRUS_FEATURES`, `LIBRUS_STATE_DIR`, `LIBRUS_DOWNLOAD_DIR` remain validated
   operator overrides. Feature booleans are strict; directories must be absolute.
-  Enabled durable features provision private native directories at startup; the
-  default read-only profile does not. Absent ancestors, such as `~/.librus-mcp` on
-  a fresh host, are created owner-only. Existing directories are used as found and
-  must be owned by the current user without group/other access: a 1.x
-  `download_dir` created as `0755` needs `chmod 700` before enabling attachments.
-  Otherwise startup stops with one redacted line before serving. Native databases
-  live in `state_dir/native-v2`.
-  Serving never imports or advances 1.x files.
+  Startup provisions the state directory (for the key) and the directories that
+  enabled features need. Absent ancestors such as `~/.librus-mcp` are created
+  owner-only. On POSIX, the current user's own shared directories are restricted
+  to `0700` in place with a notice; a directory owned by someone else, a symlink
+  or a non-directory stops startup with one redacted line before serving.
+  Native databases live in `state_dir/native-v2`.
 - Credential files must be regular and nonsymlink files, up to 1 MiB. POSIX files
-  must belong to the current user and disallow group/other access (`chmod 600`).
-  Windows requires local fixed NTFS with a private ACL, verified through pinned
-  handles before credential reads. Shared/null ACLs, hardlinks and reparse-point
-  components fail closed; existing permissions are not repaired implicitly.
-- `--version` requires no config. `--check-config` is offline and does not sign in
-  or mutate state. Keep stdout exclusively for protocol messages during serving.
+  must belong to the current user; a group/other-readable own file is restricted
+  to `0600` in place with a notice. Windows requires local fixed NTFS with a
+  private ACL, verified through pinned handles before credential reads.
+  Shared/null ACLs, hardlinks and reparse-point components fail closed; Windows
+  ACLs are not repaired automatically.
+- `--version` requires no config. `--check-config` is offline, does not sign in and
+  creates nothing; it only restricts a shared own configuration file. Keep stdout exclusively for protocol messages during serving.
 - `--doctor` reports configuration/features offline without provisioning state.
   `--doctor --doctor-storage` explicitly provisions the private state parent and
   exercises disposable native SQLite stores there, then cleans the diagnostic
   directory. It never opens the real native-v2 store or old JSON history. This
   probes native setup/transactions, not every disk-full/crash/lock scenario.
 
-## State and rollback warning
+## 1.x notification state
 
-**Do not enable a fresh native notification baseline over existing 1.x history.**
-Polls reject with `STORAGE` when matching old files remain in the configured state
-root. That per-account quarantine does not disable other accounts' polls or
-ordinary academic reads. Keep the old source separate from the new configured
-state directory. Do not move or delete originals just to bypass the guard.
+Serving adopts 1.x notification files automatically, per account, on that
+account's first `get_new_notifications` call, as described in
+[Upgrading an existing setup](#upgrading-an-existing-setup). Only an empty native
+account context imports: its consumed agenda events become a pending batch that
+is delivered and acknowledged like any other. The 1.x seen-ID baseline is not
+imported, because old opaque IDs cannot be translated to native identifiers, so
+the native baseline starts from Librus' own "new" views (at-least-once: possible
+one-time repeats, never hidden items). Files found after the context is already
+native are only archived. Originals are always moved, never deleted, to
+`state_dir/legacy-1x`. Malformed or unsafe 1.x files are neither imported nor
+moved; that account's polls return `STORAGE` while other accounts and ordinary
+reads continue. Windows archives 1.x files without importing their pending
+events, because no private 1.x read boundary is qualified there.
 
+The explicit POSIX `migrate-state` command remains for operators who want to
+carry the old baseline over with independently established native IDs instead.
 The POSIX-only `migrate-state` command inventories private, regular, no-follow
 sources without network or target writes. It handles safe names, full-hash names,
 short-hash mirrors and single/batch pending spools. Conflicting mirrors, duplicate
@@ -254,13 +280,13 @@ The apix-backed references were moved to `legacy_reference/` under their origina
 GPL-3.0-only license and are excluded from the wheel/sdist. Removing apix alone
 was not treated as authority to relicense external work. Dependencies retain their
 own terms, including lxml's additional notices. Historical licenses, tags and
-release artifacts are not rewritten. No MCP 2.0 release has been published.
+release artifacts are not rewritten.
 
 Windows configuration files require a local fixed NTFS path and a conservative
 private ACL. Only the current user, SYSTEM and Administrators may have allow
 entries; a null/broad ACL, hardlinks and reparse-point components are rejected.
 The reader pins the path and validates the opened handle before reading secrets.
-Existing permissions are never repaired automatically.
+Windows ACLs are never repaired automatically.
 
 API notes/observation cards (#26) and daily credentialed CI (#27) remain parked.
 

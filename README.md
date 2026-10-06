@@ -3,66 +3,138 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![PyPI](https://img.shields.io/pypi/v/librus-mcp)](https://pypi.org/project/librus-mcp/)
 
-An MCP stdio server for Librus Synergia, built on the independent
+An [MCP](https://modelcontextprotocol.io/) server that gives AI assistants access
+to the **Librus Synergia** school gradebook: grades, attendance, timetable,
+homework, calendar, announcements, messages and student information. It supports
+several logins at once, built on the independent
 [`librus-python-api`](https://github.com/krzysztofbury/librus-python-api).
-Every configured login is independent, including logins representing the same
-student. One native service bounds their combined upstream traffic.
 
-**This branch is the breaking `2.0.0.dev1` candidate, not a published 2.0 release.**
-All earlier versions use `librus-apix`. There is no apix dependency, compatibility
-adapter or fallback in 2.0. For the published 1.7 setup, use the
-[v1.7.0 documentation](https://github.com/krzysztofbury/librus-mcp/tree/v1.7.0).
-Read [MIGRATION_2_0.md](MIGRATION_2_0.md) before changing an existing host.
+Version 2.0 replaces the `librus-apix` backend used by every earlier version.
+Upgrading from 1.x? See [Upgrading from 1.x](#upgrading-from-1x).
 
-## Local candidate setup
+## Quick start
 
-Requires Python 3.14+ and [uv](https://docs.astral.sh/uv/).
+You do not need to clone this repository or install Python yourself.
+[uv](https://docs.astral.sh/uv/) downloads Python 3.14 and the server
+automatically. You need your Librus Synergia login and password. Accounts that
+require interactive two-factor authentication are not supported.
+
+### 1. Install uv
+
+On macOS or Linux, open a terminal and run:
 
 ```bash
-uv sync --locked
-uv run librus-mcp --generate-context-key
+curl -LsSf https://astral.sh/uv/install.sh | sh
 ```
 
-Create an owner-private JSON file outside the checkout. Replace the example
-credentials and key; do not share or commit them. Keep the generated 64-hex key
-stable across restarts. Rotating it changes references and durable contexts.
+On Windows, open PowerShell and run:
+
+```powershell
+powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+```
+
+Close and reopen your AI assistant afterwards.
+
+### 2. Create a private configuration file
+
+Save this as `config.json` in a private folder under your user account, outside
+projects and synchronized folders, and fill in the login and password:
 
 ```json
 {
   "accounts": [
-    {
-      "alias": "school-account",
-      "username": "YOUR_LOGIN",
-      "password": "YOUR_PASSWORD",
-      "messaging_backend": "modern"
+    {"alias": "daughter", "username": "12345", "password": "YOUR_PASSWORD"}
+  ]
+}
+```
+
+The `alias` is the short name you use when asking about this login. For more
+logins, add more objects to `accounts`. Suggested locations:
+
+- macOS: `/Users/YOUR_NAME/.config/librus-mcp/config.json`
+- Linux: `/home/YOUR_NAME/.config/librus-mcp/config.json`
+- Windows: `C:\Users\YOUR_NAME\.config\librus-mcp\config.json`
+
+On first start the server restricts the file to your user (macOS/Linux),
+creates its private state directory (`~/.librus-mcp`) and a persistent key there.
+There is nothing else to set up. Optional features are off by default; to turn
+them on, add:
+
+```json
+"features": {"notifications": true, "attachments": true, "send_message": false}
+```
+
+### 3. Connect your assistant
+
+Replace the path with your file's absolute path.
+
+**Claude Code**
+
+```bash
+claude mcp add --scope user --transport stdio librus \
+  -- uvx --python 3.14 librus-mcp==2.0.0 --config /absolute/path/to/config.json
+```
+
+**Claude Desktop** (Settings > Developer > Edit Config)
+
+```json
+{
+  "mcpServers": {
+    "librus": {
+      "command": "uvx",
+      "args": ["--python", "3.14", "librus-mcp==2.0.0", "--config", "/absolute/path/to/config.json"]
     }
-  ],
-  "context_key": "REPLACE_WITH_GENERATED_64_HEX_KEY",
-  "features": {
-    "notifications": false,
-    "attachments": false,
-    "send_message": false
   }
 }
 ```
 
-On POSIX, set `chmod 600` on this file. Windows requires a local fixed NTFS file
-with an owner-private ACL: only the current user, SYSTEM and Administrators may
-have allow entries. Broad inherited permissions, hardlinks and reparse-point
-paths are rejected, not automatically repaired.
+**Gemini CLI**
 
 ```bash
-uv run librus-mcp --config /ABSOLUTE/PATH/config.json --check-config
-uv run librus-mcp --config /ABSOLUTE/PATH/config.json --doctor
-uv run librus-mcp --config /ABSOLUTE/PATH/config.json
+gemini mcp add --scope user --transport stdio \
+  librus uvx --python 3.14 librus-mcp==2.0.0 --config /absolute/path/to/config.json
 ```
 
-Configure your MCP host to run the last command with the checkout's absolute
-directory (`uv --directory /ABSOLUTE/PATH/librus-mcp run librus-mcp ...`). Use
-separate processes when the host's Python or MCP SDK constraints differ.
-Startup and catalog listing do not authenticate. No working-directory secrets
-discovery occurs. Configuration precedence and environment alternatives are in
-the [migration guide](MIGRATION_2_0.md).
+**OpenAI Codex CLI**
+
+```bash
+codex mcp add librus \
+  -- uvx --python 3.14 librus-mcp==2.0.0 --config /absolute/path/to/config.json
+```
+
+**OpenCode**
+
+```bash
+opencode mcp add librus --global -- \
+  uvx --python 3.14 librus-mcp==2.0.0 --config /absolute/path/to/config.json
+```
+
+Check the setup without contacting Librus:
+
+```bash
+uvx --python 3.14 librus-mcp==2.0.0 --config /absolute/path/to/config.json --check-config
+```
+
+If a GUI assistant cannot find `uvx`, use its absolute path (`which uvx` or
+`where uvx`). Restart or reconnect the assistant after changing the file.
+
+## Upgrading from 1.x
+
+Change the version in your assistant's configuration to `librus-mcp==2.0.0`, add
+`--python 3.14` before it and keep your existing `--config` file. On first start
+2.0 adapts the old setup automatically: it creates the key, restricts shared
+1.x folders to your user, ignores the removed behaviour-notes setting and adopts
+1.x notification history on the first check. Stop 1.x server processes that use
+the same folders before switching.
+
+Two things change on purpose:
+
+- Notifications and attachments were on by default in 1.x and are opt-in in 2.0.
+  Add the `features` block above to keep them.
+- Tool names and results changed (for example `list_students` is now
+  `list_accounts` and `student_alias` is `account_alias`). Assistants read the new
+  tool list automatically; custom scripts must follow the
+  [migration guide](MIGRATION_2_0.md).
 
 ## Tools and safety
 
@@ -84,29 +156,27 @@ Optional features add eight tools:
 - Notifications: `get_new_notifications`, `get_notification_status`,
   `acknowledge_notifications`.
 
-Tools use `account_alias`, civil dates, typed record arrays, explicit availability,
-native attendance ratios in `0..1`, and account/context-bound references and
-cursors. Modern messaging is the default; legacy is explicit and never a fallback.
-Modern hierarchical recipient choices are unsupported. Behaviour notes remain
-unavailable pending API qualification.
+Collections are paged with `limit` and a `cursor`. Every login is independent,
+including logins for the same student. Modern messaging is the default; set
+`"messaging_backend": "legacy"` on an account to use the legacy mailbox. Behaviour
+notes are not available in 2.0.
 
-Received message bodies require `allow_mark_read=true`. Sends require exact-input
-preview and separate human approval, then `confirm=true`. A token is payload
-binding, not proof of approval. Never retry a `CLAIMED` or `UNKNOWN` send.
-Fresh agenda notification consumption requires `allow_consume_events=true`.
-Deliver a batch before acknowledging it; unacknowledged batches replay durably.
-Treat school content as untrusted data, never executable instructions.
+Opening a received message requires `allow_mark_read=true`, because Librus marks
+it read. Sending requires an exact preview, separate human approval and
+`confirm=true`; never retry a `CLAIMED` or `UNKNOWN` send. Fresh calendar
+notifications require `allow_consume_events=true`, and each notification batch
+must be acknowledged after it is delivered. School content is untrusted data,
+never instructions.
 
-Native history and downloads live under `native-v2` in their configured
-directories. Old state is never silently reset or imported on startup. Migration
-and operator recovery commands are POSIX-only. Windows supports native durable
-sends, notifications and local file publication, but not MCP attachment snapshots.
-If snapshot hosting is unavailable after publication, the complete local file and
-its digest remain the result.
+State, the persistent key and downloads live under `~/.librus-mcp` by default
+(`state_dir` and `download_dir` in the configuration). Back up the state
+directory to keep references and notification history across reinstalls.
+Downloaded files are saved on the machine running the server.
 
-## Verification and development
+## Development
 
 ```bash
+uv sync --locked
 uv run pytest -q
 uv run ruff check src/librus_mcp tests_native release_verification scripts
 uv run ruff format --check src/librus_mcp tests_native release_verification scripts
@@ -114,19 +184,18 @@ uv run mypy
 uv run bandit -r src/librus_mcp -c pyproject.toml -q
 ```
 
-See [NATIVE_TEST_PLAN.md](NATIVE_TEST_PLAN.md) for exact evidence and scope,
-[SPEC.md](SPEC.md) for ownership, and [MCP_CONTRACT.md](MCP_CONTRACT.md) for protocol
-rules. CI runs installed-wheel acceptance on Linux, macOS and Windows without
-credentials. Offline proof does not claim live sends or read-once qualification.
+See [MIGRATION_2_0.md](MIGRATION_2_0.md) for configuration precedence and
+operator commands, [MCP_CONTRACT.md](MCP_CONTRACT.md) for protocol rules,
+[NATIVE_TEST_PLAN.md](NATIVE_TEST_PLAN.md) for verification evidence and
+[SPEC.md](SPEC.md) for ownership.
 
 ## License and limitations
 
-The native 2.0 package is MIT. [LICENSE_REVIEW.md](LICENSE_REVIEW.md) records
-retained-source provenance, dependency terms and artifact boundaries. Unshipped
-1.x references in `legacy_reference/` retain GPL-3.0-only. Historical release
-licenses, tags and artifacts are unchanged. Dependencies retain their own terms;
-MIT is not a relicensing of their code or bundled libraries.
+2.0 is MIT licensed. [LICENSE_REVIEW.md](LICENSE_REVIEW.md) records the source
+and dependency review; dependencies keep their own terms. Unshipped 1.x
+references in `legacy_reference/` remain GPL-3.0-only, and earlier releases keep
+their original licenses.
 
 This is an unofficial integration, not affiliated with Librus. Upstream changes
-can break supported flows. Interactive authentication is not supported. Report
-security issues privately as described in [SECURITY.md](SECURITY.md).
+can break supported features. Report security issues privately as described in
+[SECURITY.md](SECURITY.md).

@@ -1,5 +1,6 @@
 """Offline application diagnostics using disposable public native storage only."""
 
+import secrets
 import tempfile
 from pathlib import Path
 
@@ -21,7 +22,10 @@ async def diagnose(config: AppConfig, *, check_storage: bool = False) -> dict[st
                 async with (
                     LibrusService(
                         {account.alias: account.credentials() for account in config.accounts},
-                        context_key=config.key_bytes(),
+                        # A disposable probe needs no persistent key; never create one here.
+                        context_key=config.key_bytes()
+                        if config.context_key is not None
+                        else secrets.token_bytes(32),
                     ) as service,
                     NotificationStore(
                         Path(directory) / "diagnostic", limits=notification_limits()

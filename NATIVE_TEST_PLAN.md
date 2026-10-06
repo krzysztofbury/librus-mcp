@@ -218,3 +218,29 @@ the earlier green run is not evidence for a new commit's test/build inputs.
   folder and bounds. Distinguish account-specific empty data, unsupported backend
   operations, features absent from the configured catalog and intentionally
   unexercised effects. Never invent a reference or send a message to create test data.
+
+## Release review and setup automation, 2026-10-06
+
+Version `2.0.0` pins published `librus-python-api==1.0.1` (wheel SHA256
+`3115ed7ce1fcbd337a5915c65a74c6cab7cfde46032fca6a3b4b32fdfadc3eb7`). API 1.0.0
+failed `get_subject_frequency` with `LIMIT` on a cold session for students with
+about 15 subjects; 1.0.1 uses 12 requests including login.
+
+- Setup needs no operator steps: missing context keys are created once in
+  `state_dir/context.key`, the user's own shared configuration file and
+  directories are restricted in place on POSIX, the 1.x `secrets.json` default
+  and `behaviour_notes` are accepted, and 1.x notification files are adopted on
+  the first poll (pending agenda events imported, originals archived).
+- `get_grades`/`get_attendance` page by `limit`/`cursor`; text content is compact
+  JSON; a failed post-send outcome read returns the completed send with
+  `durable: null`; acknowledgement accepts the batch context object verbatim.
+- Offline: 81 passed, 1 Windows-only skip; Ruff/format, strict mypy, Bandit and
+  lock checks pass. Catalogs: 22 tools/95495 bytes and 30 tools/129825 bytes,
+  below the 96/128 KiB budgets. Mutation campaign unchanged: 62 killed, the same
+  8 reviewed survivors.
+- Read-only live rehearsal on four independent logins, using copies of a real 1.x
+  configuration and state directory: startup restricted the copied 0644 config
+  and 0755 download directory, ignored behaviour notes, created the key and
+  adopted all four accounts' 1.x files; first polls (all categories except agenda)
+  returned 12/12/20/20 items, acknowledged, and second polls returned none. No
+  sends, read-once consumption, received-body opens or downloads were made.

@@ -57,10 +57,12 @@ hosted platform profiles and MIT review are qualified; publication remains open.
   No performance improvement or unapproved live side-effect compatibility is claimed.
 - [ ] W8: publish the exact API prerequisite and MCP 2.0.0, verify remote artifacts
   and fresh `uvx` startup.
-  API `1.0.0` is already published. `.github/workflows/publish.yml` now uses the
-  native lint paths, strict typing and audited sdist rebuild with installed
-  consumer acceptance. Final version/README install instructions, tag and remote
-  install verification remain outstanding and require separate approval.
+  API `1.0.1` (bounded subject frequency) is the pinned prerequisite. The
+  publishing workflow runs native lint, strict typing and audited sdist rebuild
+  with installed consumer acceptance. Setup no longer needs operator steps: the
+  context key, private permissions and 1.x notification state are handled on
+  first start. Version is `2.0.0`; tag, publication and remote install
+  verification remain.
 
 Parked by the owner: API #26 (notes/observation cards, missing qualifying examples)
 and #27 (daily credentialed CI, noncritical). Neither blocks MCP 2.0.0. Notes
@@ -70,8 +72,8 @@ The target is a thin MCP client with reusable heavy work in `librus-python-api`.
 New tool requests/responses may break 1.x compatibility. Durable history and
 uncertain sends must remain recoverable. MIT is the license of the new native
 2.0 release; existing GPL releases and notices are not retroactively changed.
-The unpublished native candidate is `2.0.0.dev1`; dependency replacement is
-complete with no apix fallback. Hosted acceptance is complete for the declared
+The release candidate is `2.0.0`; dependency replacement is complete with no
+apix fallback. Hosted acceptance is complete for the declared
 profiles; PR #39 remains draft and unmerged. Publication requires separate approval.
 
 ## Historical 1.x Roadmap

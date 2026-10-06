@@ -20,9 +20,13 @@ from librus_python_api import (
 from pydantic import BeforeValidator, Field
 
 from librus_mcp.config import ALIAS_PATTERN
-from librus_mcp.schemas import Pagination, WireModel
+from librus_mcp.schemas import (
+    HexDigest,
+    Pagination,
+    WindowPagination,
+    WireModel,
+)
 
-HexDigest = Annotated[str, Field(pattern=r"^[0-9a-f]{64}$")]
 AccountAliasInput = Annotated[str, Field(min_length=1, max_length=80, pattern=ALIAS_PATTERN)]
 NumericID = Annotated[str, Field(pattern=r"^[0-9]{1,64}$")]
 Limit = Annotated[int, Field(strict=True, ge=1, le=256)]
@@ -39,21 +43,6 @@ def civil_date(value: object) -> date:
 
 
 ISODate = Annotated[date, BeforeValidator(civil_date)]
-
-
-class PresentationCursor(WireModel):
-    version: Literal[1] = 1
-    context: HexDigest
-    query: HexDigest
-    source: HexDigest
-    offset: Annotated[int, Field(strict=True, ge=1, le=4096)]
-
-
-class WindowPagination(WireModel):
-    next_cursor: PresentationCursor | None
-    truncated: bool
-    reason: Literal["item_limit"] | None
-    consistency: Literal["best_effort"] = "best_effort"
 
 
 class WindowResult(WireModel, Generic[T]):

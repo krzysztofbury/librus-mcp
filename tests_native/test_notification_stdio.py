@@ -1,5 +1,7 @@
 """Native durable replay/ack over real MCP and SQLite, never live consumption."""
 
+import hashlib
+import json
 import os
 from functools import partial
 
@@ -90,6 +92,17 @@ async def test_notification_consent_restart_exact_replay_ack_and_account_isolati
                 for _ in range(2):
                     accepted = await session.call_tool("acknowledge_notifications", ack)
                     assert not accepted.is_error and accepted.structured_content["acknowledged"]
+                # Agents commonly pass the batch's context object back verbatim.
+                verbatim = await session.call_tool(
+                    "acknowledge_notifications",
+                    ack | {"context": {"alias": "first", "identifier": context}},
+                )
+                assert not verbatim.is_error
+                for wrong in ({"alias": "second", "identifier": context}, {"identifier": context}):
+                    rejected = await session.call_tool(
+                        "acknowledge_notifications", ack | {"context": wrong}
+                    )
+                    assert rejected.structured_content == {"error": {"code": "INVALID_INPUT"}}
                 assert len(wire.calls) == calls
             async with stdio_client(process) as streams, ClientSession(*streams) as session:
                 await session.initialize()
@@ -187,7 +200,8 @@ async def test_lost_consume_response_remains_uncertain_until_explicit_loss_accep
 
 
 @pytest.mark.asyncio
-async def test_legacy_state_quarantines_poll_not_other_accounts_or_academic_reads(tmp_path):
+@pytest.mark.skipif(os.name != "posix", reason="Windows archives 1.x files without reading")
+async def test_malformed_legacy_state_stays_quarantined_for_its_account_only(tmp_path):
     state = tmp_path / "state"
     await prepare_attachment_directory(state)
     source = state / "old.notifications.json"
@@ -293,3 +307,43 @@ async def test_consumed_checkpoint_replays_or_stays_quarantined_without_second_c
                     )
                     assert not status.structured_content["has_pending_work"]
                 assert len(wire.calls) == calls
+
+
+@pytest.mark.asyncio
+@pytest.mark.skipif(os.name != "posix", reason="1.x pending events are read on POSIX only")
+async def test_valid_1x_state_is_adopted_on_first_poll_without_operator_steps(tmp_path):
+    state = tmp_path / "state"
+    await prepare_attachment_directory(state)
+    baseline = state / "account.notifications.json"
+    categories = ("grades", "attendance", "messages", "announcements", "schedule", "homework")
+    baseline.write_text(json.dumps({category: [] for category in categories}))
+    event = {"date_added": "2026-09-26 10:00", "type": "Fixture history", "data": "Kept"}
+    body = json.dumps([event], ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    pending = (
+        state / f"account.pending-schedule.batch.{hashlib.sha256(body.encode()).hexdigest()}.json"
+    )
+    pending.write_text(body)
+    for path in (baseline, pending):
+        path.chmod(0o600)
+    async with Wire().serve() as wire:
+        process = server_process(
+            wire.origin,
+            [("account", "71")],
+            features={"notifications": True},
+            state_dir=state,
+        )
+        with anyio.fail_after(20):
+            async with stdio_client(process) as streams, ClientSession(*streams) as session:
+                await session.initialize()
+                first = await session.call_tool(
+                    "get_new_notifications", {"account_alias": "account", "categories": ["agenda"]}
+                )
+                assert not first.is_error
+                assert "Kept" in json.dumps(first.structured_content["data"]["items"])
+                # Already consumed upstream by 1.x: delivered without a second consume.
+                assert not any(
+                    path == "/terminarz/dodane_od_ostatniego_logowania" for _, path, _ in wire.calls
+                )
+    archived = state / "legacy-1x"
+    assert sorted(path.name for path in archived.iterdir()) == sorted([baseline.name, pending.name])
+    assert not baseline.exists() and not pending.exists()

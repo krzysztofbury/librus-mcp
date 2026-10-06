@@ -35,14 +35,13 @@ from librus_mcp.read_schemas import (
     Limit,
     MaxPages,
     NumericID,
-    PresentationCursor,
     SchoolReferenceInput,
     SubjectFrequencyResult,
     TimetableResult,
     WindowResult,
 )
 from librus_mcp.runtime import Runtime
-from librus_mcp.schemas import GradeItem, descriptive_item
+from librus_mcp.schemas import GradeItem, PresentationCursor, descriptive_item
 
 
 def register_read_tools(server: MCPServer[Runtime]) -> None:

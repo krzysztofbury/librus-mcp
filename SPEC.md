@@ -35,9 +35,11 @@ bounded to 32 snapshots of at most 256 KiB, expiring after 900 seconds or restar
 A snapshot failure after commit returns the local file and native digest without
 a resource URI. Windows supports native NTFS publication, not snapshot reads.
 
-POSIX config files are owner-private, regular and no-follow. Windows config files
+POSIX config files must be the current user's regular, no-follow files; a shared
+own file is restricted to 0600 through its opened descriptor. Windows config files
 are read through pinned local-NTFS handles with conservative owner/ACL, reparse and
-hardlink checks. Neither path repairs a shared credential source implicitly.
+hardlink checks and are never repaired. Without a configured key, serving creates
+`state_dir/context.key` once (exclusive, never replaced) and reuses it.
 
 ## Development
 
