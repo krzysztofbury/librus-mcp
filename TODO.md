@@ -8,7 +8,7 @@ commitment:
   resource controls, safety fixes, and documentation.
 - Major release (`2.0.0`): deliberate tool, response, package, or configuration contract changes.
 
-## Active 2.0.0 Plan
+## 2.0.0 Plan (released 2026-10-06)
 
 The direct native-backend migration is planned in
 [MCP_2_0_PLAN.md](MCP_2_0_PLAN.md), based on remote MCP main `0aaf658` and API
@@ -55,14 +55,18 @@ platform profiles and MIT review are qualified; MCP publication remains open.
   macOS 73 passed/1 skip each; Windows 56 passed/18 declared-profile skips,
   including executed private/shared credential ACL and hardlink guards.
   No performance improvement or unapproved live side-effect compatibility is claimed.
-- [ ] W8: publish the exact API prerequisite and MCP 2.0.0, verify remote artifacts
-  and fresh `uvx` startup.
-  API `1.0.2` (bounded subject frequency, faster request policy) is the pinned prerequisite. The
-  publishing workflow runs native lint, strict typing and audited sdist rebuild
-  with installed consumer acceptance. Setup no longer needs operator steps: the
-  context key, private permissions and 1.x notification state are handled on
-  first start. Version is `2.0.0`; tag, publication and remote install
-  verification remain.
+- [x] W8: publish the exact API prerequisite and MCP 2.0.0, verify remote artifacts
+  and fresh `uvx` startup. API `1.0.2` is the published prerequisite.
+  Released 2026-10-06: merge commit `281bb87`, annotated tag `v2.0.0`,
+  [publish run 37460939896](https://github.com/krzysztofbury/librus-mcp/actions/runs/37460939896)
+  (verify, then owner-approved `pypi` deployment). PyPI wheel SHA256
+  `c57aafe50f9fddf2fb4892f74046dbf1fb43d27b1c99e44cdeef041f81aec16e` and sdist
+  `0f9577dc9be74a1ac6eaed6ac734facdf52c1358da7aa08602df488e9b1b7a8f` match the
+  sealed artifact; metadata is MIT, Python >=3.14, `librus-python-api==1.0.2`.
+  A fresh `uvx --python 3.14 librus-mcp==2.0.0` outside the checkout reported
+  version 2.0.0, restricted a shared synthetic config, served 26 tools over
+  stdio, created its key and completed read-only profile/subject-frequency
+  reads on four logins.
 
 Parked by the owner: API #26 (notes/observation cards, missing qualifying examples)
 and #27 (daily credentialed CI, noncritical). Neither blocks MCP 2.0.0. Notes
@@ -72,9 +76,8 @@ The target is a thin MCP client with reusable heavy work in `librus-python-api`.
 New tool requests/responses may break 1.x compatibility. Durable history and
 uncertain sends must remain recoverable. MIT is the license of the new native
 2.0 release; existing GPL releases and notices are not retroactively changed.
-The release candidate is `2.0.0`; dependency replacement is complete with no
-apix fallback. Hosted acceptance is complete for the declared
-profiles; PR #39 remains draft and unmerged. Publication requires separate approval.
+`2.0.0` is published from PR #39; dependency replacement is complete with no
+apix fallback.
 
 ## Historical 1.x Roadmap
 
@@ -256,7 +259,7 @@ available, before enabling the feature by default.
 All A01-A18 have implemented outcomes in the plan's
 [readiness map](MCP_2_0_PLAN.md#7-all-18-mcp-20-todo-items). A checked item means the
 documented native outcome below, not preservation of every illustrative label or
-1.x response shape. W8 publication remains unchecked in the active plan above.
+1.x response shape. W8 publication is complete; see the active plan above.
 
 - [x] A01: standardize collection envelopes with `items`, typed pagination,
   truncation and observations; retain family metadata and best-effort consistency,

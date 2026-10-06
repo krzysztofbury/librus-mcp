@@ -2,8 +2,8 @@
 
 Status, 2026-10-06: native implementation, declared hosted platform profiles and
 MIT cutover are complete. Mutmut 3 replaces the historical consumer mutation
-tooling; see [MUTATION_TESTING.md](MUTATION_TESTING.md). Final version/tag/publication
-and fresh remote installation remain W8, requiring separate approval.
+tooling; see [MUTATION_TESTING.md](MUTATION_TESTING.md). W8 is complete: 2.0.0 is
+published on PyPI and a fresh `uvx` installation was verified (see TODO.md).
 
 Sections 1-6 retain the original planning baseline and proposals, not current
 commands or unfinished implementation promises. Actual contracts and explicit
@@ -554,5 +554,6 @@ Current implementation verification is recorded in [NATIVE_TEST_PLAN.md](NATIVE_
 W0-W7 are complete for the implemented native contracts and declared offline
 platform profiles. Hosted run `37372839458` passed at `bc10abe` on Linux, macOS and
 Windows, including audited MIT artifacts and actual NTFS credential checks.
-W8 remains pending separate merge/publication approval. No production-state
-migration, live write qualification or performance improvement is implied.
+W8 is complete: `v2.0.0` was published from merge commit `281bb87` after owner
+approval, with PyPI hashes matching the sealed artifact. No live write
+qualification is implied.
