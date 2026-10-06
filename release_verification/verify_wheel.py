@@ -298,7 +298,9 @@ def run_consumer_tests(repository: Path, python: Path, working_directory: Path) 
             for key, value in synthetic_environment(working_directory).items()
             if not key.startswith("LIBRUS_")
         },
-        timeout=180,
+        # Hosted Windows runs the suite in ~155-165s; a whole-suite cap is a hang
+        # guard, not a performance gate, so leave headroom for runner variance.
+        timeout=600,
         check=True,
     )
 
