@@ -3,7 +3,7 @@
 This roadmap records current native work and historical releases. Earlier
 implementation and qualification evidence below retains its original versions.
 
-## 2.1.0 release checklist
+## 2.1.0 (released 2026-10-09)
 
 - [x] Pin published API 1.6.0 and review all changes since 1.0.2.
 - [x] Include formative assessments and observation-card rows in both grade tools,
@@ -18,7 +18,17 @@ implementation and qualification evidence below retains its original versions.
 - [x] Complete authorized bounded live read qualification: installed 2.1.0,
   82 successful checks across four independent logins, 126 requests/1164769 bytes.
   Coverage and sampling limits are recorded in `NATIVE_TEST_PLAN.md`.
-- [ ] Run hosted Linux/macOS/Windows qualification, then publish and verify artifacts.
+- [x] Run hosted Linux/macOS/Windows qualification in
+  [CI run 37915990868](https://github.com/krzysztofbury/librus-mcp/actions/runs/37915990868):
+  Linux/macOS 86 passed/1 skip each; Windows 65 passed/22 declared-profile skips.
+- [x] Merge [PR #44](https://github.com/krzysztofbury/librus-mcp/pull/44) as `f569f19`
+  and create the annotated `v2.1.0` release tag.
+- [x] Publish in [run 37916417945](https://github.com/krzysztofbury/librus-mcp/actions/runs/37916417945)
+  after release verification and protected-environment approval. PyPI wheel and
+  sdist digests match the sealed workflow artifacts. A fresh isolated pinned
+  `uvx` installation passes version/config checks, stdio initialization, all 31
+  default tool schemas and offline account listing. Artifact digests are recorded
+  in `NATIVE_TEST_PLAN.md`.
 
 The native API still has no general behaviour-notes tool. Formative notifications
 and archived message bodies are outside this release's qualified API surface.

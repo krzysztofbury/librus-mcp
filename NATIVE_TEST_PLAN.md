@@ -21,11 +21,34 @@ changed-file pre-commit checks pass. The MIT sdist rebuilds a wheel successfully
 Catalogs measure 119021 bytes/31 tools by default and 132153 bytes/35 tools with
 all features, with typed outputs throughout. The isolated wheel rebuilt from
 sdist also passes **86 tests, 1 Windows-only skip**, installed CLI/stdio identity,
-schema and catalog-budget checks. New hosted macOS/Windows qualification and
-publication remain pending; historical results are not 2.1 evidence. The retained
-mutation report is migration-era evidence, not a refreshed 2.1 baseline.
+schema and catalog-budget checks. Hosted
+[CI run 37915990868](https://github.com/krzysztofbury/librus-mcp/actions/runs/37915990868)
+passed on PR head `73b2c8e`: installed Linux/macOS 86 passed/1 skip each, Windows
+65 passed/22 declared-profile skips, plus the Linux lint/test/build job.
+PR #44 merged as `f569f19`; the annotated `v2.1.0` tag points to that commit.
+The retained mutation report is migration-era evidence, not a refreshed 2.1 baseline.
 
-Authorized live qualification on 2026-10-09 used that installed wheel and API
+### Published 2.1.0 artifacts
+
+[Publish run 37916417945](https://github.com/krzysztofbury/librus-mcp/actions/runs/37916417945)
+passed release identity, source, installed artifact and checksum verification,
+then published through the protected `pypi` environment on 2026-10-09.
+Downloaded PyPI bytes and PyPI metadata independently match the sealed workflow
+artifact's SHA256 manifest:
+
+- Wheel: `712d8b3fa1a07fbef317a963cd083388d9e21a966073e4af6633f779026438b1`.
+- Sdist: `7aa1ffa47c2ab38ac422268fd446b888f892f911c3ab23b810613af4ea35652b`.
+
+A fresh `uvx --no-config --isolated --python 3.14 --from librus-mcp==2.1.0
+librus-mcp` installation with an empty disposable cache, outside the checkout,
+reported version 2.1.0 and passed private synthetic config validation, stdio
+initialization, all 31 default tool schemas, the catalog byte budget and offline
+account listing. Metadata pins API 1.6.0. No live account was used for this
+post-publication smoke check. All task-owned verification scratch was removed.
+
+### Pre-publication live qualification
+
+Authorized live qualification on 2026-10-09 used the locally built wheel and API
 1.6.0 outside the checkout: **82 successful checks across four independent
 logins**, using **126 requests and 1164769 response bytes**, within the shared
 budget. Both grade tools returned formative data. School-year archives covered
