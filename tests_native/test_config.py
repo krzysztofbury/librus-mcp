@@ -310,6 +310,7 @@ def test_enabled_features_create_missing_private_ancestors_on_a_fresh_host(tmp_p
 
     home = tmp_path / "home"
     home.mkdir(mode=0o755)
+    home.chmod(0o755)  # Establish the ancestor boundary even under a private umask.
     config = AppConfig.model_validate(
         config_data()
         | {
@@ -336,6 +337,7 @@ def test_own_shared_1x_directory_is_restricted_instead_of_failing(tmp_path, caps
 
     downloads = tmp_path / "downloads"
     downloads.mkdir(mode=0o755)
+    downloads.chmod(0o755)  # Exercise actual shared-directory repair under any umask.
     (downloads / "old.pdf").write_bytes(b"kept")
     config = AppConfig.model_validate(
         config_data() | {"features": {"attachments": True}, "download_dir": str(downloads)}

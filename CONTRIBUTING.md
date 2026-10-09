@@ -36,8 +36,8 @@ Before submitting, run the same checks as CI:
 ```bash
 uv lock --check
 uv sync --locked --python 3.14
-uv run ruff check src/librus_mcp/ tests_native/ release_verification/
-uv run ruff format --check src/librus_mcp/ tests_native/ release_verification/
+uv run ruff check src/librus_mcp/ tests_native/ release_verification/ scripts/
+uv run ruff format --check src/librus_mcp/ tests_native/ release_verification/ scripts/
 uv run bandit -c pyproject.toml -r src/librus_mcp/
 uv run mypy
 uv run pytest -q
@@ -47,7 +47,7 @@ uv build --no-build-isolation
 To apply formatting before rerunning the format check:
 
 ```bash
-uv run ruff format src/librus_mcp/ tests_native/ release_verification/
+uv run ruff format src/librus_mcp/ tests_native/ release_verification/ scripts/
 ```
 
 ### Testing
@@ -61,6 +61,9 @@ dependency to run old tests. Port consumer invariants, not private wrapper mocks
 Do not run `legacy_reference/verify_connection.py` on this branch. Native live
 qualification uses `scripts/qualify_native.py` and requires explicit approval and bounded
 operation scope. Ordinary CI never uses school credentials.
+The `--phase v21` profile covers new 2.1 summary/history/discovery operations and
+bounded continuation, with optional stores and body opens disabled. See
+[verification ownership](NATIVE_TEST_PLAN.md) for budgets and reporting limits.
 
 ### Mutation Testing
 

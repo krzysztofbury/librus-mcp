@@ -12,9 +12,9 @@ from tests_native.test_config import config_data
 @pytest.mark.parametrize(
     ("features", "count"),
     [
-        (None, 26),  # defaults: notifications and attachments on, sending off
-        ({"notifications": False, "attachments": False}, 22),
-        ({"send_message": True}, 30),
+        (None, 31),  # defaults: notifications and attachments on, sending off
+        ({"notifications": False, "attachments": False}, 27),
+        ({"send_message": True}, 35),
     ],
 )
 async def test_all_published_input_and_output_schemas_compile(features, count):

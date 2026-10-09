@@ -109,6 +109,11 @@ async def test_four_logins_share_traffic_but_not_sessions_and_catalog_does_not_l
                         "get_homework",
                         "get_homework_detail",
                         "get_completed_lessons",
+                        "get_school_year_archive",
+                        "get_class_free_days",
+                        "get_message_correspondents",
+                        "get_teacher_subjects",
+                        "get_message_unread_counts",
                         "get_messages",
                         "get_message_content",
                         "get_recipient_types",
@@ -246,6 +251,21 @@ async def test_rejected_account_and_parse_failure_are_classified_not_empty():
                         "error": {"code": "PARSE"}
                     }
                     assert "unrecognized sensitive page" not in parsed.model_dump_json()
+                    wire.bad_profile = False
+                    wire.unavailable_profile = True
+                    unavailable = await session.call_tool(
+                        "get_student_information", {"account_alias": "good"}
+                    )
+                    assert unavailable.is_error and unavailable.structured_content == {
+                        "error": {"code": "MODULE_UNAVAILABLE"}
+                    }
+                    assert "/modul_niedostepny" not in unavailable.model_dump_json()
+                    assert not any(path == "/modul_niedostepny" for _, path, _ in wire.calls)
+                    # An unavailable module must not poison the login or be
+                    # confused with expiry requiring another authentication.
+                    grades = await session.call_tool("get_grades", {"account_alias": "good"})
+                    assert not grades.is_error
+                    assert wire.logins["login"] == 1
 
 
 @pytest.mark.asyncio

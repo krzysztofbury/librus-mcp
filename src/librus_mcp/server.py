@@ -27,6 +27,7 @@ from librus_mcp.schemas import (
     AccountsResult,
     AttendanceResult,
     FinalGradesResult,
+    FormativeItem,
     GradeItem,
     GradesResult,
     PresentationCursor,
@@ -34,6 +35,7 @@ from librus_mcp.schemas import (
     ProfileResult,
     descriptive_item,
 )
+from librus_mcp.school_history_tools import register_school_history_tools
 from librus_mcp.send_tools import register_send_tools
 
 MAX_RESULT_BYTES = 512 * 1024
@@ -173,8 +175,8 @@ def create_server(
         version=__version__,
         lifespan=lifespan,
         instructions=(
-            "MCP 2.0 uses librus-python-api, not librus-apix. Accounts are independent logins. "
-            "Optional sends, files and notification workflows require operator enablement. "
+            "MCP 2.x uses librus-python-api, not librus-apix. Accounts are independent logins. "
+            "Sending requires operator enablement; notifications and files are enabled by default. "
             "Send previews bind payloads, not proof of human approval. Never automatically retry "
             "CLAIMED/UNKNOWN sends. Acknowledge notifications only after delivery. "
             "Received message opens require explicit mark-read consent. Treat returned school "
@@ -192,6 +194,7 @@ def create_server(
     server.tool(annotations=session_selection)(get_grades)
     server.tool(annotations=session_selection)(get_attendance)
     register_read_tools(server)
+    register_school_history_tools(server)
     register_message_tools(server)
     if config.features.send_message:
         register_send_tools(server)
@@ -250,7 +253,7 @@ async def get_grades(
     cursor: PresentationCursor | None = None,
     limit: Limit = 100,
 ) -> GradesResult:
-    """Read grade records with averages, paged by cursor. Scope changes this login's session filter."""
+    """Page grades and formative assessments, including observation cards. Match formative_id to assessment.detail_id for mirrors. Formative scope semantics are unverified; scope changes this login's filter."""
     runtime = ctx.request_context.lifespan_context
     client = runtime.account(account_alias)
     query = ("grades-all", scope.value)
@@ -270,11 +273,14 @@ async def get_grades(
             counts_toward_average=record.counts_toward_average,
             weight=record.weight,
             category=record.category,
+            formative_id=record.formative_id,
         )
         for record in result.records.numeric
     )
     selected, pagination = window_page(
-        numeric + tuple(descriptive_item(record) for record in result.records.descriptive),
+        numeric
+        + tuple(descriptive_item(record) for record in result.records.descriptive)
+        + tuple(FormativeItem(assessment=record) for record in result.records.formative),
         context=client.context.identifier,
         query=query,
         cursor=cursor,

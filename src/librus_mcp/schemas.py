@@ -8,6 +8,7 @@ from librus_python_api import (
     AttendanceView,
     DescriptiveGrade,
     DescriptiveGradeSummary,
+    FormativeGrade,
     GradeKind,
     GradeView,
     Identity,
@@ -91,10 +92,19 @@ class GradeItem(WireModel):
     counts_toward_average: bool | None = None
     weight: int | None = None
     category: str | None = None
+    formative_id: str | None = None
+
+
+class FormativeItem(WireModel):
+    record_type: Literal["formative"] = "formative"
+    assessment: FormativeGrade
+
+
+GradeRecord = GradeItem | FormativeItem
 
 
 class GradesResult(WireModel):
-    items: tuple[GradeItem, ...]
+    items: tuple[GradeRecord, ...]
     averages: tuple[SchoolAverage, ...]
     descriptive_summaries: tuple[DescriptiveGradeSummary, ...]
     scope: GradeView
@@ -123,4 +133,5 @@ def descriptive_item(record: DescriptiveGrade) -> GradeItem:
         teacher=record.teacher,
         comment=record.comment,
         metadata=record.metadata,
+        formative_id=record.formative_id,
     )

@@ -15,6 +15,7 @@ from html import escape
 from aiohttp import web
 
 from tests_native.academic_wire import academic_response
+from tests_native.history_wire import formative_table, history_response
 from tests_native.legacy_wire import legacy_response
 
 
@@ -27,8 +28,13 @@ class Wire:
         self.active = 0
         self.peak = 0
         self.bad_profile = False
+        self.unavailable_profile = False
         self.grade_suffix = "3"
         self.message_count = 3
+        self.message_queries = []
+        self.history_empty = False
+        self.formative = False
+        self.formative_text = "Fixture formative assessment"
         self.sent_payloads = []
         self.send_unknown = False
         self.attachment_body = b"Fixture attachment bytes\x00"
@@ -105,6 +111,9 @@ class Wire:
             return web.Response(body=self.attachment_body, content_type="application/octet-stream")
         if not owner:
             return web.Response(status=401)
+        history = history_response(request, self)
+        if history is not None:
+            return history
         legacy = await legacy_response(request, self)
         if legacy is not None:
             return legacy
@@ -182,7 +191,57 @@ class Wire:
             return web.json_response(
                 {"receivers": [{"accountId": "41", "userId": "42", "label": "Fixture Teacher"}]}
             )
-        if request.path in {"/api/inbox/messages", "/api/outbox/messages"}:
+        if request.path in {"/api/inbox/messages/senders", "/api/outbox/messages/receivers"}:
+            role = "sender" if "inbox" in request.path else "receiver"
+            return web.json_response(
+                {
+                    "data": [
+                        {
+                            f"{role}Id": number,
+                            f"{role}FirstName": "Fixture",
+                            f"{role}LastName": f"Person {number}",
+                        }
+                        for number in (501, 502)
+                    ]
+                }
+            )
+        if request.path == "/api/receivers/student-subjects":
+            return web.json_response(
+                {
+                    "data": [
+                        {"teacherIdentifier": 501, "subject": "Fixture Science"},
+                        {"teacherIdentifier": 501, "subject": "Fixture Writing"},
+                    ]
+                }
+            )
+        if request.path == "/api/inbox/unreadMessagesCount":
+            fields = (
+                "inbox",
+                "notes",
+                "alerts",
+                "substitutions",
+                "absences",
+                "justifications",
+                "trash",
+            )
+            return web.json_response(
+                {
+                    "data": {
+                        **{field: index for index, field in enumerate(fields)},
+                        **{
+                            "archive" + field.capitalize(): index + 10
+                            for index, field in enumerate(fields)
+                        },
+                    }
+                }
+            )
+        if request.path in {
+            "/api/inbox/messages",
+            "/api/outbox/messages",
+            "/api/archive/inbox/messages",
+            "/api/archive/outbox/messages",
+        }:
+            self.message_queries.append((request.path, dict(request.query), owner))
             page, size = int(request.query["page"]), int(request.query["limit"])
             received = "inbox" in request.path
             rows = [
@@ -190,7 +249,11 @@ class Wire:
                 for value in range(81, 81 + self.message_count)
             ]
             return web.json_response(
-                {"data": rows[(page - 1) * size : page * size], "total": self.message_count}
+                {
+                    "data": rows[(page - 1) * size : page * size],
+                    "total": self.message_count,
+                    "archivingInProgress": "/archive/" in request.path,
+                }
             )
         if request.path.startswith(("/api/inbox/messages/", "/api/outbox/messages/")):
             received = "inbox" in request.path
@@ -205,6 +268,8 @@ class Wire:
                 }
             )
         if request.path == "/informacja":
+            if self.unavailable_profile:
+                return web.Response(status=302, headers={"Location": "/modul_niedostepny"})
             if self.bad_profile:
                 return web.Response(
                     text="<html><p>unrecognized sensitive page</p></html>", content_type="text/html"
@@ -243,6 +308,11 @@ class Wire:
                 "</a></span>"
                 + f'<span class="grade-box"><a title="Data: 2026-09-25">{escape(self.grade_suffix)}</a></span></td>',
             )
+            if self.formative:
+                body = body.replace(
+                    '<a title="Data: 2026-09-24">',
+                    '<a href="/przegladaj_oceny/szczegoly/ksztaltujace/401" title="Data: 2026-09-24">',
+                ).replace("</body>", formative_table(escape(self.formative_text)) + "</body>")
             return web.Response(text=body, content_type="text/html")
         if request.path == "/przegladaj_nb/uczen":
             assert request.method == "POST"

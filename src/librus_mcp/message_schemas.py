@@ -10,17 +10,20 @@ from librus_python_api import (
     MessagesCursor,
     MessageSummary,
     MessagingBackend,
+    ModernCorrespondentReference,
     ModernMessageContent,
     ModernMessageReference,
     ModernMessagesCursor,
     ModernMessageSummary,
     ModernRecipient,
     ModernRecipientTypeReference,
+    ModernUnreadCounts,
     Observation,
     Recipient,
     RecipientGroupChoice,
     RecipientGroupReference,
 )
+from librus_python_api.exceptions import ErrorKind, LibrusError
 from pydantic import Field
 
 from librus_mcp.read_schemas import AccountAliasInput, NumericID
@@ -35,11 +38,17 @@ class MessageReferenceInput(WireModel):
     folder: MessageFolder
     identifier: NumericID
     account: AccountAliasInput
+    archived: Annotated[bool, Field(strict=True)] = False
 
     def native(self) -> MessageReference | ModernMessageReference:
+        if self.archived and self.backend is MessagingBackend.LEGACY:
+            raise LibrusError(ErrorKind.UNSUPPORTED_CAPABILITY)
         if self.backend is MessagingBackend.MODERN:
             return ModernMessageReference(
-                folder=self.folder, identifier=self.identifier, account=self.account
+                folder=self.folder,
+                identifier=self.identifier,
+                account=self.account,
+                archived=self.archived,
             )
         return MessageReference(
             folder=self.folder, identifier=self.identifier, account=self.account
@@ -80,6 +89,9 @@ class ModernCursor(WireModel):
     total_count: Annotated[int, Field(strict=True, ge=0, le=50000)]
     fingerprint: HexDigest
     seen_ids: SeenIDs
+    archived: Annotated[bool, Field(strict=True)] = False
+    correspondent: NumericID | None = None
+    unread_only: Annotated[bool, Field(strict=True)] = False
 
     def native(self) -> ModernMessagesCursor:
         return ModernMessagesCursor(
@@ -91,6 +103,9 @@ class ModernCursor(WireModel):
             total_count=self.total_count,
             fingerprint=self.fingerprint,
             seen_ids=self.seen_ids,
+            archived=self.archived,
+            correspondent=self.correspondent,
+            unread_only=self.unread_only,
         )
 
 
@@ -118,6 +133,33 @@ class MessagesResult(WireModel):
     identity: Identity
     observation: Observation
     pagination: MessagePagination
+    archived: bool = False
+    correspondent: "CorrespondentReferenceInput | None" = None
+    unread_only: bool = False
+    archiving_in_progress: bool | None = None
+
+
+class CorrespondentReferenceInput(WireModel):
+    context: HexDigest
+    backend: Literal["modern"] = "modern"
+    folder: MessageFolder
+    identifier: NumericID
+    account: AccountAliasInput
+
+    def native(self) -> ModernCorrespondentReference:
+        return ModernCorrespondentReference(
+            folder=self.folder, identifier=self.identifier, account=self.account
+        )
+
+
+class CorrespondentItem(WireModel):
+    reference: CorrespondentReferenceInput
+    first_name: str
+    last_name: str
+
+
+class UnreadCountsResult(WireModel):
+    data: ModernUnreadCounts
 
 
 class MessageContentResult(WireModel):

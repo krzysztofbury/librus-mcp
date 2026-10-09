@@ -2,6 +2,41 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.1.0] - 2026-10-09
+
+### Added
+
+- `get_school_year_archive` pages earlier school years and achievements, preserving
+  native marks, descriptive text, raw behaviour fields and absence counts.
+- `get_class_free_days` pages native civil-date and optional lesson ranges.
+- Modern-only `get_message_correspondents`, `get_teacher_subjects` and
+  `get_message_unread_counts` expose bounded discovery and current/archive counters.
+- `get_messages` accepts `archived`, a context/account/folder-bound `correspondent`
+  and received-only `unread_only`. Query fields round-trip in cursors and results;
+  archived references remain archive-bound. Archived content and archive filters
+  return `UNSUPPORTED_CAPABILITY`; legacy accounts have no modern fallback.
+- Both grade tools include `record_type="formative"` items with a typed
+  `assessment`, including observation-card rows. Numeric/descriptive items expose
+  `formative_id` to identify mirrors. All item types share one pagination limit;
+  date windows apply to formative items too. Formative view semantics remain
+  unverified, and standalone formative notifications are not added.
+- Bounded, redacted `--phase v21` live qualification, including continuation and
+  correspondent filters. Qualification explicitly disables optional stores/files
+  and sends instead of inheriting the server's default-on features.
+
+### Changed
+
+- Pin `librus-python-api==1.6.0` (previously 1.0.2). Existing legacy sent-message
+  content now accepts recipient receipts with a class-label column and exposes
+  `recipient_class`. Native module-unavailable outcomes pass through as the
+  redacted `MODULE_UNAVAILABLE` MCP error, distinct from access denial.
+- Catalogs have 31 default, 35 all-feature and 27 minimal tools. The default
+  catalog budget remains 128 KiB; the all-feature budget becomes 144 KiB.
+  Complete duplicated results remain capped at 512 KiB without silent truncation.
+- Unknown formative page markup now fails the grades read instead of being
+  silently ignored by the API. Existing configuration and durable stores are reused;
+  consumers matching grade item variants must handle `formative`.
+
 ## [2.0.1] - 2026-10-06
 
 ### Fixed

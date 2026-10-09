@@ -97,6 +97,15 @@ async def test_paging_content_consent_directory_and_context_binding(backend):
                         assert content.structured_content["data"]["summary"]["unread"] is None
                     else:
                         assert content.structured_content["data"]["may_mark_read"] is False
+                        receipts = content.structured_content["data"]["content"][
+                            "recipient_receipts"
+                        ]
+                        assert [item["recipient_class"] for item in receipts] == [
+                            "Fixture Class",
+                            None,
+                        ]
+                        assert receipts[0]["read_timestamp"] is None
+                        assert receipts[1]["raw_status"] == "2026-09-25 08:15"
                     types = await session.call_tool("get_recipient_types", base)
                     assert not types.is_error
                     selected = types.structured_content["items"][0]["reference"]

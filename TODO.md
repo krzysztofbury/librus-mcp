@@ -1,20 +1,36 @@
 # TODO
 
-This roadmap records the native 2.0 implementation and the historical 1.x work
-that preceded it. Version numbers indicate compatibility risk, not a release
-commitment:
+This roadmap records current native work and historical releases. Earlier
+implementation and qualification evidence below retains its original versions.
 
-- Compatible work (`1.x`): additive response schemas, bounded UX,
-  resource controls, safety fixes, and documentation.
-- Major release (`2.0.0`): deliberate tool, response, package, or configuration contract changes.
+## 2.1.0 release checklist
+
+- [x] Pin published API 1.6.0 and review all changes since 1.0.2.
+- [x] Include formative assessments and observation-card rows in both grade tools,
+  with mirror IDs, shared paging and date-window filtering.
+- [x] Add school-year archive and class-free-day tools with bound presentation cursors.
+- [x] Extend modern messages with archive/filter selection and bound continuation.
+- [x] Add correspondent, teacher-subject and unread-counter discovery tools.
+- [x] Keep parsing, transport, shared budgets and durable workflows in the API.
+- [x] Update protocol, setup, release and migration documentation for 2.1.
+- [x] Finish full offline and installed artifact qualification: Linux/Python 3.14.7,
+  86 passed/1 Windows-only skip against source and the wheel rebuilt from sdist.
+- [x] Complete authorized bounded live read qualification: installed 2.1.0,
+  82 successful checks across four independent logins, 126 requests/1164769 bytes.
+  Coverage and sampling limits are recorded in `NATIVE_TEST_PLAN.md`.
+- [ ] Run hosted Linux/macOS/Windows qualification, then publish and verify artifacts.
+
+The native API still has no general behaviour-notes tool. Formative notifications
+and archived message bodies are outside this release's qualified API surface.
 
 ## 2.0.0 Plan (released 2026-10-06)
 
 The direct native-backend migration is planned in
 [MCP_2_0_PLAN.md](MCP_2_0_PLAN.md), based on remote MCP main `0aaf658` and API
 main `01b32e0` reviewed on 2026-10-05. Work branch: `feat/2.0.0-native-api`.
-API `1.0.2` is on PyPI and pinned. Native consumer integration, declared hosted
-platform profiles and MIT review are qualified; MCP publication remains open.
+API `1.0.2` was the release prerequisite. Native consumer integration, declared
+hosted platform profiles and MIT review were qualified; MCP 2.0.0 and 2.0.1 were
+published on 2026-10-06.
 
 - [x] Review both main branches, the API's native cutover matrix and all 18
   existing MCP 2.0 roadmap items; create the dedicated MCP branch.
@@ -68,9 +84,10 @@ platform profiles and MIT review are qualified; MCP publication remains open.
   stdio, created its key and completed read-only profile/subject-frequency
   reads on four logins.
 
-Parked by the owner: API #26 (notes/observation cards, missing qualifying examples)
-and #27 (daily credentialed CI, noncritical). Neither blocks MCP 2.0.0. Notes
-remain unavailable/unregistered; offline E2E and release qualification remain required.
+API #26 and #27 were parked during the migration and are now closed. API 1.4.0
+established observation cards as formative grade rows; the API has a guarded
+weekly credentialed workflow. General behaviour notes remain unregistered;
+offline E2E and MCP release qualification remain required.
 
 The target is a thin MCP client with reusable heavy work in `librus-python-api`.
 New tool requests/responses may break 1.x compatibility. Durable history and

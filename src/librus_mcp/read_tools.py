@@ -41,7 +41,13 @@ from librus_mcp.read_schemas import (
     WindowResult,
 )
 from librus_mcp.runtime import Runtime
-from librus_mcp.schemas import GradeItem, PresentationCursor, descriptive_item
+from librus_mcp.schemas import (
+    FormativeItem,
+    GradeItem,
+    GradeRecord,
+    PresentationCursor,
+    descriptive_item,
+)
 
 
 def register_read_tools(server: MCPServer[Runtime]) -> None:
@@ -69,8 +75,8 @@ async def get_grades_window(
     scope: GradeView = GradeView.ALL,
     cursor: PresentationCursor | None = None,
     limit: Limit = 100,
-) -> WindowResult[GradeItem]:
-    """Page dated grades locally; continuation rejects changed source data, not a snapshot."""
+) -> WindowResult[GradeRecord]:
+    """Page dated grades and formative assessments. Match formative_id to assessment.detail_id for mirrors. Dates filter both; formative scope semantics are unverified. Cursors reject source drift."""
     runtime = ctx.request_context.lifespan_context
     client = runtime.account(account_alias)
     validate_window_cursor(
@@ -79,23 +85,28 @@ async def get_grades_window(
     result = await client.grades_window(
         start=date_from, end=date_to, view=scope, budget=runtime.budget
     )
-    items = tuple(
-        GradeItem(
-            record_type="numeric",
-            subject=item.subject,
-            raw=item.raw,
-            day=item.day,
-            semester=item.semester,
-            kind=item.kind,
-            teacher=item.teacher,
-            comment=item.comment,
-            metadata=item.metadata,
-            counts_toward_average=item.counts_toward_average,
-            weight=item.weight,
-            category=item.category,
+    items = (
+        tuple(
+            GradeItem(
+                record_type="numeric",
+                subject=item.subject,
+                raw=item.raw,
+                day=item.day,
+                semester=item.semester,
+                kind=item.kind,
+                teacher=item.teacher,
+                comment=item.comment,
+                metadata=item.metadata,
+                counts_toward_average=item.counts_toward_average,
+                weight=item.weight,
+                category=item.category,
+                formative_id=item.formative_id,
+            )
+            for item in result.numeric
         )
-        for item in result.numeric
-    ) + tuple(descriptive_item(item) for item in result.descriptive)
+        + tuple(descriptive_item(item) for item in result.descriptive)
+        + tuple(FormativeItem(assessment=item) for item in result.formative)
+    )
     selected, pagination = window_page(
         items,
         context=client.context.identifier,
@@ -103,7 +114,7 @@ async def get_grades_window(
         cursor=cursor,
         limit=limit,
     )
-    return WindowResult[GradeItem](
+    return WindowResult[GradeRecord](
         items=selected,
         date_from=date_from,
         date_to=date_to,

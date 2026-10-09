@@ -1,4 +1,4 @@
-# Native 2.0 application specification
+# Native 2.1 application specification
 
 The installed import package is `librus_mcp`; the console entry is
 `librus_mcp.cli:main`. All releases before 2.0 use apix. The native package is MIT;
@@ -19,6 +19,13 @@ unshipped 1.x references retain their scoped GPL license. See
   for a quarantined legacy-state account; new notification polls do not.
 
 ## Safety boundaries
+
+2.1 uses API 1.6.0. Native history, class-free-day and directory collections are
+paged in MCP without duplicating upstream traversal. Grade presentation includes
+formative records and their mirror IDs. Modern message query/reference/cursor
+projections preserve archive and filter selection. See [MCP_CONTRACT.md](MCP_CONTRACT.md)
+for exact wire shapes and capability limits. Default/all-feature catalog budgets
+are 128/144 KiB for 31/35 tools; the minimal profile has 27 tools.
 
 Invalid aliases, dates and bound references fail before upstream requests.
 Native errors become closed codes without causes, HTML, credentials or inputs.
