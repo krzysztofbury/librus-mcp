@@ -1,4 +1,4 @@
-"""MCP 2.0 application over the independent native API."""
+"""MCP 2.x application over the independent native API."""
 
 from importlib.metadata import PackageNotFoundError, version
 

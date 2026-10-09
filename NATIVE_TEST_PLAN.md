@@ -1,5 +1,63 @@
 # Native migration verification ownership
 
+## 2.1 qualification
+
+The 2.1 candidate pins API 1.6.0. `test_v21_stdio.py` owns the new consumer
+contracts over real stdio and independently authored loopback responses:
+formative paging/mirror IDs/date filtering/source drift; archive years and
+achievements with empty/raw marks; class-free date/lesson ranges; modern
+directory paging, unread counter projection, archive/filter continuation and
+pre-I/O account/context/folder/query rejection. Existing suites retain ownership
+of send, notification and attachment persistence/consent.
+
+`test_message_stdio.py` covers the new legacy receipt class field, and
+`test_native_stdio.py` covers redacted module-unavailable outcomes without a
+second authentication. POSIX directory tests establish their starting modes
+explicitly so they exercise the same boundary under a private umask.
+
+Local Linux/Python 3.14.7 source qualification on 2026-10-09: **86 passed,
+1 Windows-only skip**. Ruff/format, strict mypy, Bandit, lock consistency and
+changed-file pre-commit checks pass. The MIT sdist rebuilds a wheel successfully.
+Catalogs measure 119021 bytes/31 tools by default and 132153 bytes/35 tools with
+all features, with typed outputs throughout. The isolated wheel rebuilt from
+sdist also passes **86 tests, 1 Windows-only skip**, installed CLI/stdio identity,
+schema and catalog-budget checks. New hosted macOS/Windows qualification and
+publication remain pending; historical results are not 2.1 evidence. The retained
+mutation report is migration-era evidence, not a refreshed 2.1 baseline.
+
+Authorized live qualification on 2026-10-09 used that installed wheel and API
+1.6.0 outside the checkout: **82 successful checks across four independent
+logins**, using **126 requests and 1164769 response bytes**, within the shared
+budget. Both grade tools returned formative data. School-year archives covered
+populated and explicit empty results. Class-free-day and teacher-subject paging,
+received/sent correspondent discovery and filters, current/archive inbox/outbox
+summaries, unread filtering and available continuation paths passed. Counter
+responses were typed successfully; the check does not establish additional
+semantics for upstream counter names.
+
+These are bounded samples, not exhaustive histories: one continuation at most
+per returned cursor, and filters only when discovery supplied a reference.
+Empty lists are recorded as empty, not populated coverage. No bodies, downloads,
+sends, notification polling or production durable-state changes were exercised.
+The qualifier's disabled feature profile was also checked with a synthetic config.
+All task-owned build, installation and qualification scratch was removed.
+
+For separately authorized ordinary live reads only:
+
+```bash
+uv run python scripts/qualify_native.py --live --phase v21 --config /private/path/config.json
+```
+
+This profile checks both grade tools, school-year history, class-free days,
+modern discovery/counters, current/archive inbox/outbox lists, unread filtering,
+one continuation per available cursor and one filter per available correspondent
+list. The shared invocation budget is 160 requests, 360 seconds and 16 MiB.
+Outputs contain slot numbers, tool/status/coverage and counts, never account
+aliases, school text or references. Optional stores, sends and files are explicitly
+disabled. No received/sent body open, download, notification poll, read-once
+consumption or production-state migration is part of this profile. Authentication
+still changes last-login baselines and grade scope selects the session view.
+
 ## Baseline and current test selection
 
 The apix-era suite passed **569 tests** before dependency removal on 2026-10-05.
@@ -19,8 +77,8 @@ do not remove an independent safety proof without identifying its owner.
 
 | Legacy tests/concerns | Final owner and required evidence |
 | --- | --- |
-| CLI, config, credential files, feature gates | MCP; native tests cover selection, redaction, private-file limits, duplicate aliases, unavailable features and explicit offline doctor/storage diagnostics. Key-file support remains deferred. |
-| MCP stdio/catalog/output models, tool errors, context budgets | MCP; native tests cover the 22-tool default and 30-tool optional catalog, schema compilation, effects/projections, input/domain redaction, whole-result byte caps, pre-I/O cursor/reference guards and host-wide budget exhaustion. Both catalogs pass installed schema and byte-budget checks. |
+| CLI, config, credential files, feature gates | MCP; native tests cover selection, redaction, private-file limits, duplicate aliases, unavailable features, persistent context-key provisioning and explicit offline doctor/storage diagnostics. |
+| MCP stdio/catalog/output models, tool errors, context budgets | MCP; native tests cover 31 default, 35 all-feature and 27 minimal tools, schema compilation, effects/projections, input/domain redaction, whole-result byte caps, pre-I/O cursor/reference guards and host-wide budget exhaustion. Installed profiles enforce 128/144 KiB catalog bounds. |
 | Login cookies, retries, request limits, metadata caches, parser rules | API; use its existing public transport/parser proof. MCP retains real service-to-loopback tests for routing/traffic integration, not duplicate parsers. |
 | Notification files, locks, pending spools, collision handling | API owns native transactions; MCP tests cover real old files -> reviewed bootstrap -> restart -> historical poll/ack, mirror/hash conflicts, malformed input, capacity rejection, manifest interruption and per-account quarantine. Raw checkpoint retention, archive round-trip and loss-consenting uncertainty resolution use public contracts. Supported platform profiles pass hosted acceptance; no automatic rollback is promised. |
 | Send preview/confirmation, feature consent and UNKNOWN recovery | API owns durable claims/outcomes; MCP stdio tests cover both backends, exact token/payload binding, consent, native HTTP, restart recovery, accepted/rejected/unknown outcomes, cancellation/disconnect and no resubmission. Store-error projection is consumer-owned; claim/save transaction internals remain API-owned. |

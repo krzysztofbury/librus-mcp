@@ -58,6 +58,7 @@ def qualification_config(path: Path) -> AppConfig:
         {
             "accounts": data.get("accounts"),
             "context_key": data.get("context_key") or secrets.token_hex(32),
+            "features": {"notifications": False, "attachments": False, "send_message": False},
         }
     )
 
@@ -86,6 +87,51 @@ def serve(config: AppConfig) -> None:
 
 
 def cases(phase: str = "academic") -> list[tuple[str, dict[str, Any]]]:
+    if phase == "v21":
+        today = datetime.now(ZoneInfo("Europe/Warsaw")).date()
+        return [
+            ("get_grades", {"limit": 50}),
+            (
+                "get_grades_window",
+                {
+                    "date_from": (today - timedelta(days=30)).isoformat(),
+                    "date_to": today.isoformat(),
+                    "limit": 50,
+                },
+            ),
+            ("get_school_year_archive", {"limit": 5}),
+            ("get_class_free_days", {"limit": 5}),
+            ("get_teacher_subjects", {"limit": 5}),
+            ("get_message_unread_counts", {}),
+            ("get_message_correspondents", {"folder": "received", "limit": 5}),
+            ("get_message_correspondents", {"folder": "sent", "limit": 5}),
+            ("get_messages", {"folder": "received", "limit": 5, "max_pages": 1, "page_size": 5}),
+            ("get_messages", {"folder": "sent", "limit": 5, "max_pages": 1, "page_size": 5}),
+            (
+                "get_messages",
+                {
+                    "folder": "received",
+                    "archived": True,
+                    "limit": 5,
+                    "max_pages": 1,
+                    "page_size": 5,
+                },
+            ),
+            (
+                "get_messages",
+                {"folder": "sent", "archived": True, "limit": 5, "max_pages": 1, "page_size": 5},
+            ),
+            (
+                "get_messages",
+                {
+                    "folder": "received",
+                    "unread_only": True,
+                    "limit": 5,
+                    "max_pages": 1,
+                    "page_size": 5,
+                },
+            ),
+        ]
     if phase == "communication":
         return [
             ("get_messages", {"folder": "received", "limit": 5, "max_pages": 1}),
@@ -146,7 +192,54 @@ async def call(
     )
     if arguments.get("folder") in {"received", "sent"}:
         records[-1]["folder"] = arguments["folder"]
+    for flag in ("archived", "unread_only"):
+        if flag in arguments:
+            records[-1][flag] = arguments[flag]
+    if "correspondent" in arguments:
+        records[-1]["filtered"] = True
+    if "cursor" in arguments:
+        records[-1]["continuation"] = True
+    if value is not None and isinstance(value.get("items"), list):
+        records[-1]["item_count"] = len(value["items"])
+        if name in {"get_grades", "get_grades_window"}:
+            records[-1]["formative_count"] = sum(
+                item.get("record_type") == "formative" for item in value["items"]
+            )
     return value, False
+
+
+async def v21_continuation(
+    session: ClientSession,
+    records: list[dict[str, Any]],
+    index: int,
+    name: str,
+    arguments: dict[str, Any],
+    value: dict[str, Any],
+) -> bool:
+    """One continuation and one bound filter per discovery, with no body opens."""
+    cursor = value.get("pagination", {}).get("next_cursor")
+    if cursor is not None:
+        _, stop = await call(session, records, index, name, arguments | {"cursor": cursor})
+        if stop:
+            return False
+    if name == "get_message_correspondents" and value.get("items"):
+        _, stop = await call(
+            session,
+            records,
+            index,
+            "get_messages",
+            {
+                "account_alias": arguments["account_alias"],
+                "folder": arguments["folder"],
+                "correspondent": value["items"][0]["reference"],
+                "limit": 5,
+                "max_pages": 1,
+                "page_size": 5,
+            },
+        )
+        if stop:
+            return False
+    return True
 
 
 def detail_cases(results: dict[str, dict[str, Any]]) -> list[tuple[str, dict[str, Any]]]:
@@ -274,6 +367,12 @@ async def account_checks(
                 return False
             if value is not None:
                 results[name] = value
+                if phase == "v21" and not await v21_continuation(
+                    session, records, index, name, base | arguments, value
+                ):
+                    return False
+        if phase == "v21":
+            continue
         if phase == "communication":
             if not await communication_details(session, records, index, base, results):
                 return False
@@ -359,7 +458,9 @@ def main() -> None:
     parser.add_argument("--config", type=Path, required=True)
     parser.add_argument("--serve", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument(
-        "--phase", choices=["academic", "communication", "homework_history"], default="academic"
+        "--phase",
+        choices=["academic", "communication", "homework_history", "v21"],
+        default="academic",
     )
     parser.add_argument(
         "--first-account-from",

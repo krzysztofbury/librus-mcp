@@ -63,6 +63,11 @@ pin; it adds no production flag, import, wrapper or instrumentation hook.
 
 ## Reviewed baseline, 2026-10-06
 
+This retained report predates API 1.6.0 and the 2.1 message/filter and grade
+projections. Changed source/test fingerprints mean it is historical evidence,
+not a current 2.1 mutation qualification. Review a fresh campaign before replacing
+the baseline; the ordinary offline/installed suites remain release gates.
+
 On Linux/Python 3.14.7, **62 killed, 8 survived**, with no unchecked/no-test,
 timeout or suspicious selected outcomes. All eight message-binding mutants were
 killed. The first run was 58 killed/12 survived. Four genuine consumer gaps were

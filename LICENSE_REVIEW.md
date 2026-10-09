@@ -52,7 +52,7 @@ the MCP wheel or sdist.
 | idna | 3.19 | BSD-3-Clause |
 | jsonschema | 4.26.0 | MIT |
 | jsonschema-specifications | 2025.9.1 | MIT |
-| librus-python-api | 1.0.0 | MIT |
+| librus-python-api | 1.6.0 | MIT |
 | lxml | 6.1.2 | BSD-3-Clause with additional terms below |
 | mcp | 2.1.1 | MIT |
 | mcp-types | 2.1.1 | MIT |
@@ -75,6 +75,20 @@ the MCP wheel or sdist.
 | tzdata | 2026.5 | Apache-2.0, timezone data includes public-domain material |
 | uvicorn | 0.52.4 | BSD-3-Clause |
 | yarl | 1.24.5 | Apache-2.0 |
+
+### API dependency refresh, 2026-10-09
+
+The API pin advances from 1.0.2 to the published 1.6.0. The installed wheel's
+MIT license and metadata were inspected. Its runtime requirements are unchanged,
+and the lock update changes only this package and its reviewed quarantine
+exception. The API's original implementation remains separately installed;
+no library parser or fixture was copied into MCP. New consumer receipt markup
+and module-unavailable wire cases are independently authored synthetic inputs.
+The 2.1 projections use public native model/service contracts. New history,
+formative and mailbox-discovery fixtures in `tests_native/` use invented data
+authored from contract requirements; no live page dump, API test fixture or
+third-party parser is included. There are no new runtime dependencies beyond
+the reviewed API version change.
 
 ### lxml is not wholly BSD-only
 

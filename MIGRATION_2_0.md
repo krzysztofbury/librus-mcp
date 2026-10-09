@@ -14,6 +14,20 @@ adapts them on first start (see [Upgrading an existing setup](#upgrading-an-exis
 Library and MCP version numbers are independent: 2.0.0 pins the published native
 library `1.0.2`. Use an explicit version pin when selecting a release.
 
+## Moving from 2.0 to 2.1
+
+2.1.0 pins API 1.6.0. Reuse the existing configuration,
+context key, sends and notification stores. Refresh the host's tool catalog.
+Custom consumers must accept the new `formative` grade item variant and the
+nullable `formative_id` on existing variants; restart old grade cursors.
+Message references/cursors without the new fields still select current,
+unfiltered mail. New archive/filter fields must be preserved on round trips.
+No migration command or state reset is required. The new history, class-free-day
+and modern discovery contracts are in [MCP_CONTRACT.md](MCP_CONTRACT.md).
+
+The setup commands below retain the published 2.0 migration example; the
+[README](README.md) targets 2.1.
+
 ## Upgrading an existing setup
 
 Change the host's version pin to `librus-mcp==2.0.0` and run it with Python 3.14
@@ -51,9 +65,9 @@ Native service defaults bound combined rate, burst, active requests and queues.
 | Final-grade legacy mappings | `items` with midterm/predicted/annual availability and raw values |
 | Runtime exception text | `isError=true` with a closed `error.code`; no raw input/page/cause text |
 
-The default catalog has 26 tools, including notifications and attachments.
-Enabling sending gives 30 tools; disabling notifications and attachments leaves
-22. Every tool has typed input/output schemas:
+The current 2.1 catalog has 31 tools, including notifications and attachments.
+Enabling sending gives 35 tools; disabling notifications and attachments leaves
+27. Every tool has typed input/output schemas:
 
 | Family | Tools |
 | --- | --- |
@@ -61,8 +75,8 @@ Enabling sending gives 30 tools; disabling notifications and attachments leaves
 | Grades | `get_final_grades`, `get_grades`, `get_grades_window` |
 | Attendance/frequency | `get_attendance`, `get_attendance_window`, `get_attendance_detail`, `get_attendance_frequency`, `get_subject_frequency` |
 | Calendar/homework | `get_agenda`, `get_agenda_detail`, `get_homework`, `get_homework_detail`, `get_timetable` |
-| Other academic reads | `get_announcements`, `get_completed_lessons` |
-| Messaging/directory | `get_messages`, `get_message_content`, `get_recipient_types`, `get_recipient_choices`, `get_recipients` |
+| Other academic reads | `get_announcements`, `get_completed_lessons`, `get_school_year_archive`, `get_class_free_days` |
+| Messaging/directory | `get_messages`, `get_message_content`, `get_recipient_types`, `get_recipient_choices`, `get_recipients`, `get_message_correspondents`, `get_teacher_subjects`, `get_message_unread_counts` |
 | Optional durable sends | `preview_message`, `send_message`, `get_send_outcome`, `get_send_history` |
 | Optional attachments | `download_attachment` and `librus-attachment://files/{token}` resource template |
 | Optional notifications | `get_new_notifications`, `get_notification_status`, `acknowledge_notifications` |
@@ -287,7 +301,8 @@ entries; a null/broad ACL, hardlinks and reparse-point components are rejected.
 The reader pins the path and validates the opened handle before reading secrets.
 Windows ACLs are never repaired automatically.
 
-API notes/observation cards (#26) and daily credentialed CI (#27) remain parked.
+API #26 and #27 are closed. Observation cards are now formative grade rows;
+general behaviour notes remain unsupported. The API has a guarded weekly live check.
 
 ## Explicit live qualification
 

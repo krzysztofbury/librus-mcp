@@ -1,5 +1,10 @@
 # MCP 2.0 native API migration plan
 
+This is the completed migration record. Current 2.1 scope and qualification are
+tracked in [TODO.md](TODO.md), [MCP_CONTRACT.md](MCP_CONTRACT.md) and
+[NATIVE_TEST_PLAN.md](NATIVE_TEST_PLAN.md). API #26/#27 are now closed; the
+migration-era parked status below is historical, not a current feature decision.
+
 Status, 2026-10-06: native implementation, declared hosted platform profiles and
 MIT cutover are complete. Mutmut 3 replaces the historical consumer mutation
 tooling; see [MUTATION_TESTING.md](MUTATION_TESTING.md). W8 is complete: 2.0.0 is

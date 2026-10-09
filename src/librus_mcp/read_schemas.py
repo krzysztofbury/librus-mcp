@@ -102,6 +102,13 @@ class CollectionResult(WireModel, Generic[T]):
     pagination: Pagination = Field(default_factory=Pagination)
 
 
+class PagedResult(WireModel, Generic[T]):
+    items: tuple[T, ...]
+    identity: Identity
+    observation: Observation
+    pagination: WindowPagination
+
+
 class TimetableResult(CollectionResult[TimetableDay]):
     monday: date
     timezone: Literal["Europe/Warsaw"] = "Europe/Warsaw"

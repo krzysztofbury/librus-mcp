@@ -11,6 +11,7 @@ from librus_python_api import (
     ModernMessageReference,
     ModernMessages,
     ModernMessagesCursor,
+    ModernTeacherSubject,
 )
 from librus_python_api.exceptions import ErrorKind, LibrusError
 from mcp.server.mcpserver import Context, MCPServer
@@ -18,6 +19,8 @@ from mcp.types import ToolAnnotations
 from pydantic import Field
 
 from librus_mcp.message_schemas import (
+    CorrespondentItem,
+    CorrespondentReferenceInput,
     LegacyCursor,
     MessageContentResult,
     MessageCursorInput,
@@ -31,9 +34,12 @@ from librus_mcp.message_schemas import (
     RecipientTypeInput,
     RecipientTypeOutput,
     RecipientTypesResult,
+    UnreadCountsResult,
 )
-from librus_mcp.read_schemas import AccountAliasInput, Limit, MaxPages
+from librus_mcp.presentation import validate_window_cursor, window_page
+from librus_mcp.read_schemas import AccountAliasInput, Limit, MaxPages, PagedResult
 from librus_mcp.runtime import Runtime
+from librus_mcp.schemas import PresentationCursor
 
 
 def register_message_tools(server: MCPServer[Runtime]) -> None:
@@ -48,6 +54,9 @@ def register_message_tools(server: MCPServer[Runtime]) -> None:
     server.tool(annotations=ordinary)(get_recipient_types)
     server.tool(annotations=ordinary)(get_recipient_choices)
     server.tool(annotations=selection)(get_recipients)
+    server.tool(annotations=ordinary)(get_message_correspondents)
+    server.tool(annotations=ordinary)(get_teacher_subjects)
+    server.tool(annotations=ordinary)(get_message_unread_counts)
 
 
 def require_binding(runtime: Runtime, alias: str, account: str, context: str, backend: str) -> None:
@@ -65,11 +74,24 @@ async def get_messages(
     limit: Limit = 100,
     max_pages: MaxPages = 2,
     page_size: Annotated[int, Field(strict=True, ge=1, le=50)] = 50,
+    archived: Annotated[bool, Field(strict=True)] = False,
+    correspondent: CorrespondentReferenceInput | None = None,
+    unread_only: Annotated[bool, Field(strict=True)] = False,
 ) -> MessagesResult:
-    """Read bounded message summaries from the configured backend; never opens bodies or falls back."""
+    """Page message summaries without opening bodies. Modern supports archive listing or current-mailbox correspondent/unread filters. Archives cannot be filtered or opened; unread_only is received-only. Repeat query fields with cursors. No backend fallback."""
     runtime = ctx.request_context.lifespan_context
     client = runtime.account(account_alias)
     backend = runtime.messaging_backend(account_alias)
+    if correspondent is not None:
+        require_binding(
+            runtime,
+            account_alias,
+            correspondent.account,
+            correspondent.context,
+            correspondent.backend,
+        )
+        if correspondent.folder != folder:
+            raise LibrusError(ErrorKind.INVALID_INPUT)
     if cursor is not None:
         require_binding(runtime, account_alias, cursor.account, cursor.context, cursor.backend)
         if cursor.folder != folder:
@@ -77,16 +99,27 @@ async def get_messages(
     if backend is MessagingBackend.MODERN:
         if cursor is not None and not isinstance(cursor, ModernCursor):
             raise LibrusError(ErrorKind.INVALID_INPUT)
+        if cursor is not None and (
+            cursor.archived != archived
+            or cursor.correspondent != (correspondent.identifier if correspondent else None)
+            or cursor.unread_only != unread_only
+        ):
+            raise LibrusError(ErrorKind.INVALID_INPUT)
         modern = await client.modern_messages(
             folder=folder,
             cursor=None if cursor is None else cursor.native(),
             limit=limit,
             max_pages=max_pages,
             page_size=page_size,
+            archived=archived,
+            correspondent=correspondent.native() if correspondent else None,
+            unread_only=unread_only,
             budget=runtime.budget,
         )
         return message_result(modern, client.context.identifier, backend)
     else:
+        if archived or correspondent is not None or unread_only:
+            raise LibrusError(ErrorKind.UNSUPPORTED_CAPABILITY)
         if cursor is not None and not isinstance(cursor, LegacyCursor):
             raise LibrusError(ErrorKind.INVALID_INPUT)
         if page_size != 50:
@@ -117,6 +150,9 @@ def message_result(
             total_count=value.total_count,
             fingerprint=value.fingerprint,
             seen_ids=value.seen_ids,
+            archived=value.archived,
+            correspondent=value.correspondent,
+            unread_only=value.unread_only,
         )
     elif isinstance(result.next_cursor, MessagesCursor):
         value_legacy = result.next_cursor
@@ -139,6 +175,9 @@ def message_result(
                     folder=item.reference.folder,
                     identifier=item.reference.identifier,
                     account=item.reference.account,
+                    archived=item.reference.archived
+                    if isinstance(item.reference, ModernMessageReference)
+                    else False,
                 ),
                 summary=item,
             )
@@ -148,6 +187,21 @@ def message_result(
         folder=result.folder,
         identity=result.identity,
         observation=result.observation,
+        archived=result.archived if isinstance(result, ModernMessages) else False,
+        correspondent=(
+            CorrespondentReferenceInput(
+                context=context,
+                folder=result.correspondent.folder,
+                identifier=result.correspondent.identifier,
+                account=result.correspondent.account,
+            )
+            if isinstance(result, ModernMessages) and result.correspondent
+            else None
+        ),
+        unread_only=result.unread_only if isinstance(result, ModernMessages) else False,
+        archiving_in_progress=result.archiving_in_progress
+        if isinstance(result, ModernMessages)
+        else None,
         pagination=MessagePagination(
             next_cursor=next_cursor,
             truncated=next_cursor is not None,
@@ -169,6 +223,8 @@ async def get_message_content(
     require_binding(
         runtime, account_alias, message_ref.account, message_ref.context, message_ref.backend.value
     )
+    if message_ref.archived:
+        raise LibrusError(ErrorKind.UNSUPPORTED_CAPABILITY)
     if message_ref.folder is MessageFolder.RECEIVED and not allow_mark_read:
         raise LibrusError(ErrorKind.INVALID_INPUT)
     reference = message_ref.native()
@@ -187,6 +243,83 @@ async def get_message_content(
     )
     return MessageContentResult(
         context=client.context.identifier, backend=message_ref.backend, data=content_legacy
+    )
+
+
+async def get_message_correspondents(
+    account_alias: AccountAliasInput,
+    ctx: Context[Runtime, Any],
+    folder: MessageFolder = MessageFolder.RECEIVED,
+    cursor: PresentationCursor | None = None,
+    limit: Limit = 100,
+) -> PagedResult[CorrespondentItem]:
+    """Page modern mailbox senders/receivers for get_messages filters, not send recipients. References bind login, backend and folder; cursors reject source drift."""
+    runtime = ctx.request_context.lifespan_context
+    if runtime.messaging_backend(account_alias) is not MessagingBackend.MODERN:
+        raise LibrusError(ErrorKind.UNSUPPORTED_CAPABILITY)
+    client = runtime.account(account_alias)
+    query = ("message-correspondents", "modern", folder.value)
+    validate_window_cursor(cursor, client.context.identifier, query)
+    result = await client.modern_correspondents(folder=folder, budget=runtime.budget)
+    items = tuple(
+        CorrespondentItem(
+            reference=CorrespondentReferenceInput(
+                context=client.context.identifier,
+                folder=item.reference.folder,
+                identifier=item.reference.identifier,
+                account=item.reference.account,
+            ),
+            first_name=item.first_name,
+            last_name=item.last_name,
+        )
+        for item in result.items
+    )
+    selected, pagination = window_page(
+        items, context=client.context.identifier, query=query, cursor=cursor, limit=limit
+    )
+    return PagedResult[CorrespondentItem](
+        items=selected,
+        identity=result.identity,
+        observation=result.observation,
+        pagination=pagination,
+    )
+
+
+async def get_teacher_subjects(
+    account_alias: AccountAliasInput,
+    ctx: Context[Runtime, Any],
+    cursor: PresentationCursor | None = None,
+    limit: Limit = 100,
+) -> PagedResult[ModernTeacherSubject]:
+    """Page modern teacher-account/subject pairs. IDs are informational, not send-recipient references. Use get_recipients for sending; cursors reject source drift."""
+    runtime = ctx.request_context.lifespan_context
+    if runtime.messaging_backend(account_alias) is not MessagingBackend.MODERN:
+        raise LibrusError(ErrorKind.UNSUPPORTED_CAPABILITY)
+    client = runtime.account(account_alias)
+    query = ("teacher-subjects", "modern")
+    validate_window_cursor(cursor, client.context.identifier, query)
+    result = await client.modern_teacher_subjects(budget=runtime.budget)
+    selected, pagination = window_page(
+        result.items, context=client.context.identifier, query=query, cursor=cursor, limit=limit
+    )
+    return PagedResult[ModernTeacherSubject](
+        items=selected,
+        identity=result.identity,
+        observation=result.observation,
+        pagination=pagination,
+    )
+
+
+async def get_message_unread_counts(
+    account_alias: AccountAliasInput,
+    ctx: Context[Runtime, Any],
+) -> UnreadCountsResult:
+    """Read modern current/archive unread counters without opening messages. Folder names retain upstream semantics; separate from durable MCP notification delivery/status."""
+    runtime = ctx.request_context.lifespan_context
+    if runtime.messaging_backend(account_alias) is not MessagingBackend.MODERN:
+        raise LibrusError(ErrorKind.UNSUPPORTED_CAPABILITY)
+    return UnreadCountsResult(
+        data=await runtime.account(account_alias).modern_unread_counts(budget=runtime.budget)
     )
 
 

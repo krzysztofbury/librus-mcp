@@ -157,7 +157,7 @@ async def run_tool_checks(
                     await session.initialize()
                     catalog = await session.list_tools()
                     tools = {tool.name: tool for tool in catalog.tools}
-                    if len(tools) != (30 if all_features else 26):
+                    if len(tools) != (35 if all_features else 31):
                         raise VerificationError(
                             "installed catalog has an unexpected feature profile"
                         )
@@ -168,7 +168,7 @@ async def run_tool_checks(
                         validator_for(tool.output_schema).check_schema(tool.output_schema)
                     if (
                         len(catalog.model_dump_json(by_alias=True, exclude_unset=True).encode())
-                        > 128 * 1024
+                        > (144 if all_features else 128) * 1024
                     ):
                         raise VerificationError("installed catalog exceeds its context budget")
                     grades_tool = tools.get("get_grades")

@@ -68,8 +68,16 @@ async def legacy_response(request, wire):
         )
     if request.path.startswith(("/wiadomosci/1/5/", "/wiadomosci/1/6/")):
         label = "Adresat" if "/6/" in request.path else "Nadawca"
+        receipts = (
+            '<table class="stretch"><tr><th colspan="3">Przeczytano:</th></tr>'
+            "<tr><td>Fixture Recipient A</td><td>Fixture Class</td><td>NIE</td></tr>"
+            "<tr><td>Fixture Recipient B</td><td></td><td>2026-09-25 08:15</td></tr>"
+            "</table>"
+            if "/6/" in request.path
+            else ""
+        )
         return web.Response(
-            text=f'<html><table class="stretch"><tr><th>{label}:</th><td>Fixture Correspondent</td></tr><tr><th>Temat:</th><td>Fixture subject</td></tr><tr><th>Wysłano:</th><td>2026-09-24 12:00</td></tr></table><div class="container-message-content"><p>Fixture body</p></div></html>',
+            text=f'<html><table class="stretch"><tr><th>{label}:</th><td>Fixture Correspondent</td></tr><tr><th>Temat:</th><td>Fixture subject</td></tr><tr><th>Wysłano:</th><td>2026-09-24 12:00</td></tr></table>{receipts}<div class="container-message-content"><p>Fixture body</p></div></html>',
             content_type="text/html",
         )
     if request.path == "/wiadomosci/pobierz_zalacznik/81/91":
