@@ -54,4 +54,4 @@ jobs:
         run: uv sync --frozen --python 3.14
 
       - name: Run tests
-        run: uv run pytest -q
+        run: uv run --frozen pytest -q
