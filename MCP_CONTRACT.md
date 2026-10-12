@@ -13,6 +13,11 @@ notifications and attachments) have typed outputs. Enabling sending gives 35
 tools; disabling notifications and attachments leaves 27. Behaviour notes
 remain unregistered. Catalog listing is offline and does not authenticate.
 
+School wall-clock and wall-datetime values retain their original offset-free
+representation. Published schemas use ISO patterns with optional offsets instead
+of RFC 3339 `time`/`date-time` formats, so strict hosts accept those values without
+inventing a timezone or a DST fold.
+
 ```bash
 uv run python release_verification/measure_tools.py
 uv run python release_verification/measure_tools.py --all-features

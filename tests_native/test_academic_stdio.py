@@ -5,6 +5,7 @@ import pytest
 from mcp.client import ClientSession
 from mcp.client.stdio import stdio_client
 
+from tests_native.published_schema import assert_matches_published_schema
 from tests_native.test_native_stdio import server_process
 from tests_native.wire import Wire
 
@@ -25,6 +26,7 @@ async def test_remaining_academic_families_preserve_native_values_and_bound_refe
                 async def call(name, arguments=None):
                     result = await session.call_tool(name, base | (arguments or {}))
                     assert not result.is_error, result
+                    await assert_matches_published_schema(session, name, result)
                     assert result.structured_content["observation"]["account"] == "account"
                     return result.structured_content
 

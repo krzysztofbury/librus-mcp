@@ -1,5 +1,38 @@
 # Native migration verification ownership
 
+## 2.1.1 school-read regression qualification
+
+API 1.6.1 accepts both Sunday grade-date suffixes and preserves calendar closure
+events without an ordinary-detail reference. MCP publishes clock fields with
+an offset-optional ISO time pattern, preserving school wall time.
+
+`test_academic_stdio.py` now validates all successful results against their
+published output schemas. The strict `time` checker in `published_schema.py`
+requires the RFC 3339 offset that strict hosts enforce, unlike jsonschema's
+built-in time checker. This regression failed on the timetable before the fix.
+An independent AJV 8.17.1 + ajv-formats 3.0.1 check of an actual synthetic stdio
+timetable result passed with the corrected schema; restoring `format: time`
+produced 14 format-validation errors on the same payload.
+
+On 2026-10-12, paired local wheels passed the installed consumer suite:
+**86 passed, 1 Windows-only skip**. API's installed release profile passed all
+60 checks across four independent authorized logins using 98 requests. The MCP
+academic profile, with strict schema validation for every successful result,
+passed **60 reads**, including both grade tools, timetable and agenda on each
+login. Four disabled completed-lesson views and four absent homework-detail
+references were reported separately. The shared budget recorded **104 requests
+and 3395782 response bytes**. No message bodies, sends, read-once endpoints or
+production durable state were used. Disposable builds and environments were
+removed. This is pre-publication evidence, not proof of deployment.
+
+The updated catalog measures 119195 bytes for 31 default tools and 132327 bytes
+for 35 tools with all features, within the existing 128/144 KiB budgets.
+
+After API 1.6.1 was published and its PyPI hashes confirmed, the exact 2.1.1
+candidate passed the source suite and isolated wheel-from-sdist suite again:
+**86 passed, 1 Windows-only skip** in each. Ruff, format, strict mypy, Bandit,
+native MIT archive inventory and installed CLI/stdio identity checks passed.
+
 ## 2.1 qualification
 
 The 2.1 candidate pins API 1.6.0. `test_v21_stdio.py` owns the new consumer

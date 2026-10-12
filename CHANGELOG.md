@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.1.1] - 2026-10-12
+
+### Fixed
+
+- Publish offset-free school clock values with an ISO time pattern instead of
+  RFC 3339 `format: time`, which strict hosts reject without a timezone offset.
+  Timetable lesson and recess times retain their original values.
+- Pin native API 1.6.1, fixing grade dates with the Sunday suffix `nd.` and
+  calendar months containing closure events. Both `nd.` and `ndz.` work; closure
+  events keep their date and text without an incorrect ordinary-detail reference.
+- Validate academic stdio results against published schemas with strict clock
+  format checks, covering the host-validation failure previously missed by the
+  default Python JSON Schema time checker.
+
 ## [2.1.0] - 2026-10-09
 
 ### Added

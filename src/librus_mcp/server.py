@@ -59,12 +59,16 @@ _SCHEMA_VALUE = frozenset(
 )
 _SCHEMA_MAP = frozenset({"properties", "$defs", "patternProperties", "dependentSchemas"})
 _SCHEMA_LIST = frozenset({"anyOf", "oneOf", "allOf", "prefixItems"})
-# The API keeps message and homework times as school wall time without an offset
-# rather than guessing a DST fold, so Pydantic emits them without one. RFC 3339
-# "date-time" requires an offset and strict hosts reject such results; publish
+# The API keeps school wall times without an offset rather than guessing a DST
+# fold, so Pydantic emits them without one. RFC 3339 "date-time" and "time"
+# require an offset and strict hosts reject such results; publish
 # the ISO 8601 shape Pydantic actually emits, with the offset optional.
 _ISO_DATE_TIME = (
     r"^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\.[0-9]{1,6})?"
+    r"(?:Z|[+-][0-9]{2}:[0-9]{2})?$"
+)
+_ISO_TIME = (
+    r"^(?:[01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9](?:\.[0-9]{1,6})?"
     r"(?:Z|[+-][0-9]{2}:[0-9]{2})?$"
 )
 
@@ -74,8 +78,8 @@ def compact_schema(schema: Any) -> Any:
 
     Pydantic titles repeat property/model names and made up about a fifth of the
     catalog sent to model context. Types, constraints, required fields, enums,
-    defaults and descriptions are unchanged, except that `date-time` formats
-    become a pattern that also accepts the offset-free wall times served.
+    defaults and descriptions are unchanged, except that `date-time` and `time`
+    formats become patterns that also accept the offset-free wall times served.
     """
     if not isinstance(schema, dict):
         return schema
@@ -83,9 +87,9 @@ def compact_schema(schema: Any) -> Any:
     for key, value in schema.items():
         if key == "title" and isinstance(value, str):
             continue
-        if key == "format" and value == "date-time":
+        if key == "format" and value in ("date-time", "time"):
             assert "pattern" not in schema
-            result["pattern"] = _ISO_DATE_TIME
+            result["pattern"] = _ISO_DATE_TIME if value == "date-time" else _ISO_TIME
             continue
         if key in _SCHEMA_VALUE:
             result[key] = compact_schema(value)

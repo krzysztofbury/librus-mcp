@@ -17,6 +17,20 @@ RFC3339_DATE_TIME = re.compile(
 STRICT_FORMATS = FormatChecker()
 
 
+@STRICT_FORMATS.checks("time")
+def rfc3339_time(value: object) -> bool:
+    # jsonschema's built-in checker accepts offset-free time, unlike ajv-formats.
+    return (
+        not isinstance(value, str)
+        or re.fullmatch(
+            r"(?:[01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9](?:\.[0-9]+)?"
+            r"(?:[Zz]|[+-][0-9]{2}:[0-9]{2})",
+            value,
+        )
+        is not None
+    )
+
+
 @STRICT_FORMATS.checks("date-time")
 def rfc3339_date_time(value: object) -> bool:
     return not isinstance(value, str) or RFC3339_DATE_TIME.fullmatch(value) is not None
