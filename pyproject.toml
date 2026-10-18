@@ -41,7 +41,7 @@ build-backend = "hatchling.build"
 packages = ["src/librus_mcp"]
 
 [tool.hatch.build.targets.sdist]
-only-include = ["src/librus_mcp", "tests_native", "release_verification", "scripts/qualify_native.py", "pyproject.toml", "uv.lock", "README.md", "CHANGELOG.md", "LICENSE", "LICENSE_REVIEW.md", "MCP_2_0_PLAN.md", "MIGRATION_2_0.md", "NATIVE_TEST_PLAN.md", "MUTATION_TESTING.md", "SPEC.md", "MCP_CONTRACT.md"]
+only-include = ["src/librus_mcp", "tests_native", "release_verification", "scripts/qualify_native.py", "pyproject.toml", "uv.lock", "README.md", "CHANGELOG.md", "LICENSE", "LICENSE_REVIEW.md", "MIGRATION_2_0.md", "NATIVE_TEST_PLAN.md", "MUTATION_TESTING.md", "SPEC.md", "MCP_CONTRACT.md"]
 
 [dependency-groups]
 dev = [

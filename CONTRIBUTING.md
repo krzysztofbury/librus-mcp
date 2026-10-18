@@ -74,50 +74,6 @@ instrumentation proof, exact scope and reviewed survivors are in
 checkout; the script owns disposable copies and cleanup. No mutation-score
 target is a release gate.
 
-#### Historical 1.x evidence
-
-The following campaigns are historical 1.x evidence. Their configurations are
-preserved in `legacy_reference/mutation/`; they do not target the native package.
-Cosmic Ray is no longer a native development dependency. These counts and the
-commands in the historical release tags are not current developer instructions.
-
-Historical focused configurations live in `legacy_reference/mutation/` and
-their original release tags. Do not reinstall apix or Cosmic Ray in the native
-environment to run them.
-
-The v1.2.2 baseline produced this evidence:
-
-- Authentication: 114 of 140 selected mutants killed. All 41 control-flow and
-  state-transition mutants in the new operation-denial path were killed. Its
-  two survivors only change the rounded seconds displayed in the cooldown error.
-- Local state: 120 of 173 selected mutants killed. Targeted schema, size-bound,
-  nested-directory, content-identity, digest-check, and migration-direction
-  mutants were all killed. Remaining survivors are equivalent mutations,
-  diagnostic-only changes, exception substitutions on race paths, or branches
-  for the non-host Windows locking implementation.
-
-The v1.2.3 safety campaigns additionally killed 113 of 150 selected configuration
-mutants and 157 of 224 selected local-state mutants. Surviving mutations were
-manually triaged as equivalent comparisons, descriptor edge cases unavailable to
-normal process startup, race-only exception substitutions, or non-host platform
-branches.
-
-The v1.2.4 bounds campaigns killed 288 of 297 executable client mutants, all 62
-executable gateway/fan-out mutants, and 95 of 99 executable schedule-spool mutants.
-The remaining survivors are equivalent over validated nonnegative page indexes,
-capped collection lengths, single-event legacy files, redundant per-event size
-checks, and subset cardinalities, or replace value equality with object identity.
-
-The v1.2.5 parser and cancellation campaigns killed all 142 selected scraping
-mutants, all 11 selected client
-mutants, all 23 selected gateway-validation mutants, and the selected
-experimental-feature default mutant.
-
-The v1.4.1 read-tool fixes killed all 27 selected behaviour-column mutants and
-16 of 17 selected cookie-transfer mutants. The remaining mutation changes the
-expiry date's timezone spelling from `GMT` to `-0000`; both forms parse to the
-same deadline in the pinned aiohttp cookie jar.
-
 ## Submitting Changes
 
 1. Commit your changes with a clear, descriptive message
@@ -134,7 +90,7 @@ same deadline in the pinned aiohttp cookie jar.
 
 ## Adding a New MCP Tool
 
-See [SPEC.md](SPEC.md) for the step-by-step process of adding a new tool.
+See [SPEC.md](SPEC.md) for ownership and [MCP_CONTRACT.md](MCP_CONTRACT.md) for wire contracts.
 
 ## Reporting Bugs
 

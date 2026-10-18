@@ -16,7 +16,7 @@ library `1.0.2`. Use an explicit version pin when selecting a release.
 
 ## Moving from 2.0 to 2.1
 
-2.1.0 pins API 1.6.0. Reuse the existing configuration,
+2.1.1 pins API 1.6.1. Reuse the existing configuration,
 context key, sends and notification stores. Refresh the host's tool catalog.
 Custom consumers must accept the new `formative` grade item variant and the
 nullable `formative_id` on existing variants; restart old grade cursors.
@@ -282,8 +282,8 @@ Native guards reject resolution when raw/pending work still exists.
 
 Keep old files untouched and stop 1.x writers before migration. Native
 consumption, acknowledgement and sends require a deliberate export/reconciliation
-before rollback; an old backup is insufficient after native writes. See the full
-[implementation plan](MCP_2_0_PLAN.md) and [verification ownership](NATIVE_TEST_PLAN.md).
+before rollback; an old backup is insufficient after native writes. See
+[verification ownership](NATIVE_TEST_PLAN.md).
 
 ## Licensing
 
