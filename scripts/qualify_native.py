@@ -342,7 +342,6 @@ async def account_checks(
     session: ClientSession,
     config: AppConfig,
     records: list[dict[str, Any]],
-    first_tool: str | None = None,
     phase: str = "academic",
 ) -> bool:
     for index, account in enumerate(config.accounts, start=1):
@@ -352,15 +351,6 @@ async def account_checks(
             return False
         results = {}
         selected = cases(phase)
-        if index == 1 and first_tool is not None:
-            start = next(offset for offset, item in enumerate(selected) if item[0] == first_tool)
-            for name, _ in selected[:start]:
-                records.append({"account_index": index, "tool": name, "status": "not_repeated"})
-            selected = selected[start:]
-            # A fresh native context cannot reuse an old detail reference. Read
-            # attendance once to obtain a current reference for the detail check.
-            if not any(name == "get_attendance" for name, _ in selected):
-                selected.insert(0, ("get_attendance", {}))
         for name, arguments in selected:
             value, stop = await call(session, records, index, name, base | arguments)
             if stop:
@@ -403,7 +393,6 @@ async def qualify(
     path: Path,
     config: AppConfig,
     records: list[dict[str, Any]],
-    first_tool: str | None = None,
     phase: str = "academic",
 ) -> dict[str, Any]:
     environment = {key: value for key, value in os.environ.items() if not key.startswith("LIBRUS_")}
@@ -421,7 +410,7 @@ async def qualify(
                     config.accounts
                 ):
                     raise RuntimeError("account configuration mismatch")
-                completed = await account_checks(session, config, records, first_tool, phase)
+                completed = await account_checks(session, config, records, phase)
                 totals = (await session.call_tool("qualification_budget", {})).structured_content
     return {"mcp_version": __version__, "completed": completed, "checks": records, "budget": totals}
 
@@ -462,16 +451,9 @@ def main() -> None:
         choices=["academic", "communication", "homework_history", "v21"],
         default="academic",
     )
-    parser.add_argument(
-        "--first-account-from",
-        choices=[name for name, _ in cases()],
-        help="resume the first account without repeating earlier reads; these are not marked passed",
-    )
     args = parser.parse_args()
     if not args.live:
         parser.error("--live is required; authentication changes last-login baselines")
-    if args.phase != "academic" and args.first_account_from:
-        parser.error("only academic checks support resuming at an academic tool")
     records: list[dict[str, Any]] = []
     try:
         path = args.config.expanduser().absolute()
@@ -479,7 +461,7 @@ def main() -> None:
         if args.serve:
             serve(config)
             return
-        report = asyncio.run(qualify(path, config, records, args.first_account_from, args.phase))
+        report = asyncio.run(qualify(path, config, records, args.phase))
     except Exception as error:  # noqa: BLE001 - one redacted boundary for local credentials/SDK errors
         print(
             json.dumps(
@@ -500,7 +482,6 @@ def main() -> None:
             "unexercised_no_sent_reference",
             "unexercised_no_supported_type",
             "expected_unsupported",
-            "not_repeated",
         }
         for record in report["checks"]
     ):

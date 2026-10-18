@@ -8,7 +8,6 @@ import secrets
 import sys
 import tempfile
 from pathlib import Path
-from typing import Any
 
 import anyio
 from mcp.client import ClientSession
@@ -41,8 +40,6 @@ async def list_tools(all_features: bool) -> ListToolsResult:
         }
     )
     scratch_root = os.environ.get("AGENT_SCRATCH_DIR")
-    if scratch_root is None and Path("/tmp/opencode").is_dir():
-        scratch_root = "/tmp/opencode"
     with (
         tempfile.TemporaryDirectory(prefix="catalog-", dir=scratch_root) as scratch,
         anyio.fail_after(TIMEOUT_SECONDS),
@@ -61,20 +58,6 @@ async def list_tools(all_features: bool) -> ListToolsResult:
     return response
 
 
-def tool_contracts(response: ListToolsResult) -> dict[str, dict[str, Any]]:
-    """Capture the public schemas and safety hints, independent of prose."""
-    return {
-        tool.name: {
-            "inputSchema": tool.input_schema,
-            "outputSchema": tool.output_schema,
-            "annotations": tool.annotations.model_dump(by_alias=True, exclude_unset=True)
-            if tool.annotations is not None
-            else None,
-        }
-        for tool in sorted(response.tools, key=lambda tool: tool.name)
-    }
-
-
 async def measure_tools(all_features: bool) -> dict[str, object]:
     response = await list_tools(all_features)
     return {
@@ -91,13 +74,8 @@ def main() -> None:
     parser.add_argument(
         "--all-features", action="store_true", help="include disabled optional tools"
     )
-    parser.add_argument("--contracts", action="store_true", help="print schemas and annotations")
     arguments = parser.parse_args()
-    if arguments.contracts:
-        result = tool_contracts(asyncio.run(list_tools(arguments.all_features)))
-        print(json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True))
-    else:
-        print(json.dumps(asyncio.run(measure_tools(arguments.all_features)), ensure_ascii=False))
+    print(json.dumps(asyncio.run(measure_tools(arguments.all_features)), ensure_ascii=False))
 
 
 if __name__ == "__main__":

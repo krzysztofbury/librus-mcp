@@ -94,11 +94,6 @@ select = [
     "BLE001",
 ]
 
-[tool.ruff.lint.per-file-ignores]
-# The manual smoke test reports each subsystem failure and continues so one
-# upstream exception does not hide the health of all remaining subsystems.
-"verify_connection.py" = ["BLE001"]
-
 [tool.ruff.format]
 quote-style = "double"
 indent-style = "space"
