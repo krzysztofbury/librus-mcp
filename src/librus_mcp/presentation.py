@@ -39,8 +39,6 @@ def window_page(
     query_digest = validate_window_cursor(cursor, context, query)
     offset = 0
     if cursor is not None:
-        if cursor.context != context or cursor.query != query_digest:
-            raise LibrusError(ErrorKind.INVALID_INPUT)
         if cursor.source != source or cursor.offset >= len(items):
             raise LibrusError(ErrorKind.STALE_CURSOR)
         offset = cursor.offset

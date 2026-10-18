@@ -43,10 +43,10 @@ from librus_mcp.read_schemas import (
 from librus_mcp.runtime import Runtime
 from librus_mcp.schemas import (
     FormativeItem,
-    GradeItem,
     GradeRecord,
     PresentationCursor,
     descriptive_item,
+    numeric_item,
 )
 
 
@@ -86,24 +86,7 @@ async def get_grades_window(
         start=date_from, end=date_to, view=scope, budget=runtime.budget
     )
     items = (
-        tuple(
-            GradeItem(
-                record_type="numeric",
-                subject=item.subject,
-                raw=item.raw,
-                day=item.day,
-                semester=item.semester,
-                kind=item.kind,
-                teacher=item.teacher,
-                comment=item.comment,
-                metadata=item.metadata,
-                counts_toward_average=item.counts_toward_average,
-                weight=item.weight,
-                category=item.category,
-                formative_id=item.formative_id,
-            )
-            for item in result.numeric
-        )
+        tuple(numeric_item(item) for item in result.numeric)
         + tuple(descriptive_item(item) for item in result.descriptive)
         + tuple(FormativeItem(assessment=item) for item in result.formative)
     )

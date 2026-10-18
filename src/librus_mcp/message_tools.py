@@ -4,7 +4,6 @@ from typing import Annotated, Any
 
 from librus_python_api import (
     MessageFolder,
-    MessageReference,
     Messages,
     MessagesCursor,
     MessagingBackend,
@@ -236,8 +235,6 @@ async def get_message_content(
         return MessageContentResult(
             context=client.context.identifier, backend=message_ref.backend, data=content
         )
-    if not isinstance(reference, MessageReference):
-        raise LibrusError(ErrorKind.INVALID_INPUT)
     content_legacy = await client.message_content(
         reference, allow_mark_read=allow_mark_read, budget=runtime.budget
     )

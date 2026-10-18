@@ -4,7 +4,6 @@ from typing import Annotated, Any, cast
 
 from librus_python_api import (
     MessageAttachmentReference,
-    MessageReference,
     ModernMessageAttachmentReference,
     ModernMessageReference,
     RequestBudget,
@@ -35,7 +34,7 @@ class AttachmentInput(WireModel):
             return ModernMessageAttachmentReference(
                 message=message, identifier=self.identifier, archived=self.archived
             )
-        if not isinstance(message, MessageReference) or self.archived:
+        if self.archived:
             raise LibrusError(ErrorKind.INVALID_INPUT)
         return MessageAttachmentReference(message=message, identifier=self.identifier)
 

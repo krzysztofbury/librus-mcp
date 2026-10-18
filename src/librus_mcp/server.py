@@ -28,12 +28,12 @@ from librus_mcp.schemas import (
     AttendanceResult,
     FinalGradesResult,
     FormativeItem,
-    GradeItem,
     GradesResult,
     PresentationCursor,
     ProfileData,
     ProfileResult,
     descriptive_item,
+    numeric_item,
 )
 from librus_mcp.school_history_tools import register_school_history_tools
 from librus_mcp.send_tools import register_send_tools
@@ -263,24 +263,7 @@ async def get_grades(
     query = ("grades-all", scope.value)
     validate_window_cursor(cursor, client.context.identifier, query)
     result = await client.grades(view=scope, budget=runtime.budget)
-    numeric = tuple(
-        GradeItem(
-            record_type="numeric",
-            subject=record.subject,
-            raw=record.raw,
-            day=record.day,
-            semester=record.semester,
-            kind=record.kind,
-            teacher=record.teacher,
-            comment=record.comment,
-            metadata=record.metadata,
-            counts_toward_average=record.counts_toward_average,
-            weight=record.weight,
-            category=record.category,
-            formative_id=record.formative_id,
-        )
-        for record in result.records.numeric
-    )
+    numeric = tuple(numeric_item(record) for record in result.records.numeric)
     selected, pagination = window_page(
         numeric
         + tuple(descriptive_item(record) for record in result.records.descriptive)

@@ -13,6 +13,7 @@ from librus_python_api import (
     GradeView,
     Identity,
     LuckyNumber,
+    NumericGrade,
     Observation,
     SchoolAverage,
     SubjectGradeSummary,
@@ -133,5 +134,23 @@ def descriptive_item(record: DescriptiveGrade) -> GradeItem:
         teacher=record.teacher,
         comment=record.comment,
         metadata=record.metadata,
+        formative_id=record.formative_id,
+    )
+
+
+def numeric_item(record: NumericGrade) -> GradeItem:
+    return GradeItem(
+        record_type="numeric",
+        subject=record.subject,
+        raw=record.raw,
+        day=record.day,
+        semester=record.semester,
+        kind=record.kind,
+        teacher=record.teacher,
+        comment=record.comment,
+        metadata=record.metadata,
+        counts_toward_average=record.counts_toward_average,
+        weight=record.weight,
+        category=record.category,
         formative_id=record.formative_id,
     )
