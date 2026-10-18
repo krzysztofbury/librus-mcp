@@ -8,8 +8,8 @@ import os
 import secrets
 import shutil
 import subprocess
+import sys
 import tempfile
-import tomllib
 import zipfile
 from pathlib import Path
 from typing import Any
@@ -19,19 +19,14 @@ from jsonschema.validators import validator_for
 from mcp.client import ClientSession
 from mcp.client.stdio import StdioServerParameters, stdio_client
 
+# Direct script execution puts this directory, not the repository root, on sys.path.
+sys.path.append(str(Path(__file__).resolve().parents[1]))
+from release_verification.verify_release import (  # noqa: E402
+    VerificationError,
+    read_project_version,
+)
+
 HANDSHAKE_TIMEOUT_SECONDS = 30
-
-
-class VerificationError(RuntimeError):
-    """The built wheel did not pass release verification."""
-
-
-def read_project_version(project_file: Path) -> str:
-    with project_file.open("rb") as file:
-        project = tomllib.load(file).get("project")
-    if not isinstance(project, dict) or not isinstance(project.get("version"), str):
-        raise VerificationError(f"project.version is missing from {project_file}")
-    return project["version"]
 
 
 def resolve_wheel(path: Path) -> Path:

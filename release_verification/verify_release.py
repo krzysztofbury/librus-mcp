@@ -11,7 +11,7 @@ COMMIT_PATTERN = re.compile(r"[0-9a-f]{40}")
 
 
 class VerificationError(RuntimeError):
-    """A release identity check failed."""
+    """A release verification check failed."""
 
 
 def read_project_version(project_file: Path) -> str:

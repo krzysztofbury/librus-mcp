@@ -6,7 +6,7 @@ import subprocess
 import tarfile
 from pathlib import Path, PurePosixPath
 
-from release_verification.verify_wheel import VerificationError, read_project_version
+from release_verification.verify_release import VerificationError, read_project_version
 
 
 def verify_sdist(repository: Path, archive: Path, output: Path) -> None:
