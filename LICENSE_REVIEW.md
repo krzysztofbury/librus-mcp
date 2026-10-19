@@ -1,6 +1,6 @@
 # Native 2.0 license and provenance review
 
-Review date: 2026-10-05. Scope: the `2.1.1` native wheel and sdist, not a
+Review date: 2026-10-05. Scope: the `2.1.2` native wheel and sdist, not a
 retroactive license change to any published artifact. The owner requested MIT for
 their new 2.0 work. This is an engineering inventory, not legal advice or a claim
 that every dependency is itself MIT.
@@ -52,7 +52,7 @@ the MCP wheel or sdist.
 | idna | 3.19 | BSD-3-Clause |
 | jsonschema | 4.26.0 | MIT |
 | jsonschema-specifications | 2025.9.1 | MIT |
-| librus-python-api | 1.6.1 | MIT |
+| librus-python-api | 1.6.2 | MIT |
 | lxml | 6.1.2 | BSD-3-Clause with additional terms below |
 | mcp | 2.1.1 | MIT |
 | mcp-types | 2.1.1 | MIT |
@@ -78,12 +78,15 @@ the MCP wheel or sdist.
 
 ### API dependency refresh, 2026-10-09
 
-The API pin advances from 1.0.2 to the published 1.6.1. The installed wheel's
+The API pin advances from 1.0.2 to the published 1.6.2. The installed wheel's
 MIT license and metadata were inspected. Its runtime requirements are unchanged,
 and the lock update changes only this package and its reviewed quarantine
 exception. The API's original implementation remains separately installed;
 no library parser or fixture was copied into MCP. New consumer receipt markup
 and module-unavailable wire cases are independently authored synthetic inputs.
+On 2026-10-19 the pin moved to 1.6.2, whose PyPI metadata keeps the MIT license
+expression and the same runtime requirements as 1.6.1; the lock update changes
+only this package.
 The 2.1 projections use public native model/service contracts. New history,
 formative and mailbox-discovery fixtures in `tests_native/` use invented data
 authored from contract requirements; no live page dump, API test fixture or

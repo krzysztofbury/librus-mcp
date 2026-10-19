@@ -2,6 +2,28 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.1.2] - 2026-10-19
+
+### Fixed
+
+- Pin native API 1.6.2. `get_grades` and `get_grades_window` no longer fail for
+  schools that score behaviour (`Zachowanie`) with points. The points are
+  validated and left out of the grade results, because they are not grades.
+  `get_completed_lessons` accepts the item range, date-filter table, `e-Tablica`
+  column, closing spacer row and bold subject cell seen in another school's
+  layout, and splits subject and teacher correctly there.
+
+### Changed
+
+- Share one numeric-grade projection between both grade tools and drop
+  unreachable guards. Published schemas and results are unchanged.
+- Remove unused 1.x tooling leftovers (`secrets.json.template`, the
+  `measure_tools.py --contracts` and `qualify_native.py --first-account-from`
+  options) and finished 2.0 planning documents (`TODO.md`, `MCP_2_0_PLAN.md`).
+- Share one release version reader and error type in release verification,
+  stop persisting checkout credentials in the publish job, and update pinned
+  GitHub Actions.
+
 ## [2.1.1] - 2026-10-12
 
 ### Fixed
