@@ -1,5 +1,27 @@
 # Native migration verification ownership
 
+## 2.1.3 security-update qualification
+
+API 1.6.3 only raises its aiohttp floor. The MCP lock moves aiohttp, mcp,
+mcp-types, multidict, PyJWT and yarl to releases without known advisories; MCP
+source is unchanged. On mcp 2.3.0 the catalog still measures 119195 bytes for 31
+default tools and 132327 bytes for 35 tools with all features.
+
+On 2026-10-22, after API 1.6.3 was published and its PyPI hashes matched the
+lock, `pip-audit` of the full lock reported no known vulnerabilities, and the
+2.1.3 candidate passed the source suite and the isolated wheel-from-sdist suite:
+**86 passed, 1 Windows-only skip** in each. Ruff, format, strict mypy, Bandit,
+native MIT archive inventory and installed CLI/stdio identity checks passed.
+API's installed release profile passed all 60 checks across four independent
+authorized logins using 98 requests. The installed MCP academic profile, in an
+environment resolved with the newest permitted dependencies (mcp 2.3.0, aiohttp
+3.14.5, multidict 7.1.0, PyJWT 2.15.1), passed **58 reads** plus four identity
+checks with strict schema validation for every successful result. Four disabled
+completed-lesson views and two absent homework-detail references were reported
+separately. The shared budget recorded **106 requests and 3640262 response
+bytes**. No message bodies, sends, read-once endpoints or production durable
+state were used.
+
 ## 2.1.2 school-layout qualification
 
 API 1.6.2 accepts behaviour points in the grades `Zachowanie` row (validated and
@@ -173,4 +195,3 @@ grades/attendance and one shared concurrency budget. Modern fixtures also prove
 native handoff, message paging/content consent and directory selection without
 copied upstream captures or another project's tests. Result projection tests must
 not substitute mocked API returns for that runtime path.
-

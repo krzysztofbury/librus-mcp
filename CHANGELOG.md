@@ -2,6 +2,27 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.1.3] - 2026-10-22
+
+### Security
+
+- Pin native API 1.6.3, which requires `aiohttp>=3.14.4`. Earlier 3.14 releases
+  could send a Secure cookie from the shared jar over plain HTTP
+  (GHSA-494j-54xm-rwp3) and let a subdomain strip a parent-domain cookie's
+  host-only flag (GHSA-gx76-c99x-2c96).
+- Require `mcp>=2.2.0`. Earlier 2.x releases never reclaimed idle Streamable
+  HTTP sessions (GHSA-84m7-p3x7-pcfv). This server only uses stdio, so it was
+  not reachable here, but `uvx` installs can no longer resolve the affected
+  range.
+- Lock aiohttp 3.14.5, mcp and mcp-types 2.3.0, multidict 6.9.1 (reference leak,
+  GHSA-54p9-h82j-f925), PyJWT 2.15.1 (14 advisories in the MCP SDK's HTTP auth
+  path, unused on stdio) and yarl 1.25.1. `pip-audit` of the full lock reports
+  no known vulnerabilities.
+- Pin uv 0.13.5 in CI and publishing. uv 0.12.7 trusted a compromised CA root
+  (GHSA-hq85-5cpj-mr62) and could write outside the install prefix on Windows
+  (GHSA-2cv4-cqwr-gwf7). The lockfile format revision moves from 3 to 5, and
+  the project quarantine cutoff moves to 2026-10-15.
+
 ## [2.1.2] - 2026-10-19
 
 ### Fixed

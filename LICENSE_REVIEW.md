@@ -1,6 +1,6 @@
 # Native 2.0 license and provenance review
 
-Review date: 2026-10-05. Scope: the `2.1.2` native wheel and sdist, not a
+Review date: 2026-10-05. Scope: the `2.1.3` native wheel and sdist, not a
 retroactive license change to any published artifact. The owner requested MIT for
 their new 2.0 work. This is an engineering inventory, not legal advice or a claim
 that every dependency is itself MIT.
@@ -36,7 +36,7 @@ the MCP wheel or sdist.
 | Distribution | Locked version | Published license |
 | --- | --- | --- |
 | aiohappyeyeballs | 2.7.1 | PSF-2.0 |
-| aiohttp | 3.14.3 | Apache-2.0 AND MIT, including llhttp notice |
+| aiohttp | 3.14.5 | Apache-2.0 AND MIT, including llhttp notice |
 | aiosignal | 1.4.0 | Apache-2.0 |
 | annotated-types | 0.8.0 | MIT |
 | anyio | 4.14.2 | MIT |
@@ -52,17 +52,17 @@ the MCP wheel or sdist.
 | idna | 3.19 | BSD-3-Clause |
 | jsonschema | 4.26.0 | MIT |
 | jsonschema-specifications | 2025.9.1 | MIT |
-| librus-python-api | 1.6.2 | MIT |
+| librus-python-api | 1.6.3 | MIT |
 | lxml | 6.1.2 | BSD-3-Clause with additional terms below |
-| mcp | 2.1.1 | MIT |
-| mcp-types | 2.1.1 | MIT |
-| multidict | 6.7.1 | Apache-2.0 |
+| mcp | 2.3.0 | MIT |
+| mcp-types | 2.3.0 | MIT |
+| multidict | 6.9.1 | Apache-2.0 |
 | opentelemetry-api | 1.44.0 | Apache-2.0 |
 | propcache | 0.5.2 | Apache-2.0, separate NOTICE retained by upstream distribution |
 | pycparser | 3.0 | BSD-3-Clause |
 | pydantic | 2.13.5 | MIT |
 | pydantic-core | 2.46.5 | MIT |
-| PyJWT | 2.13.0 | MIT |
+| PyJWT | 2.15.1 | MIT |
 | python-multipart | 0.0.32 | Apache-2.0 |
 | pywin32 | 312 | PSF, Windows only |
 | referencing | 0.37.0 | MIT |
@@ -74,7 +74,7 @@ the MCP wheel or sdist.
 | typing-inspection | 0.4.4 | MIT |
 | tzdata | 2026.5 | Apache-2.0, timezone data includes public-domain material |
 | uvicorn | 0.52.4 | BSD-3-Clause |
-| yarl | 1.24.5 | Apache-2.0 |
+| yarl | 1.25.1 | Apache-2.0 |
 
 ### API dependency refresh, 2026-10-09
 
@@ -87,6 +87,10 @@ and module-unavailable wire cases are independently authored synthetic inputs.
 On 2026-10-19 the pin moved to 1.6.2, whose PyPI metadata keeps the MIT license
 expression and the same runtime requirements as 1.6.1; the lock update changes
 only this package.
+On 2026-10-22 the pin moved to 1.6.3, which only raises its aiohttp floor, and
+security updates moved aiohttp, mcp, mcp-types, multidict, PyJWT and yarl to the
+versions above. Their PyPI license metadata is unchanged from the previously
+reviewed versions, and the runtime closure gains or loses no distribution.
 The 2.1 projections use public native model/service contracts. New history,
 formative and mailbox-discovery fixtures in `tests_native/` use invented data
 authored from contract requirements; no live page dump, API test fixture or
