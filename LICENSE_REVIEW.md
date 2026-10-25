@@ -1,6 +1,6 @@
 # Native 2.0 license and provenance review
 
-Review date: 2026-10-05. Scope: the `2.2.0` native wheel and sdist, not a
+Review date: 2026-10-05. Scope: the `2.2.1` native wheel and sdist, not a
 retroactive license change to any published artifact. The owner requested MIT for
 their new 2.0 work. This is an engineering inventory, not legal advice or a claim
 that every dependency is itself MIT.

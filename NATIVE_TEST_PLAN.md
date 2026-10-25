@@ -1,5 +1,32 @@
 # Native migration verification ownership
 
+## 2.2.1 attachment-namespace qualification
+
+2.2.1 restores the optional `attachment_ref.archived` input that 2.2.0 removed.
+It is the file's own namespace, which the API reads from the message detail's
+`archive` field, so a current-mailbox message can carry archive-namespace files.
+`test_attachment_stdio.py` owns the contract over real stdio:
+- an omitted flag follows the message reference;
+- an explicit flag selects the file's namespace;
+- an archive message with `archived=false` fails before HTTP;
+- a current message whose detail reports `archive: 1` downloads through the
+  archive route, using the flag `get_message_content` returned.
+
+Against the 2.2.0 implementation all three new cases fail. Against 2.1.3 only
+the omitted-flag archive case fails. The catalog measures 119222 bytes for 31
+default tools and 132354 bytes for 35 tools with all features. `pip-audit` of
+the full lock reports no known vulnerabilities.
+
+On 2026-10-25 the candidate passed the source suite and the isolated
+wheel-from-sdist suite: **89 passed, 1 Windows-only skip** in each. Ruff,
+format, strict mypy, Bandit, native MIT archive inventory and installed
+CLI/stdio identity checks passed. The installed MCP academic profile passed
+**56 reads** plus four identity checks with strict schema validation. Four
+disabled completed-lesson views and four absent homework-detail references were
+reported separately, using **104 requests and 3656389 response bytes**. The live
+profile does not download attachments, so namespace selection is verified
+offline only.
+
 ## 2.2.0 attachment-mailbox qualification
 
 `download_attachment` drops its outer `attachment_ref.archived` input and takes

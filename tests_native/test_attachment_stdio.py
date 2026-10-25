@@ -18,9 +18,15 @@ from tests_native.test_native_stdio import server_process
 from tests_native.wire import Wire
 
 
+def attachment_routes(wire):
+    return [route for _, route, _ in wire.calls if "attachments/" in route]
+
+
 @pytest.mark.asyncio
 @pytest.mark.parametrize("archived", [False, True])
-async def test_download_uses_reference_archive_selection(tmp_path, archived):
+async def test_download_namespace_follows_the_reference_unless_the_file_flag_is_given(
+    tmp_path, archived
+):
     async with Wire().serve() as wire:
         process = server_process(
             wire.origin,
@@ -37,37 +43,87 @@ async def test_download_uses_reference_archive_selection(tmp_path, archived):
                 assert not listed.is_error, listed
                 reference = listed.structured_content["items"][0]["reference"]
                 assert reference["archived"] is archived
-                arguments = {
-                    "account_alias": "account",
-                    "attachment_ref": {"message": reference, "identifier": "91"},
-                    "filename": "Fixture.bin",
-                }
-                result = await session.call_tool("download_attachment", arguments)
-                assert not result.is_error, result
-                assert Path(result.structured_content["local_path"]).read_bytes() == (
-                    wire.attachment_body
-                )
-                routes = [route for _, route, _ in wire.calls]
-                expected = f"/api/{'archive/' if archived else ''}attachments/91/messages/81"
-                other = f"/api/{'' if archived else 'archive/'}attachments/91/messages/81"
-                assert expected in routes
-                assert other not in routes
-                assert not any(
-                    "/messages/81" in route and "attachments/" not in route for route in routes
-                )
-                calls = len(wire.calls)
-                for retired_flag in (False, True):
-                    invalid = await session.call_tool(
+
+                async def download(flag):
+                    attachment = {"message": reference, "identifier": "91"}
+                    if flag is not None:
+                        attachment["archived"] = flag
+                    return await session.call_tool(
                         "download_attachment",
-                        arguments
-                        | {
-                            "attachment_ref": arguments["attachment_ref"]
-                            | {"archived": retired_flag}
+                        {
+                            "account_alias": "account",
+                            "attachment_ref": attachment,
+                            "filename": f"Fixture-{flag}.bin",
                         },
                     )
-                    assert invalid.is_error
-                    assert invalid.structured_content == {"error": {"code": "INVALID_INPUT"}}
+
+                current = "/api/attachments/91/messages/81"
+                archive = "/api/archive/attachments/91/messages/81"
+                # Omitted: the message's mailbox. Explicit: the file's own namespace.
+                for flag, route in ((None, archive if archived else current), (True, archive)):
+                    result = await download(flag)
+                    assert not result.is_error, result
+                    assert Path(result.structured_content["local_path"]).read_bytes() == (
+                        wire.attachment_body
+                    )
+                    assert attachment_routes(wire)[-1] == route
+                calls = len(wire.calls)
+                result = await download(False)
+                if archived:
+                    # An archive message's files are never in the current namespace.
+                    assert result.is_error
+                    assert result.structured_content == {"error": {"code": "INVALID_INPUT"}}
                     assert len(wire.calls) == calls
+                else:
+                    assert not result.is_error, result
+                    assert attachment_routes(wire)[-1] == current
+                assert not any(
+                    "/messages/81" in route and "attachments/" not in route
+                    for _, route, _ in wire.calls
+                )
+
+
+@pytest.mark.asyncio
+async def test_download_uses_the_archive_namespace_reported_by_message_content(tmp_path):
+    async with Wire().serve() as wire:
+        # A current-mailbox message whose detail places its file in the archive.
+        wire.detail_archive = True
+        process = server_process(
+            wire.origin,
+            [("account", "71")],
+            features={"attachments": True},
+            download_dir=tmp_path / "downloads",
+        )
+        with anyio.fail_after(30):
+            async with stdio_client(process) as streams, ClientSession(*streams) as session:
+                await session.initialize()
+                listed = await session.call_tool(
+                    "get_messages", {"account_alias": "account", "limit": 1}
+                )
+                reference = listed.structured_content["items"][0]["reference"]
+                assert reference["archived"] is False
+                content = await session.call_tool(
+                    "get_message_content",
+                    {"account_alias": "account", "message_ref": reference, "allow_mark_read": True},
+                )
+                assert not content.is_error, content
+                (attachment,) = content.structured_content["data"]["attachments"]
+                file = attachment["reference"]
+                assert file["archived"] is True
+                result = await session.call_tool(
+                    "download_attachment",
+                    {
+                        "account_alias": "account",
+                        "attachment_ref": {
+                            "message": reference,
+                            "identifier": file["identifier"],
+                            "archived": file["archived"],
+                        },
+                        "filename": attachment["filename"],
+                    },
+                )
+                assert not result.is_error, result
+                assert attachment_routes(wire) == ["/api/archive/attachments/91/messages/81"]
 
 
 @pytest.mark.asyncio
