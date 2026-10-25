@@ -105,6 +105,11 @@ selection. Catalog annotations are hints, not an authorization mechanism.
   publication is the commit point. Optional POSIX snapshots are inert, bounded,
   expiring and runtime-only. A snapshot failure returns the published local file
   and digest without a URI. Windows currently returns local files only.
+  `attachment_ref` contains `message` and `identifier`; the message reference's
+  `archived` field is the sole mailbox selector. The former duplicate
+  `attachment_ref.archived` field is no longer accepted, even when it matches;
+  clients must omit it. Invalid extra fields fail before HTTP, and legacy archived
+  message references remain unsupported.
 
 Modern and legacy backends are selected per account, without fallback. Modern
 hierarchical recipient choices return `UNSUPPORTED_CAPABILITY`; ordinary modern

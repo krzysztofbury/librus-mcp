@@ -19,6 +19,58 @@ from tests_native.wire import Wire
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("archived", [False, True])
+async def test_download_uses_reference_archive_selection(tmp_path, archived):
+    async with Wire().serve() as wire:
+        process = server_process(
+            wire.origin,
+            [("account", "71")],
+            features={"attachments": True},
+            download_dir=tmp_path / "downloads",
+        )
+        with anyio.fail_after(30):
+            async with stdio_client(process) as streams, ClientSession(*streams) as session:
+                await session.initialize()
+                listed = await session.call_tool(
+                    "get_messages", {"account_alias": "account", "archived": archived, "limit": 1}
+                )
+                assert not listed.is_error, listed
+                reference = listed.structured_content["items"][0]["reference"]
+                assert reference["archived"] is archived
+                arguments = {
+                    "account_alias": "account",
+                    "attachment_ref": {"message": reference, "identifier": "91"},
+                    "filename": "Fixture.bin",
+                }
+                result = await session.call_tool("download_attachment", arguments)
+                assert not result.is_error, result
+                assert Path(result.structured_content["local_path"]).read_bytes() == (
+                    wire.attachment_body
+                )
+                routes = [route for _, route, _ in wire.calls]
+                expected = f"/api/{'archive/' if archived else ''}attachments/91/messages/81"
+                other = f"/api/{'' if archived else 'archive/'}attachments/91/messages/81"
+                assert expected in routes
+                assert other not in routes
+                assert not any(
+                    "/messages/81" in route and "attachments/" not in route for route in routes
+                )
+                calls = len(wire.calls)
+                for retired_flag in (False, True):
+                    invalid = await session.call_tool(
+                        "download_attachment",
+                        arguments
+                        | {
+                            "attachment_ref": arguments["attachment_ref"]
+                            | {"archived": retired_flag}
+                        },
+                    )
+                    assert invalid.is_error
+                    assert invalid.structured_content == {"error": {"code": "INVALID_INPUT"}}
+                    assert len(wire.calls) == calls
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize("backend", ["modern", "legacy"])
 async def test_native_publication_binding_resource_restart_and_failed_download(tmp_path, backend):
     async with Wire().serve() as wire:

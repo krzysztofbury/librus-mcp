@@ -205,6 +205,14 @@ State, the persistent key and downloads live under `~/.librus-mcp` by default
 directory to keep references and notification history across reinstalls.
 Downloaded files are saved on the machine running the server.
 
+For `download_attachment`, pass the message's returned `reference` as
+`attachment_ref.message` and the attachment identifier as `attachment_ref.identifier`.
+The message reference's `archived` value selects the current or archive mailbox;
+there is no separate `attachment_ref.archived` argument. Clients that previously
+sent that redundant argument must remove it and refresh the tool catalog. Unknown
+arguments are rejected before HTTP requests. Downloading does not open the message
+body.
+
 ## Development
 
 ```bash

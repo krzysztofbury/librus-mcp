@@ -26,16 +26,13 @@ from librus_mcp.schemas import HexDigest, WireModel
 class AttachmentInput(WireModel):
     message: MessageReferenceInput
     identifier: NumericID
-    archived: Annotated[bool, Field(strict=True)] = False
 
     def native(self) -> MessageAttachmentReference | ModernMessageAttachmentReference:
         message = self.message.native()
         if isinstance(message, ModernMessageReference):
             return ModernMessageAttachmentReference(
-                message=message, identifier=self.identifier, archived=self.archived
+                message=message, identifier=self.identifier, archived=message.archived
             )
-        if self.archived:
-            raise LibrusError(ErrorKind.INVALID_INPUT)
         return MessageAttachmentReference(message=message, identifier=self.identifier)
 
 

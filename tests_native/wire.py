@@ -120,7 +120,10 @@ class Wire:
         academic = await academic_response(request)
         if academic is not None:
             return academic
-        if request.path == "/api/attachments/91/messages/81":
+        if request.path in (
+            "/api/attachments/91/messages/81",
+            "/api/archive/attachments/91/messages/81",
+        ):
             return web.json_response(
                 {
                     "data": {
