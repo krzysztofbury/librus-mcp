@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased]
+
+### Changed
+
+- SECURITY.md adds GitHub private vulnerability reporting beside email and lists
+  the repository protections; Dependabot's Actions updates run on a fixed Monday
+  schedule.
+
 ## [2.2.1] - 2026-10-25
 
 ### Fixed
