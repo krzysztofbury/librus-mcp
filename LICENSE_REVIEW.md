@@ -1,6 +1,6 @@
 # Native 2.0 license and provenance review
 
-Review date: 2026-10-05. Scope: the `2.1.3` native wheel and sdist, not a
+Review date: 2026-10-05. Scope: the `2.2.0` native wheel and sdist, not a
 retroactive license change to any published artifact. The owner requested MIT for
 their new 2.0 work. This is an engineering inventory, not legal advice or a claim
 that every dependency is itself MIT.
@@ -57,7 +57,7 @@ the MCP wheel or sdist.
 | mcp | 2.3.0 | MIT |
 | mcp-types | 2.3.0 | MIT |
 | multidict | 6.9.1 | Apache-2.0 |
-| opentelemetry-api | 1.44.0 | Apache-2.0 |
+| opentelemetry-api | 1.45.1 | Apache-2.0 |
 | propcache | 0.5.2 | Apache-2.0, separate NOTICE retained by upstream distribution |
 | pycparser | 3.0 | BSD-3-Clause |
 | pydantic | 2.13.5 | MIT |
@@ -91,6 +91,8 @@ On 2026-10-22 the pin moved to 1.6.3, which only raises its aiohttp floor, and
 security updates moved aiohttp, mcp, mcp-types, multidict, PyJWT and yarl to the
 versions above. Their PyPI license metadata is unchanged from the previously
 reviewed versions, and the runtime closure gains or loses no distribution.
+On 2026-10-25 a security update moved opentelemetry-api to 1.45.1, whose PyPI
+license expression (Apache-2.0) and requirements are unchanged.
 The 2.1 projections use public native model/service contracts. New history,
 formative and mailbox-discovery fixtures in `tests_native/` use invented data
 authored from contract requirements; no live page dump, API test fixture or

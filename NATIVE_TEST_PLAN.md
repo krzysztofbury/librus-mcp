@@ -1,5 +1,28 @@
 # Native migration verification ownership
 
+## 2.2.0 attachment-mailbox qualification
+
+`download_attachment` drops its outer `attachment_ref.archived` input and takes
+the mailbox from the message reference (#57, #58). `test_attachment_stdio.py`
+owns the change over real stdio: current and archive references reach their own
+attachment routes, and the retired field is rejected before any request. Both
+cases fail against the 2.1.3 implementation. The catalog now measures 119149
+bytes for 31 default tools and 132281 bytes for 35 tools with all features.
+opentelemetry-api moves to 1.45.1; `pip-audit` of the full lock reports no
+known vulnerabilities.
+
+On 2026-10-25 the candidate passed the source suite and the isolated
+wheel-from-sdist suite: **88 passed, 1 Windows-only skip** in each. Ruff,
+format, strict mypy, Bandit, native MIT archive inventory and installed
+CLI/stdio identity checks passed. The installed MCP academic profile, with the
+newest permitted dependencies and strict schema validation for every successful
+result, passed **56 reads** plus four identity checks. Four disabled
+completed-lesson views and four absent homework-detail references were reported
+separately. The shared budget recorded **104 requests and 3640413 response
+bytes**. The live profile does not download attachments, so the mailbox
+selection is verified offline only. No message bodies, sends, read-once
+endpoints or production durable state were used.
+
 ## 2.1.3 security-update qualification
 
 API 1.6.3 only raises its aiohttp floor. The MCP lock moves aiohttp, mcp,

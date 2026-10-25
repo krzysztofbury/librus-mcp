@@ -2,6 +2,29 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.2.0] - 2026-10-25
+
+### Breaking changes
+
+- `download_attachment` no longer accepts `attachment_ref.archived`. The
+  message reference's own `archived` field, as returned by `get_messages`, now
+  selects the current or archive mailbox. Clients that sent the outer field must
+  omit it and refresh the tool catalog; it is rejected with `INVALID_INPUT`
+  before any request, even when it matched (#57, #58).
+
+### Fixed
+
+- An archive message reference passed to `download_attachment` without the
+  outer flag requested the current mailbox's attachment route, and a current
+  reference with the flag set requested the archive route (#57, #58).
+
+### Security
+
+- Lock opentelemetry-api 1.45.1 (GHSA-xcq7-p3pf-p88h, quadratic-time parsing of
+  an unbounded `tracestate` header). It is pulled in by the MCP SDK and not used
+  on stdio. `pip-audit` of the full lock reports no known vulnerabilities.
+- Update the pinned `astral-sh/setup-uv` action to 10.3.0 (#55).
+
 ## [2.1.3] - 2026-10-22
 
 ### Security
