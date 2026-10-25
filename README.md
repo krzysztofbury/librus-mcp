@@ -15,7 +15,7 @@ Upgrading from 1.x? See [Upgrading from 1.x](#upgrading-from-1x).
 
 ## Quick start
 
-The commands below pin **2.2.0**, using the native API 1.6.3.
+The commands below pin **2.2.1**, using the native API 1.6.3.
 
 You do not need to clone this repository or install Python yourself.
 [uv](https://docs.astral.sh/uv/) downloads Python 3.14 and the server
@@ -75,7 +75,7 @@ Replace the path with your file's absolute path.
 
 ```bash
 claude mcp add --scope user --transport stdio librus \
-  -- uvx --python 3.14 librus-mcp==2.2.0 --config /absolute/path/to/config.json
+  -- uvx --python 3.14 librus-mcp==2.2.1 --config /absolute/path/to/config.json
 ```
 
 **Claude Desktop** (Settings > Developer > Edit Config)
@@ -85,7 +85,7 @@ claude mcp add --scope user --transport stdio librus \
   "mcpServers": {
     "librus": {
       "command": "uvx",
-      "args": ["--python", "3.14", "librus-mcp==2.2.0", "--config", "/absolute/path/to/config.json"]
+      "args": ["--python", "3.14", "librus-mcp==2.2.1", "--config", "/absolute/path/to/config.json"]
     }
   }
 }
@@ -95,27 +95,27 @@ claude mcp add --scope user --transport stdio librus \
 
 ```bash
 gemini mcp add --scope user --transport stdio \
-  librus uvx --python 3.14 librus-mcp==2.2.0 --config /absolute/path/to/config.json
+  librus uvx --python 3.14 librus-mcp==2.2.1 --config /absolute/path/to/config.json
 ```
 
 **OpenAI Codex CLI**
 
 ```bash
 codex mcp add librus \
-  -- uvx --python 3.14 librus-mcp==2.2.0 --config /absolute/path/to/config.json
+  -- uvx --python 3.14 librus-mcp==2.2.1 --config /absolute/path/to/config.json
 ```
 
 **OpenCode**
 
 ```bash
 opencode mcp add librus --global -- \
-  uvx --python 3.14 librus-mcp==2.2.0 --config /absolute/path/to/config.json
+  uvx --python 3.14 librus-mcp==2.2.1 --config /absolute/path/to/config.json
 ```
 
 Check the setup without contacting Librus:
 
 ```bash
-uvx --python 3.14 librus-mcp==2.2.0 --config /absolute/path/to/config.json --check-config
+uvx --python 3.14 librus-mcp==2.2.1 --config /absolute/path/to/config.json --check-config
 ```
 
 If a GUI assistant cannot find `uvx`, use its absolute path (`which uvx` or
@@ -123,7 +123,7 @@ If a GUI assistant cannot find `uvx`, use its absolute path (`which uvx` or
 
 ## Upgrading from 1.x
 
-Change the version in your assistant's configuration to `librus-mcp==2.2.0`, add
+Change the version in your assistant's configuration to `librus-mcp==2.2.1`, add
 `--python 3.14` before it and keep your existing `--config` file. On first start
 2.0 adapts the old setup automatically: it creates the key, restricts shared
 1.x folders to your user, ignores the removed behaviour-notes setting and adopts
@@ -206,12 +206,11 @@ directory to keep references and notification history across reinstalls.
 Downloaded files are saved on the machine running the server.
 
 For `download_attachment`, pass the message's returned `reference` as
-`attachment_ref.message` and the attachment identifier as `attachment_ref.identifier`.
-The message reference's `archived` value selects the current or archive mailbox;
-there is no separate `attachment_ref.archived` argument. Clients that previously
-sent that redundant argument must remove it and refresh the tool catalog. Unknown
-arguments are rejected before HTTP requests. Downloading does not open the message
-body.
+`attachment_ref.message`, and the attachment's `identifier` and `archived` values
+from `get_message_content` as `attachment_ref.identifier` and
+`attachment_ref.archived`. `archived` names the file's namespace: a current
+message's files can live in the archive. When omitted, it follows the message
+reference. Downloading does not open the message body.
 
 ## Development
 

@@ -26,13 +26,23 @@ from librus_mcp.schemas import HexDigest, WireModel
 class AttachmentInput(WireModel):
     message: MessageReferenceInput
     identifier: NumericID
+    # The attachment's own namespace, as get_message_content reports it. A current
+    # message's detail can place its files in the archive; omitted, it follows
+    # the message reference.
+    archived: Annotated[bool | None, Field(strict=True)] = None
 
     def native(self) -> MessageAttachmentReference | ModernMessageAttachmentReference:
         message = self.message.native()
         if isinstance(message, ModernMessageReference):
+            archived = message.archived if self.archived is None else self.archived
+            # Files of an archive-mailbox message are never in the current namespace.
+            if message.archived and not archived:
+                raise LibrusError(ErrorKind.INVALID_INPUT)
             return ModernMessageAttachmentReference(
-                message=message, identifier=self.identifier, archived=message.archived
+                message=message, identifier=self.identifier, archived=archived
             )
+        if self.archived:
+            raise LibrusError(ErrorKind.INVALID_INPUT)
         return MessageAttachmentReference(message=message, identifier=self.identifier)
 
 

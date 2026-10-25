@@ -39,6 +39,8 @@ class Wire:
         self.send_unknown = False
         self.attachment_body = b"Fixture attachment bytes\x00"
         self.attachment_location = None
+        # None: details list no files; a bool lists file 91 with that archive flag.
+        self.detail_archive = None
         self.schedule_malformed = False
         self.schedule_disconnect = False
         self.send_started = asyncio.Event()
@@ -261,15 +263,17 @@ class Wire:
         if request.path.startswith(("/api/inbox/messages/", "/api/outbox/messages/")):
             received = "inbox" in request.path
             row = self.message_row(request.path.rsplit("/", 1)[1], received, owner)
-            return web.json_response(
-                {
-                    "data": row
-                    | {
-                        "Message": b64encode(b"<p>Fixture <b>body</b></p>").decode(),
-                        "attachments": [],
-                    }
+            detail = row | {
+                "Message": b64encode(b"<p>Fixture <b>body</b></p>").decode(),
+                "attachments": [],
+            }
+            if self.detail_archive is not None:
+                detail |= {
+                    "archive": int(self.detail_archive),
+                    "isAnyFileAttached": True,
+                    "attachments": [{"id": 91, "filename": "Fixture.bin"}],
                 }
-            )
+            return web.json_response({"data": detail})
         if request.path == "/informacja":
             if self.unavailable_profile:
                 return web.Response(status=302, headers={"Location": "/modul_niedostepny"})

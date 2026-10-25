@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.2.1] - 2026-10-25
+
+### Fixed
+
+- Restore the optional `attachment_ref.archived` input of `download_attachment`.
+  2.2.0 removed it on the premise that it duplicated the message reference's
+  `archived` field, but it is the file's own namespace: a current-mailbox
+  message's detail can place its attachments in the archive, and
+  `get_message_content` reports that on each attachment reference. In 2.2.0
+  those files were requested from the current route, the archive route was
+  unreachable, and clients forwarding the reported flag got `INVALID_INPUT`.
+  Every 2.1.3 call works again. When omitted, the namespace still follows the
+  message reference (the #57 fix), and an archive message with
+  `archived=false` is rejected before any request.
+
 ## [2.2.0] - 2026-10-25
 
 ### Breaking changes

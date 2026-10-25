@@ -105,11 +105,12 @@ selection. Catalog annotations are hints, not an authorization mechanism.
   publication is the commit point. Optional POSIX snapshots are inert, bounded,
   expiring and runtime-only. A snapshot failure returns the published local file
   and digest without a URI. Windows currently returns local files only.
-  `attachment_ref` contains `message` and `identifier`; the message reference's
-  `archived` field is the sole mailbox selector. The former duplicate
-  `attachment_ref.archived` field is no longer accepted, even when it matches;
-  clients must omit it. Invalid extra fields fail before HTTP, and legacy archived
-  message references remain unsupported.
+  `attachment_ref` contains `message`, `identifier` and optional `archived`, the
+  file's own namespace as `get_message_content` reports it on the attachment
+  reference. A current message's detail can place its files in the archive
+  namespace. Omitted, `archived` follows the message reference; an archive
+  message with `archived=false` fails before HTTP. Legacy references accept no
+  archive namespace.
 
 Modern and legacy backends are selected per account, without fallback. Modern
 hierarchical recipient choices return `UNSUPPORTED_CAPABILITY`; ordinary modern
