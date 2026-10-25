@@ -8,6 +8,9 @@ updates:
     directory: /
     schedule:
       interval: weekly
+      day: monday
+      time: "06:15"
+      timezone: Europe/Warsaw
     cooldown:
       default-days: 7
     open-pull-requests-limit: 5

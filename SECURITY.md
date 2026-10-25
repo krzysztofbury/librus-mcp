@@ -15,7 +15,8 @@ For consent and recovery boundaries, see [MIGRATION_2_0.md](MIGRATION_2_0.md).
 > Do not open issues that might have security implications!
 > It is critical that security related issues are reported privately so we have time to address them before they become public knowledge.
 
-Vulnerabilities can be reported by emailing:
+Vulnerabilities can be reported through the repository's **Security** tab
+(**Report a vulnerability**) or by emailing:
 
 - librus-mcp [contact@datacraze.io](mailto:contact@datacraze.io)
 
@@ -35,3 +36,11 @@ This information will help us triage your report more quickly.
 ## Preferred Languages
 
 We prefer all communications to be in English.
+
+## Repository Protections
+
+The default branch requires a pull request and the CI checks, and refuses force
+pushes and deletion. Secret scanning with push protection, Dependabot alerts and
+security updates, CodeQL default setup and private vulnerability reporting are
+enabled. Workflows default to a read-only token and need approval before running
+for outside contributors.
