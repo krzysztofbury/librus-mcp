@@ -139,7 +139,7 @@ def read_private_file(
     if os.name == "nt":
         from librus_mcp.windows_config import read_private_config
 
-        return read_private_config(path, maximum)
+        return read_private_config(path, maximum, label)
     # Bound special-file reads and reject symlinks on platforms with O_NOFOLLOW.
     descriptor = -1
     try:
