@@ -52,7 +52,7 @@ def substitute(value: str, directory: Path) -> str:
     return value
 
 
-async def check_server(directory: Path, home: Path, version: str) -> int:
+async def check_server(directory: Path, private: Path, version: str) -> int:
     manifest = json.loads((directory / "manifest.json").read_text(encoding="utf-8"))
     if manifest.get("version") != version:
         raise VerificationError(f"bundle manifest version must be {version!r}")
@@ -65,8 +65,12 @@ async def check_server(directory: Path, home: Path, version: str) -> int:
         for name, value in os.environ.items()
         if not name.startswith("LIBRUS_") and name not in {"VIRTUAL_ENV", "UV_PROJECT_ENVIRONMENT"}
     }
-    # Isolate the server's state and configuration from the verifying user.
-    environment |= {"HOME": str(home), "USERPROFILE": str(home), "XDG_CONFIG_HOME": str(home)}
+    # Keep the server's state away from the verifying user's, in directories the
+    # server creates itself, as verify_wheel does; uv keeps its usual cache.
+    environment |= {
+        "LIBRUS_STATE_DIR": str(private / "state"),
+        "LIBRUS_DOWNLOAD_DIR": str(private / "downloads"),
+    }
     environment |= {name: substitute(value, directory) for name, value in config["env"].items()}
     parameters = StdioServerParameters(
         command=command,
@@ -98,11 +102,9 @@ def main() -> None:
         bundle = resolve_bundle(arguments.bundle)
         with tempfile.TemporaryDirectory() as temporary:
             directory = Path(temporary) / "extension"
-            home = Path(temporary) / "home"
-            home.mkdir()
             with zipfile.ZipFile(bundle) as archive:
                 archive.extractall(directory)
-            tools = anyio.run(check_server, directory, home, version)
+            tools = anyio.run(check_server, directory, Path(temporary), version)
     except VerificationError as error:
         raise SystemExit(f"bundle verification failed: {error}") from None
     print(f"verified bundle {bundle.name}: {tools} tools, host login loaded")
