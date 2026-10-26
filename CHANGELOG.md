@@ -4,7 +4,7 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
-## [2.3.0] - Unreleased
+## [2.3.0] - 2026-10-26
 
 New ways to install and run the server. Tools, inputs and results are
 unchanged; existing configuration, context keys and state keep working.

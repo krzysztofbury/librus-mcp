@@ -38,6 +38,13 @@ passed. The README Docker Compose setup was followed with a locally built image:
 401 without the token, 421 for an unlisted Host, both logins served, state kept
 in `./data`.
 
+On 2026-10-26 the candidate passed the installed MCP academic profile over
+stdio: **56 reads** plus four identity checks with strict schema validation.
+Four disabled completed-lesson views and four absent homework-detail references
+were reported separately, using **104 requests and 3695812 response bytes**.
+The live profile does not exercise HTTP; the transport serves the same runtime
+and is verified offline and in the container checks.
+
 ## 2.2.2 security-update qualification
 
 API 1.6.4 replaces the backtracking regular expression that decided whether a
