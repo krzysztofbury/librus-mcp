@@ -17,6 +17,17 @@ from tests_native.test_native_stdio import REPOSITORY, server_process
 from tests_native.wire import Wire
 
 TOKEN = "fixture-token-" + "x" * 32  # pragma: allowlist secret - fixture only
+ACCEPT = {"Accept": "application/json, text/event-stream"}
+INITIALIZE = {
+    "jsonrpc": "2.0",
+    "id": 1,
+    "method": "initialize",
+    "params": {
+        "protocolVersion": "2025-06-18",
+        "capabilities": {},
+        "clientInfo": {"name": "fixture", "version": "1"},
+    },
+}
 
 
 @pytest.fixture(autouse=True)
@@ -71,6 +82,17 @@ async def test_only_one_matching_bearer_token_reaches_the_server(headers, allowe
     assert reached[-1] == "lifespan"
 
 
+@pytest.mark.asyncio
+async def test_websocket_scopes_are_closed_without_reaching_the_server():
+    reached = []
+
+    async def app(scope, receive, send):
+        reached.append(scope["type"])
+
+    sent = await call(BearerTokenMiddleware(app, TOKEN.encode()), {"type": "websocket"})
+    assert reached == [] and sent == [{"type": "websocket.close", "code": 1008}]
+
+
 @pytest.mark.parametrize(
     ("environment", "message"),
     [
@@ -90,6 +112,7 @@ def test_http_token_fails_closed(environment, message, monkeypatch):
 
 def test_http_token_file_is_private_and_ignores_a_trailing_newline(tmp_path, monkeypatch):
     path = tmp_path / "token"
+    # Text mode writes CRLF on Windows, as Notepad does.
     path.write_text(TOKEN + "\n")
     path.chmod(0o600)
     if os.name == "nt":
@@ -99,7 +122,7 @@ def test_http_token_file_is_private_and_ignores_a_trailing_newline(tmp_path, mon
     monkeypatch.setenv("LIBRUS_MCP_TOKEN_FILE", str(path))
     assert load_token() == TOKEN.encode()
     path.unlink()
-    with pytest.raises(ConfigError, match="LIBRUS_MCP_TOKEN_FILE"):
+    with pytest.raises(ConfigError, match="LIBRUS_MCP_TOKEN_FILE: cannot read token file"):
         load_token()
 
 
@@ -149,7 +172,7 @@ async def test_http_serves_every_login_with_the_token_and_nothing_without(tmp_pa
             state_dir=tmp_path / "state",
             serve="from librus_mcp.http_transport import serve_http\n"
             f"serve_http(server, load_config(), host='127.0.0.1', port={port}, "
-            f"token={TOKEN.encode()!r})",
+            f"token={TOKEN.encode()!r}, allowed_hosts=['127.0.0.1:*', 'librus.test:*'])",
         )
         script = parameters.args[1]
         url = f"http://127.0.0.1:{port}/mcp"
@@ -166,7 +189,18 @@ async def test_http_serves_every_login_with_the_token_and_nothing_without(tmp_pa
                                 break
                             except httpx2.TransportError:
                                 await anyio.sleep(0.1)
-                assert refused.status_code == 401
+                        assert refused.status_code == 401
+                        authorized = {"Authorization": f"Bearer {TOKEN}"} | ACCEPT
+                        # A proxy forwarding the HTTPS name sends no port; HOST:* allows it.
+                        for host, status in (("librus.test", 200), ("evil.test", 421)):
+                            response = await probe.post(
+                                url, json=INITIALIZE, headers=authorized | {"Host": host}
+                            )
+                            assert response.status_code == status, host
+                        oversized = await probe.post(
+                            url, content=b" " * (1024 * 1024 + 1), headers=authorized
+                        )
+                        assert oversized.status_code == 413
                 assert wire.calls == []
                 client = httpx2.AsyncClient(
                     headers={"Authorization": f"Bearer {TOKEN}"}, timeout=30, trust_env=False

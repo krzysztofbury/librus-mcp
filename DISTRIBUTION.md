@@ -31,8 +31,10 @@ HTTP on the user's own Docker host is supported; see README.md.
    build context, so the image installs exactly the published wheel, and runs
    `release_verification/verify_image.py` (ownership label, version, no
    excluded source, stdio with a read-only multi-login file, HTTP refusing a
-   request without the token and serving one with it). It then pushes amd64
-   and arm64 images tagged with the version and `latest`.
+   request without the token or with an unlisted Host and serving one with
+   it). It then pushes amd64 and arm64 images tagged with the version, and
+   `latest` when this is the newest release, pulls the pushed image and runs
+   the same verification on it, and starts the arm64 image under QEMU.
 4. `registry` attaches the bundle to the GitHub Release, waits until PyPI serves
    the version, adds the bundle with its SHA-256 to `server.json`, and publishes
    it with a Sigstore-verified `mcp-publisher` using GitHub OIDC. No secret is
@@ -44,12 +46,17 @@ HTTP on the user's own Docker host is supported; see README.md.
 
 A new GitHub Container Registry package is private, and GitHub offers no API to
 change that. The registry checks image ownership by pulling it anonymously, so
-on the first release the `registry` job lists the server without the image and
-leaves a warning. After that release:
+on the first release the `registry` job stops before attaching the bundle or
+listing anything, with an error that points here. PyPI and the image are
+already published by then. To finish the release:
 
-1. Open the package at `https://github.com/users/krzysztofbury/packages/container/librus-mcp/settings`,
-   set its visibility to public and link it to this repository.
-2. Re-run the `registry` job of that release; it then lists the image too.
+1. Open the package at `https://github.com/users/krzysztofbury/packages/container/librus-mcp/settings`
+   and set its visibility to public. The image's `org.opencontainers.image.source`
+   label links it to this repository.
+2. Re-run the failed `registry` job. Attaching the bundle is idempotent, so the
+   re-run attaches it and lists PyPI, the image and the bundle together.
+
+Later releases reuse the public package and need no manual step.
 
 ## The image
 
@@ -81,8 +88,9 @@ The bundle is not signed (`mcpb sign`); hosts show it as unsigned.
 Verified by CI and the release workflow: `server.json` passes `mcp-publisher
 validate`, the manifest passes `mcpb validate`, the unpacked bundle starts
 through its own `mcp_config` command on Linux, macOS and Windows, and the image
-serves stdio and HTTP as described above. The README Docker Compose setup was
-followed step by step against a locally built image.
+serves stdio and HTTP as described above, on amd64 with arm64 started under
+QEMU. The README Docker Compose setup was followed step by step against a
+locally built image, and the HTTP test covers a proxy's bare Host name.
 
 Not verified until a release or a manual check:
 

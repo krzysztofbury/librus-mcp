@@ -10,9 +10,13 @@ results are unchanged apart from titles and explicit destructive hints.
   MCP (missing, wrong, other scheme, non-ASCII and duplicate headers and
   `OPTIONS` get 401, lifespan always passes), token sources fail closed, the CLI
   refuses transport options outside serving and refuses HTTP without a token,
-  and a real subprocess serves two logins over HTTP with grade reads from the
-  synthetic wire. Blocking the lifespan in the middleware fails 25 cases.
-- `test_config.py` owns the environment login; its 8 cases fail without it.
+  WebSocket scopes are closed, and a real subprocess serves two logins over
+  HTTP with grade reads from the synthetic wire, answers 421 for an unlisted
+  Host, accepts a proxy's bare Host name under `NAME:*` and answers 413 above
+  1 MiB. Blocking the lifespan in the middleware fails 25 cases; matching
+  `NAME:*` only with a port fails the bare-name case.
+- `test_config.py` owns the environment login, whose 8 cases fail without it,
+  and the read-only mount error for a shared configuration file.
 - `test_catalog_schema.py` asserts a title and explicit effect hints on every
   tool in the default, minimal and all-feature profiles; 3 profiles fail
   without the metadata. The catalog measures 120521 bytes for 31 default tools
@@ -22,10 +26,12 @@ results are unchanged apart from titles and explicit destructive hints.
 - `verify_mcpb.py` starts the bundle through its own `mcp_config` command, and
   CI runs it on Linux, macOS and Windows. `verify_image.py` checks the image
   label, version, unprivileged user and contents, a stdio session from a
-  read-only two-login file and HTTP refusing and then serving. CI builds the
-  image from source; the release builds it from the verified wheel.
+  read-only two-login file, and HTTP as the image user with a named volume:
+  401 without the token, 421 for an unlisted Host, served with the token. CI
+  builds the image from source and starts an arm64 build under QEMU; the
+  release builds it from the verified wheel and verifies the pushed image.
 
-Locally, on the candidate: 141 passed and 1 Windows-only skip from source, 135
+Locally, on the candidate: 143 passed and 1 Windows-only skip from source, 137
 passed and 1 skip from the isolated wheel built from the sdist, ruff, format,
 strict mypy, Bandit, pre-commit, `mcp-publisher validate` and `mcpb validate`
 passed. The README Docker Compose setup was followed with a locally built image:

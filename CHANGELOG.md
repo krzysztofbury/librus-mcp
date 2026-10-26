@@ -15,14 +15,16 @@ unchanged; existing configuration, context keys and state keep working.
   `/mcp` for agents on other machines you control. Every request needs a bearer
   token from `LIBRUS_MCP_TOKEN` or the private `LIBRUS_MCP_TOKEN_FILE`; the
   server refuses to start without one. `--generate-token` creates a token,
-  `--host` and `--port` choose the address (default `127.0.0.1:8000`) and
-  `--allowed-host` restricts the Host header. Sessions are stateless, request
+  `--host` (or `LIBRUS_MCP_HOST`) and `--port` choose the address (default
+  `127.0.0.1:8000`) and `--allowed-host` restricts the Host header, where
+  `NAME:*` accepts `NAME` with any port or none. Sessions are stateless, request
   bodies are capped at 1 MiB and there is no TLS in process: use a reverse proxy
   or a private network. One token grants every configured login.
 - **Container image** `ghcr.io/krzysztofbury/librus-mcp` for amd64 and arm64.
   It runs as an unprivileged user, keeps state in `/data`, serves stdio by
-  default and HTTP with `--transport http --host 0.0.0.0`. Release images
-  install the exact wheel published to PyPI. README.md has a Docker Compose
+  default and HTTP on every container interface with `--transport http`.
+  Release images install the exact wheel published to PyPI and are verified
+  after they are pushed. README.md has a Docker Compose
   setup with a multi-login configuration file and a Hermes Agent example.
 - **Desktop bundle** `librus-mcp-2.3.0.mcpb` on each GitHub release (preview):
   one-click install in apps that support MCP Bundles, with the login and
@@ -48,13 +50,10 @@ unchanged; existing configuration, context keys and state keep working.
   instead of reporting an unreadable file.
 - A configuration file that others can read on a read-only mount, as in a
   container, now reports that its mode must be 0600 instead of a generic read
-  error.
+  error. Errors about the token file name the token file.
 - `account_alias` inputs describe themselves as the alias from `list_accounts`.
 - The catalog measures 120521 bytes for 31 default tools and 133772 bytes for 35
   tools, within the 128 and 144 KiB budgets.
-- SECURITY.md adds GitHub private vulnerability reporting beside email and lists
-  the repository protections; Dependabot's Actions updates run on a fixed Monday
-  schedule.
 
 ## [2.2.2] - 2026-10-26
 

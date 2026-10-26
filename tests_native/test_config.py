@@ -255,6 +255,20 @@ def test_environment_login_fails_closed_when_partial_or_competing(
     assert load_config(path).accounts[0].alias == "fixture"
 
 
+@pytest.mark.skipif(os.name != "posix", reason="POSIX mode repair")
+def test_shared_config_on_a_read_only_mount_names_the_fix(tmp_path, monkeypatch):
+    path = tmp_path / "config.json"
+    write_config(path)
+    path.chmod(0o644)
+
+    def read_only_mount(descriptor, mode):
+        raise OSError(30, "Read-only file system")
+
+    monkeypatch.setattr(os, "fchmod", read_only_mount)
+    with pytest.raises(ConfigError, match="set its mode to 0600 before mounting it"):
+        load_config(path)
+
+
 def test_deeply_nested_json_is_a_redacted_configuration_error(monkeypatch):
     monkeypatch.setenv("LIBRUS_ACCOUNTS", "[" * 2000 + "]" * 2000)
     with pytest.raises(ConfigError, match="invalid"):

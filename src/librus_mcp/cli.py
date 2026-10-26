@@ -3,6 +3,7 @@
 import argparse
 import asyncio
 import json
+import os
 import secrets
 import sys
 from collections.abc import Sequence
@@ -44,7 +45,9 @@ def main(argv: Sequence[str] | None = None) -> None:
         help="stdio for a local assistant (default); http to self-host on your own network",
     )
     parser.add_argument(
-        "--host", help="HTTP listen address (default 127.0.0.1; 0.0.0.0 inside a container)"
+        "--host",
+        help="HTTP listen address (default LIBRUS_MCP_HOST, else 127.0.0.1; "
+        "the container image sets 0.0.0.0)",
     )
     parser.add_argument("--port", type=int, help="HTTP listen port (default 8000)")
     parser.add_argument(
@@ -52,7 +55,7 @@ def main(argv: Sequence[str] | None = None) -> None:
         action="append",
         default=[],
         metavar="HOST[:PORT]",
-        help="Host header clients use, repeatable; HOST:* allows any port",
+        help="Host header clients use, repeatable; HOST:* allows HOST with any port or none",
     )
     commands = parser.add_subparsers(dest="command")
     migration = commands.add_parser(
@@ -218,7 +221,7 @@ def main(argv: Sequence[str] | None = None) -> None:
         serve_http(
             create_server(config),
             config,
-            host=arguments.host or "127.0.0.1",
+            host=arguments.host or os.environ.get("LIBRUS_MCP_HOST") or "127.0.0.1",
             port=arguments.port or 8000,
             token=token,
             allowed_hosts=arguments.allowed_host,

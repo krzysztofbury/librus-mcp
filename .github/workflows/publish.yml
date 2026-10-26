@@ -208,15 +208,29 @@ jobs:
           password: ${{ github.token }}
 
       - name: Push amd64 and arm64 images
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           image="ghcr.io/${GITHUB_REPOSITORY,,}"
+          tags=(--tag "$image:${RELEASE_TAG#v}")
+          # `latest` follows the newest release only, never a backport.
+          if [ "$(gh api "repos/$GITHUB_REPOSITORY/releases/latest" --jq .tag_name)" = "$RELEASE_TAG" ]; then
+            tags+=(--tag "$image:latest")
+          fi
           docker buildx build \
             --platform linux/amd64,linux/arm64 \
             --build-context verified=verified-dist \
             --provenance=false \
-            --tag "$image:${RELEASE_TAG#v}" \
-            --tag "$image:latest" \
+            "${tags[@]}" \
             --push .
+
+      # Verify what users pull, not only the local build above.
+      - name: Verify the pushed images
+        run: |
+          image="ghcr.io/${GITHUB_REPOSITORY,,}:${RELEASE_TAG#v}"
+          docker pull --platform linux/amd64 "$image"
+          uv run python release_verification/verify_image.py "$image"
+          docker run --rm --platform linux/arm64 "$image" --version | grep -Fx "librus-mcp ${RELEASE_TAG#v}"
 
   registry:
     name: List the release in the MCP Registry
@@ -236,6 +250,21 @@ jobs:
           ref: ${{ github.event.release.tag_name }}
           persist-credentials: false
 
+      # A new GHCR package is private until the owner makes it public once, and
+      # the registry pulls the image anonymously to check ownership. Stop before
+      # attaching or listing anything, so re-running this job afterwards works.
+      - name: Require a public container image
+        run: |
+          repository="${GITHUB_REPOSITORY,,}"
+          token=$(curl -fsS "https://ghcr.io/token?scope=repository:${repository}:pull" | jq -r .token || true)
+          if [ -z "$token" ] || ! curl -fsSI -o /dev/null \
+              -H "Authorization: Bearer $token" \
+              -H "Accept: application/vnd.oci.image.index.v1+json" \
+              "https://ghcr.io/v2/${repository}/manifests/${RELEASE_TAG#v}"; then
+            echo "::error::ghcr.io/${repository} is not public. Make the package public (see DISTRIBUTION.md), then re-run this job."
+            exit 1
+          fi
+
       - name: Download verified bundle
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
@@ -249,7 +278,8 @@ jobs:
         run: |
           bundle="mcpb-dist/librus-mcp-${RELEASE_TAG#v}.mcpb"
           echo "$EXPECTED_SHA256  $bundle" | sha256sum --check --strict
-          gh release upload "$RELEASE_TAG" "$bundle" --repo "$GITHUB_REPOSITORY"
+          # --clobber keeps a re-run idempotent; the bytes were checked above.
+          gh release upload "$RELEASE_TAG" "$bundle" --repo "$GITHUB_REPOSITORY" --clobber
 
       # The registry checks PyPI ownership against the published README, and
       # the PyPI JSON API can lag the upload by a few minutes.
@@ -290,18 +320,6 @@ jobs:
           jq --arg url "$url" --arg sha "$BUNDLE_SHA256" \
             '.packages += [{"registryType": "mcpb", "identifier": $url, "fileSha256": $sha, "transport": {"type": "stdio"}}]' \
             server.json > "$RUNNER_TEMP/server.json"
-          # A new GHCR package is private until the owner makes it public once,
-          # and the registry checks ownership by pulling it anonymously.
-          repository="${GITHUB_REPOSITORY,,}"
-          token=$(curl -fsS "https://ghcr.io/token?scope=repository:${repository}:pull" | jq -r .token || true)
-          if [ -z "$token" ] || ! curl -fsSI -o /dev/null \
-              -H "Authorization: Bearer $token" \
-              -H "Accept: application/vnd.oci.image.index.v1+json" \
-              "https://ghcr.io/v2/${repository}/manifests/${version}"; then
-            echo "::warning::ghcr.io/${repository} is not public; listing without the container image"
-            jq 'del(.packages[] | select(.registryType == "oci"))' "$RUNNER_TEMP/server.json" > "$RUNNER_TEMP/listed.json"
-            mv "$RUNNER_TEMP/listed.json" "$RUNNER_TEMP/server.json"
-          fi
           "$RUNNER_TEMP/mcp-publisher" validate "$RUNNER_TEMP/server.json"
 
       - name: Publish to the MCP Registry

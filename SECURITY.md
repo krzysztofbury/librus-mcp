@@ -12,7 +12,9 @@ place. No backend fallback or uncertain-send retry is allowed.
 The self-hosted HTTP transport requires a bearer token on every request and
 refuses to start without one. It has no TLS of its own: run it behind a reverse
 proxy with TLS or on a private network, publish its port only on loopback or a
-VPN address, and treat the token like the passwords it unlocks. The container
+VPN address, and treat the token like the passwords it unlocks. Its 32
+connection limit applies before authentication, so a host that can reach the
+port can hold it busy; that is why it belongs on a private network. The container
 image runs as an unprivileged user and contains only the package and its
 locked dependencies.
 For consent and recovery boundaries, see [MIGRATION_2_0.md](MIGRATION_2_0.md).

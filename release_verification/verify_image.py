@@ -3,8 +3,9 @@
 
 Checks the registry ownership label and version, that no historical references
 or tests were copied in, a stdio session from a read-only multi-login file, and
-the HTTP transport refusing requests without the bearer token and serving the
-environment login with it.
+the HTTP transport, as the image user with a named volume, refusing requests
+without the bearer token or with an unlisted Host and serving the environment
+login with the token.
 """
 
 import argparse
@@ -138,12 +139,16 @@ def free_port() -> int:
 async def check_http(image: str) -> None:
     token = secrets.token_urlsafe(32)
     port = free_port()
+    # The image's own user and listen address, with state in a fresh named volume.
+    volume = docker("volume", "create")
     container = docker(
         "run",
         "-d",
         "--rm",
         "-p",
         f"127.0.0.1:{port}:8000",
+        "-v",
+        f"{volume}:/data",
         "-e",
         "LIBRUS_USERNAME=fixture-login",  # pragma: allowlist secret - fixture only
         "-e",
@@ -153,8 +158,8 @@ async def check_http(image: str) -> None:
         image,
         "--transport",
         "http",
-        "--host",
-        "0.0.0.0",
+        "--allowed-host",
+        "127.0.0.1:*",
     )
     url = f"http://127.0.0.1:{port}/mcp"
     try:
@@ -168,8 +173,15 @@ async def check_http(image: str) -> None:
                     if time.monotonic() > deadline:
                         raise VerificationError("HTTP image did not start") from None
                     await anyio.sleep(0.2)
-        if refused.status_code != 401 or refused.headers.get("www-authenticate") != "Bearer":
-            raise VerificationError("HTTP image served a request without the bearer token")
+            if refused.status_code != 401 or refused.headers.get("www-authenticate") != "Bearer":
+                raise VerificationError("HTTP image served a request without the bearer token")
+            rebound = await probe.post(
+                url,
+                json={},
+                headers={"Authorization": f"Bearer {token}", "Host": "unlisted.example"},
+            )
+            if rebound.status_code != 421:
+                raise VerificationError("HTTP image accepted a Host outside --allowed-host")
         client = httpx2.AsyncClient(
             headers={"Authorization": f"Bearer {token}"},
             timeout=STARTUP_TIMEOUT_SECONDS,
@@ -183,7 +195,9 @@ async def check_http(image: str) -> None:
         if result.structured_content != {"items": [{"account_alias": "librus"}]}:
             raise VerificationError("HTTP image did not load the environment login")
     finally:
-        subprocess.run(["docker", "stop", container], check=False, capture_output=True)
+        # rm -f returns once the container is gone, so the volume is free.
+        subprocess.run(["docker", "rm", "-f", container], check=False, capture_output=True)
+        subprocess.run(["docker", "volume", "rm", volume], check=False, capture_output=True)
 
 
 def main() -> None:

@@ -128,10 +128,13 @@ def _json(value: str | bytes, *, source: str) -> Any:
         raise ConfigError(f"{source} contains invalid JSON") from None
 
 
-def read_private_file(path: Path, *, maximum: int = MAX_CONFIG_BYTES) -> bytes:
+def read_private_file(
+    path: Path, *, maximum: int = MAX_CONFIG_BYTES, label: str = "configuration"
+) -> bytes:
     """Read the current user's private file: no symlink, regular, owner-only.
 
     Reads at most ``maximum + 1`` bytes so callers can detect an oversized file.
+    ``label`` names the file in errors and notices.
     """
     if os.name == "nt":
         from librus_mcp.windows_config import read_private_config
@@ -141,7 +144,7 @@ def read_private_file(path: Path, *, maximum: int = MAX_CONFIG_BYTES) -> bytes:
     descriptor = -1
     try:
         if path.is_symlink():
-            raise ConfigError("configuration must not be a symlink")
+            raise ConfigError(f"{label} must not be a symlink")
         descriptor = os.open(
             path,
             os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0),
@@ -150,9 +153,9 @@ def read_private_file(path: Path, *, maximum: int = MAX_CONFIG_BYTES) -> bytes:
             descriptor = -1
             status = os.fstat(file.fileno())
             if not stat.S_ISREG(status.st_mode):
-                raise ConfigError("configuration must be a regular file")
+                raise ConfigError(f"{label} must be a regular file")
             if os.name == "posix" and status.st_uid != os.getuid():
-                raise ConfigError("configuration must be owned by the current user")
+                raise ConfigError(f"{label} must be owned by the current user")
             if os.name == "posix" and stat.S_IMODE(status.st_mode) & 0o077:
                 # Restrict the user's own file in place, through the opened
                 # descriptor, rather than refusing to start.
@@ -161,22 +164,20 @@ def read_private_file(path: Path, *, maximum: int = MAX_CONFIG_BYTES) -> bytes:
                 except OSError:
                     # A read-only mount, as in a container, cannot be repaired.
                     raise ConfigError(
-                        "configuration is readable by others and cannot be restricted; "
+                        f"{label} is readable by others and cannot be restricted; "
                         "set its mode to 0600 before mounting it"
                     ) from None
-                notice("restricted the configuration file to owner-only access (0600)")
+                notice(f"restricted the {label} to owner-only access (0600)")
             return file.read(maximum + 1)
     except OSError:
-        raise ConfigError(
-            "cannot read configuration file; check its path and permissions"
-        ) from None
+        raise ConfigError(f"cannot read {label}; check its path and permissions") from None
     finally:
         if descriptor >= 0:
             os.close(descriptor)
 
 
 def read_config_file(path: Path) -> dict[str, Any]:
-    data = _json(read_private_file(path), source="configuration file")
+    data = _json(read_private_file(path, label="configuration file"), source="configuration file")
     if not isinstance(data, dict):
         raise ConfigError("configuration file must contain a JSON object")
     return data

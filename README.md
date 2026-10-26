@@ -191,7 +191,7 @@ of `id -u` and `id -g`:
 services:
   librus-mcp:
     image: ghcr.io/krzysztofbury/librus-mcp:2.3.0
-    command: ["--transport", "http", "--host", "0.0.0.0", "--allowed-host", "librus-mcp.example.lan:*"]
+    command: ["--transport", "http", "--allowed-host", "librus-mcp.example.lan:*"]
     user: "1000:1000"
     environment:
       LIBRUS_CONFIG: /config/config.json
@@ -211,10 +211,14 @@ docker compose up -d
 docker compose logs librus-mcp
 ```
 
-The endpoint is `http://HOST:8000/mcp`, or your proxy's HTTPS address.
-`--allowed-host` lists the host names clients use, with `:*` for any port;
-without it the server logs that Host header checks are off and relies on the
-token alone. `./data` keeps the private state, persistent key and downloads, so
+The endpoint is `/mcp` at your proxy's HTTPS address, or at your VPN address on
+port 8000. `--allowed-host` lists the host names clients use; `NAME:*` accepts
+`NAME` with any port or none. A reverse proxy must forward the original Host
+header: Caddy and Traefik do by default, nginx needs
+`proxy_set_header Host $host;`. Without `--allowed-host` the server logs that
+Host header checks are off and relies on the token alone. In the image the
+server listens on every container interface; the `ports:` line decides who can
+reach it. `./data` keeps the private state, persistent key and downloads, so
 back it up.
 
 **3. Connect your agent** with the token as a bearer header. For Hermes Agent:

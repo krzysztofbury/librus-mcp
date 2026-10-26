@@ -1,6 +1,7 @@
 # syntax=docker/dockerfile:1
 # librus-mcp container: stdio by default, or self-hosted HTTP with
-# `--transport http --host 0.0.0.0` and a bearer token. See README.md.
+# `--transport http` and a bearer token, listening on every container
+# interface (LIBRUS_MCP_HOST). See README.md.
 
 ARG PYTHON_IMAGE=python:3.14-slim@sha256:35caba83af2fe6da9a5d922f9b0156f21d1246a48278c58a08bd253303ba42e8
 
@@ -48,6 +49,7 @@ ENV PATH=/opt/librus-mcp/bin:$PATH \
     HOME=/data \
     LIBRUS_STATE_DIR=/data/state \
     LIBRUS_DOWNLOAD_DIR=/data/downloads \
+    LIBRUS_MCP_HOST=0.0.0.0 \
     PYTHONUNBUFFERED=1
 USER 10001:10001
 WORKDIR /data

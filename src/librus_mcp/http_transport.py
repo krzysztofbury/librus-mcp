@@ -36,8 +36,13 @@ def load_token() -> bytes:
     if "LIBRUS_MCP_TOKEN_FILE" in os.environ:
         path = Path(os.environ["LIBRUS_MCP_TOKEN_FILE"]).expanduser()
         try:
-            # A trailing newline from an editor or `echo` is not part of the token.
-            token = read_private_file(path, maximum=1024).removesuffix(b"\n")
+            # A trailing newline from an editor or `echo` (CRLF on Windows) is
+            # not part of the token.
+            token = (
+                read_private_file(path, maximum=1024, label="token file")
+                .removesuffix(b"\n")
+                .removesuffix(b"\r")
+            )
         except ConfigError as error:
             raise ConfigError(f"LIBRUS_MCP_TOKEN_FILE: {error}") from None
     elif "LIBRUS_MCP_TOKEN" in os.environ:
@@ -100,8 +105,15 @@ class BearerTokenMiddleware:
 def transport_security(host: str, allowed_hosts: Sequence[str]) -> TransportSecuritySettings | None:
     """Host and Origin checks; the SDK applies its loopback defaults when None."""
     if allowed_hosts:
+        # The SDK matches HOST:* only with an explicit port, but HTTPS clients and
+        # proxies send the bare name for the default port.
+        hosts = list(
+            dict.fromkeys(
+                name for entry in allowed_hosts for name in (entry, entry.removesuffix(":*"))
+            )
+        )
         # No browser origin is expected: MCP clients send no Origin header.
-        return TransportSecuritySettings(allowed_hosts=list(allowed_hosts), allowed_origins=[])
+        return TransportSecuritySettings(allowed_hosts=hosts, allowed_origins=[])
     if host not in LOOPBACK_HOSTS:
         notice(
             "Host header checks are off; pass --allowed-host with the name clients use "

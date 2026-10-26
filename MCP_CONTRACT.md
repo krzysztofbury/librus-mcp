@@ -100,9 +100,11 @@ results are identical.
 - Sessions are stateless with JSON responses: there is no `Mcp-Session-Id` and
   no server-initiated message, so a restart strands no client. Durable state
   lives in the shared runtime stores, as with stdio.
-- Request bodies are capped at 1 MiB and connections at 32. On loopback the SDK
-  checks Host and Origin; elsewhere `--allowed-host` enables that check, and
-  without it the server logs that only the token protects requests.
+- Request bodies are capped at 1 MiB (413) and connections at 32. On loopback
+  the SDK checks Host and Origin; elsewhere `--allowed-host` enables that check
+  (421 for any other Host; `NAME:*` accepts `NAME` with any port or none), and
+  without it the server logs that only the token protects requests. The listen
+  address is `--host`, else `LIBRUS_MCP_HOST`, else `127.0.0.1`.
 - There is no TLS in process. One token grants every configured account, so a
   deployment serves one trusted operator. Attachment files are saved on the
   server host; remote clients receive only the bounded snapshot resource.
