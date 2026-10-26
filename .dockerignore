@@ -1,0 +1,9 @@
+# Allowlist: the image is built from the package source and lock only. Historical
+# references, tests, local state and configuration never enter the build context.
+*
+!pyproject.toml
+!uv.lock
+!README.md
+!LICENSE
+!src/librus_mcp/
+**/__pycache__

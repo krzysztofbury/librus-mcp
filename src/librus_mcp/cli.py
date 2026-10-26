@@ -32,6 +32,28 @@ def main(argv: Sequence[str] | None = None) -> None:
         action="store_true",
         help="print a new key; save it privately once",
     )
+    parser.add_argument(
+        "--generate-token",
+        action="store_true",
+        help="print a new HTTP bearer token; save it privately once",
+    )
+    parser.add_argument(
+        "--transport",
+        choices=("stdio", "http"),
+        default="stdio",
+        help="stdio for a local assistant (default); http to self-host on your own network",
+    )
+    parser.add_argument(
+        "--host", help="HTTP listen address (default 127.0.0.1; 0.0.0.0 inside a container)"
+    )
+    parser.add_argument("--port", type=int, help="HTTP listen port (default 8000)")
+    parser.add_argument(
+        "--allowed-host",
+        action="append",
+        default=[],
+        metavar="HOST[:PORT]",
+        help="Host header clients use, repeatable; HOST:* allows any port",
+    )
     commands = parser.add_subparsers(dest="command")
     migration = commands.add_parser(
         "migrate-state", help="offline legacy inventory/bootstrap; never overwrites source"
@@ -54,17 +76,38 @@ def main(argv: Sequence[str] | None = None) -> None:
     recovery_mode.add_argument("--resolve-uncertain-consume", action="store_true")
     recovery.add_argument("--accept-possible-loss", action="store_true")
     arguments = parser.parse_args(argv)
-    if arguments.generate_context_key:
+    http_options = (
+        arguments.host is not None or arguments.port is not None or arguments.allowed_host
+    )
+    serving_options = arguments.transport != "stdio" or http_options
+    generator = (
+        "--generate-context-key"
+        if arguments.generate_context_key
+        else "--generate-token"
+        if arguments.generate_token
+        else None
+    )
+    if generator is not None:
         if (
             arguments.config
             or arguments.check_config
             or arguments.command
             or arguments.doctor
             or arguments.doctor_storage
+            or (arguments.generate_context_key and arguments.generate_token)
+            or serving_options
         ):
-            parser.error("--generate-context-key cannot be combined with configuration options")
-        print(secrets.token_hex(32))
+            parser.error(f"{generator} cannot be combined with other options")
+        print(
+            secrets.token_hex(32) if arguments.generate_context_key else secrets.token_urlsafe(32)
+        )
         return
+    if serving_options and (arguments.check_config or arguments.doctor or arguments.command):
+        parser.error("transport options apply only to serving")
+    if http_options and arguments.transport != "http":
+        parser.error("--host, --port and --allowed-host require --transport http")
+    if arguments.port is not None and not 1 <= arguments.port <= 65535:
+        parser.error("--port must be between 1 and 65535")
     if arguments.doctor_storage and not arguments.doctor:
         parser.error("--doctor-storage requires --doctor")
     if arguments.doctor and (arguments.command or arguments.check_config):
@@ -145,6 +188,15 @@ def main(argv: Sequence[str] | None = None) -> None:
     from librus_mcp.runtime import prepare_runtime
     from librus_mcp.server import create_server
 
+    token = b""
+    if arguments.transport == "http":
+        from librus_mcp.http_transport import load_token
+
+        try:
+            token = load_token()
+        except ConfigError as error:
+            print(f"librus-mcp: {error}", file=sys.stderr)
+            raise SystemExit(1) from None
     # Fail before the protocol starts with one actionable line, not a lifespan
     # traceback. The lifespan repeats this idempotent preparation.
     try:
@@ -160,6 +212,18 @@ def main(argv: Sequence[str] | None = None) -> None:
             file=sys.stderr,
         )
         raise SystemExit(1) from None
+    if arguments.transport == "http":
+        from librus_mcp.http_transport import serve_http
+
+        serve_http(
+            create_server(config),
+            config,
+            host=arguments.host or "127.0.0.1",
+            port=arguments.port or 8000,
+            token=token,
+            allowed_hosts=arguments.allowed_host,
+        )
+        return
     create_server(config).run(transport="stdio")
 
 

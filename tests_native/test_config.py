@@ -75,6 +75,8 @@ def test_xdg_selection_ignores_cwd_and_explicit_cli_wins(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     Path("secrets.json").write_text('{"not": "configuration"}')
     xdg = tmp_path / "xdg" / "librus-mcp" / "config.json"
+    with pytest.raises(ConfigError, match="no configuration: pass --config"):
+        load_config()
     write_config(xdg)
     assert load_config().accounts[0].alias == "fixture"
     monkeypatch.setenv("LIBRUS_ACCOUNTS", "not-json")

@@ -1,8 +1,10 @@
 # Privacy policy
 
-librus-mcp is a local MCP server. It runs on your computer, started by your AI
-assistant, and has no servers of its own. This policy covers the server and its
-MCP Bundle; your AI assistant has its own policy.
+librus-mcp is an MCP server that runs on a machine you control: your computer,
+started by your AI assistant, or your own Docker host when you self-host it over
+HTTP. It has no servers of its own and no hosted version. This policy covers
+the server, its container image and its MCP Bundle; your AI assistant has its
+own policy.
 
 ## What it handles
 
@@ -20,6 +22,10 @@ MCP Bundle; your AI assistant has its own policy.
 - The server connects only to Librus services (`synergia.librus.pl`,
   `api.librus.pl`, `wiadomosci.librus.pl` and `sandbox.librus.pl` for
   attachment downloads), to sign in and to read what a tool call requests.
+- When you self-host it over HTTP, tool results travel over your network to
+  your agent. The server has no TLS of its own: use a reverse proxy with TLS or
+  a private network, and keep the bearer token secret, since it grants every
+  configured login.
 - Tool results are returned to the AI assistant that called the tool. The
   assistant, and the model provider it uses, process them under their own
   privacy policies. Ask only for what you are comfortable sharing with them.
@@ -31,10 +37,12 @@ MCP Bundle; your AI assistant has its own policy.
 
 ## What it stores on your computer
 
-- A private state directory (default `~/.librus-mcp/state`) with a random key
+- A private state directory (default `~/.librus-mcp/state`, or `/data/state`
+  in the container) with a random key
   that protects references and cursors, and the notification history used to
   report what is new.
-- Attachments you explicitly download (default `~/.librus-mcp/downloads`).
+- Attachments you explicitly download (default `~/.librus-mcp/downloads`, or
+  `/data/downloads` in the container).
 
 Both stay until you delete them; removing the server or the bundle does not
 delete them.

@@ -144,9 +144,83 @@ jobs:
           packages-dir: verified-dist/
           attestations: true
 
+  image:
+    name: Publish the verified container image
+    needs: [verify, publish]
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+      packages: write
+    env:
+      RELEASE_TAG: ${{ github.event.release.tag_name }}
+    steps:
+      - name: Check out the released tag
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.release.tag_name }}
+          persist-credentials: false
+
+      - name: Download verified distributions
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          artifact-ids: ${{ needs.verify.outputs.artifact-id }}
+          path: dist/
+          merge-multiple: true
+
+      - name: Verify distribution checksums
+        env:
+          EXPECTED_MANIFEST_SHA256: ${{ needs.verify.outputs.checksum-manifest-sha256 }}
+        run: |
+          echo "$EXPECTED_MANIFEST_SHA256  dist/SHA256SUMS" | sha256sum --check --strict
+          sha256sum --check --strict dist/SHA256SUMS
+          mkdir verified-dist
+          cp -- dist/*.whl verified-dist/
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
+        with:
+          version: "0.13.5"
+          checksum: "f68d291c75783122dad58ab77def0e13f3233f358731db5d6d7e8715603b928f" # pragma: allowlist secret - public artifact checksum
+
+      - name: Install verifier dependencies
+        run: |
+          uv python install 3.14
+          uv sync --locked --python 3.14
+
+      # The image installs the wheel verified and published above, never a rebuild.
+      - name: Build and verify the image from the verified wheel
+        run: |
+          docker build --build-context verified=verified-dist --tag librus-mcp:release .
+          uv run python release_verification/verify_image.py librus-mcp:release
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+
+      - name: Push amd64 and arm64 images
+        run: |
+          image="ghcr.io/${GITHUB_REPOSITORY,,}"
+          docker buildx build \
+            --platform linux/amd64,linux/arm64 \
+            --build-context verified=verified-dist \
+            --provenance=false \
+            --tag "$image:${RELEASE_TAG#v}" \
+            --tag "$image:latest" \
+            --push .
+
   registry:
     name: List the release in the MCP Registry
-    needs: [verify, publish]
+    needs: [verify, publish, image]
     runs-on: ubuntu-latest
     permissions:
       actions: read
@@ -216,6 +290,18 @@ jobs:
           jq --arg url "$url" --arg sha "$BUNDLE_SHA256" \
             '.packages += [{"registryType": "mcpb", "identifier": $url, "fileSha256": $sha, "transport": {"type": "stdio"}}]' \
             server.json > "$RUNNER_TEMP/server.json"
+          # A new GHCR package is private until the owner makes it public once,
+          # and the registry checks ownership by pulling it anonymously.
+          repository="${GITHUB_REPOSITORY,,}"
+          token=$(curl -fsS "https://ghcr.io/token?scope=repository:${repository}:pull" | jq -r .token || true)
+          if [ -z "$token" ] || ! curl -fsSI -o /dev/null \
+              -H "Authorization: Bearer $token" \
+              -H "Accept: application/vnd.oci.image.index.v1+json" \
+              "https://ghcr.io/v2/${repository}/manifests/${version}"; then
+            echo "::warning::ghcr.io/${repository} is not public; listing without the container image"
+            jq 'del(.packages[] | select(.registryType == "oci"))' "$RUNNER_TEMP/server.json" > "$RUNNER_TEMP/listed.json"
+            mv "$RUNNER_TEMP/listed.json" "$RUNNER_TEMP/server.json"
+          fi
           "$RUNNER_TEMP/mcp-publisher" validate "$RUNNER_TEMP/server.json"
 
       - name: Publish to the MCP Registry

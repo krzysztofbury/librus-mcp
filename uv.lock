@@ -677,13 +677,14 @@ wheels = [
 
 [[package]]
 name = "librus-mcp"
-version = "2.2.2"
+version = "2.3.0"
 source = { editable = "." }
 dependencies = [
     { name = "librus-python-api" },
     { name = "mcp" },
     { name = "pydantic" },
     { name = "pywin32", marker = "sys_platform == 'win32'" },
+    { name = "uvicorn" },
 ]
 
 [package.dev-dependencies]
@@ -705,6 +706,7 @@ requires-dist = [
     { name = "mcp", specifier = ">=2.2.0,<3" },
     { name = "pydantic", specifier = ">=2.12,<3" },
     { name = "pywin32", marker = "sys_platform == 'win32'", specifier = ">=312" },
+    { name = "uvicorn", specifier = ">=0.35,<1" },
 ]
 
 [package.metadata.requires-dev]

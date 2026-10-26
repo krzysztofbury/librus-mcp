@@ -90,3 +90,27 @@ jobs:
         run: |
           uv run python scripts/build_mcpb.py --wheel dist/from-sdist/*.whl --out-dir dist/mcpb
           uv run python release_verification/verify_mcpb.py dist/mcpb
+
+  container:
+    name: Container image
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
+        with:
+          version: "0.13.5"
+
+      - name: Install verifier dependencies
+        run: |
+          uv python install 3.14
+          uv sync --locked --python 3.14
+
+      - name: Build the image from source
+        run: docker build --tag librus-mcp:ci .
+
+      - name: Verify the image over stdio and HTTP
+        run: uv run python release_verification/verify_image.py librus-mcp:ci

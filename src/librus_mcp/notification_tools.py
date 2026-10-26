@@ -130,16 +130,24 @@ async def adopt_legacy_state(runtime: Runtime, alias: str) -> None:
 
 def register_notification_tools(server: MCPServer[Runtime]) -> None:
     server.tool(
+        title="New notifications",
         annotations=ToolAnnotations(
             read_only_hint=False, destructive_hint=True, open_world_hint=True
-        )
+        ),
     )(get_new_notifications)
-    server.tool(annotations=ToolAnnotations(read_only_hint=True, open_world_hint=False))(
-        get_notification_status
-    )
-    server.tool(annotations=ToolAnnotations(read_only_hint=False, open_world_hint=False))(
-        acknowledge_notifications
-    )
+    server.tool(
+        title="Notification status",
+        annotations=ToolAnnotations(read_only_hint=True, open_world_hint=False),
+    )(get_notification_status)
+    server.tool(
+        title="Acknowledge notifications",
+        annotations=ToolAnnotations(
+            # Drops the replayable batch for good.
+            read_only_hint=False,
+            destructive_hint=True,
+            open_world_hint=False,
+        ),
+    )(acknowledge_notifications)
 
 
 async def get_new_notifications(

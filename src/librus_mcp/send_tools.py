@@ -24,16 +24,19 @@ from librus_mcp.send_schemas import (
 
 
 def register_send_tools(server: MCPServer[Runtime]) -> None:
-    local_write = ToolAnnotations(read_only_hint=False, open_world_hint=False)
+    local_write = ToolAnnotations(
+        read_only_hint=False, destructive_hint=False, open_world_hint=False
+    )
     local_read = ToolAnnotations(read_only_hint=True, open_world_hint=False)
-    server.tool(annotations=local_write)(preview_message)
+    server.tool(title="Preview message", annotations=local_write)(preview_message)
     server.tool(
+        title="Send message",
         annotations=ToolAnnotations(
             read_only_hint=False, destructive_hint=True, open_world_hint=True
-        )
+        ),
     )(send_message)
-    server.tool(annotations=local_read)(get_send_outcome)
-    server.tool(annotations=local_read)(get_send_history)
+    server.tool(title="Send outcome", annotations=local_read)(get_send_outcome)
+    server.tool(title="Send history", annotations=local_read)(get_send_history)
 
 
 def prepare(runtime: Runtime, alias: str, message: MessageSubmissionInput) -> SendAttempt:

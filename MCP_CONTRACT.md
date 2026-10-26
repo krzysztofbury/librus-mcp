@@ -86,10 +86,35 @@ may become stale after upgrading because the presented source now includes new
 fields/variants; restart the read. Configuration, context keys and native durable
 stores need no migration for 2.1.
 
+## Transports
+
+stdio is the default. `--transport http` serves streamable HTTP at `/mcp` for
+self-hosting on the operator's own network; the tool catalog, inputs and
+results are identical.
+
+- Every HTTP request needs exactly one `Authorization: Bearer` header matching
+  the token from `LIBRUS_MCP_TOKEN` or the private `LIBRUS_MCP_TOKEN_FILE`
+  (32 to 512 printable ASCII characters). Anything else, including `OPTIONS`,
+  gets 401 with `WWW-Authenticate: Bearer` before reaching MCP. Tokens are never
+  accepted in the URL. The server does not start without a token.
+- Sessions are stateless with JSON responses: there is no `Mcp-Session-Id` and
+  no server-initiated message, so a restart strands no client. Durable state
+  lives in the shared runtime stores, as with stdio.
+- Request bodies are capped at 1 MiB and connections at 32. On loopback the SDK
+  checks Host and Origin; elsewhere `--allowed-host` enables that check, and
+  without it the server logs that only the token protects requests.
+- There is no TLS in process. One token grants every configured account, so a
+  deployment serves one trusted operator. Attachment files are saved on the
+  server host; remote clients receive only the bounded snapshot resource.
+
 ## Side effects and consent
 
-Read-only annotations distinguish local reads, upstream reads and session/view
-selection. Catalog annotations are hints, not an authorization mechanism.
+Every tool has a display title. Read-only annotations distinguish local reads,
+upstream reads and session/view selection, and every tool that is not read-only
+states whether it is destructive: view selection, `preview_message` and
+`download_attachment` are not; received-message opens, sends, notification polls
+and acknowledgements are. Catalog annotations are hints, not an authorization
+mechanism.
 
 - Received-body reads require `allow_mark_read=true`; sent-body reads do not.
 - Sending is opt-in. `preview_message` persists an exact payload binding without

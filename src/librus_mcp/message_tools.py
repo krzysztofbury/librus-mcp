@@ -42,20 +42,22 @@ from librus_mcp.schemas import PresentationCursor
 
 
 def register_message_tools(server: MCPServer[Runtime]) -> None:
-    selection = ToolAnnotations(read_only_hint=False, open_world_hint=True)
+    # Changes Librus's remembered view, never school data.
+    selection = ToolAnnotations(read_only_hint=False, destructive_hint=False, open_world_hint=True)
     ordinary = ToolAnnotations(read_only_hint=True, open_world_hint=True)
-    server.tool(annotations=selection)(get_messages)
+    server.tool(title="Messages", annotations=selection)(get_messages)
     server.tool(
+        title="Read message",
         annotations=ToolAnnotations(
             read_only_hint=False, destructive_hint=True, open_world_hint=True
-        )
+        ),
     )(get_message_content)
-    server.tool(annotations=ordinary)(get_recipient_types)
-    server.tool(annotations=ordinary)(get_recipient_choices)
-    server.tool(annotations=selection)(get_recipients)
-    server.tool(annotations=ordinary)(get_message_correspondents)
-    server.tool(annotations=ordinary)(get_teacher_subjects)
-    server.tool(annotations=ordinary)(get_message_unread_counts)
+    server.tool(title="Recipient types", annotations=ordinary)(get_recipient_types)
+    server.tool(title="Recipient choices", annotations=ordinary)(get_recipient_choices)
+    server.tool(title="Recipients", annotations=selection)(get_recipients)
+    server.tool(title="Message correspondents", annotations=ordinary)(get_message_correspondents)
+    server.tool(title="Teacher subjects", annotations=ordinary)(get_teacher_subjects)
+    server.tool(title="Unread message counts", annotations=ordinary)(get_message_unread_counts)
 
 
 def require_binding(runtime: Runtime, alias: str, account: str, context: str, backend: str) -> None:

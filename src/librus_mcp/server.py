@@ -39,7 +39,15 @@ from librus_mcp.school_history_tools import register_school_history_tools
 from librus_mcp.send_tools import register_send_tools
 
 MAX_RESULT_BYTES = 512 * 1024
-AccountAliasInput = Annotated[str, Field(min_length=1, max_length=80, pattern=ALIAS_PATTERN)]
+AccountAliasInput = Annotated[
+    str,
+    Field(
+        min_length=1,
+        max_length=80,
+        pattern=ALIAS_PATTERN,
+        description="Login alias from list_accounts.",
+    ),
+]
 
 
 def _error(code: str) -> CallToolResult:
@@ -188,15 +196,19 @@ def create_server(
         ),
     )
     ordinary = ToolAnnotations(read_only_hint=True, open_world_hint=True)
-    session_selection = ToolAnnotations(read_only_hint=False, open_world_hint=True)
-
-    server.tool(annotations=ToolAnnotations(read_only_hint=True, open_world_hint=False))(
-        list_accounts
+    # Changes Librus's remembered view, never school data.
+    session_selection = ToolAnnotations(
+        read_only_hint=False, destructive_hint=False, open_world_hint=True
     )
-    server.tool(annotations=ordinary)(get_student_information)
-    server.tool(annotations=ordinary)(get_final_grades)
-    server.tool(annotations=session_selection)(get_grades)
-    server.tool(annotations=session_selection)(get_attendance)
+
+    server.tool(
+        title="List accounts",
+        annotations=ToolAnnotations(read_only_hint=True, open_world_hint=False),
+    )(list_accounts)
+    server.tool(title="Student information", annotations=ordinary)(get_student_information)
+    server.tool(title="Final grades", annotations=ordinary)(get_final_grades)
+    server.tool(title="Grades", annotations=session_selection)(get_grades)
+    server.tool(title="Attendance", annotations=session_selection)(get_attendance)
     register_read_tools(server)
     register_school_history_tools(server)
     register_message_tools(server)

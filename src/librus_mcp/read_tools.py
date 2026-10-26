@@ -52,19 +52,20 @@ from librus_mcp.schemas import (
 
 def register_read_tools(server: MCPServer[Runtime]) -> None:
     ordinary = ToolAnnotations(read_only_hint=True, open_world_hint=True)
-    selection = ToolAnnotations(read_only_hint=False, open_world_hint=True)
-    server.tool(annotations=selection)(get_grades_window)
-    server.tool(annotations=selection)(get_attendance_window)
-    server.tool(annotations=ordinary)(get_attendance_detail)
-    server.tool(annotations=ordinary)(get_attendance_frequency)
-    server.tool(annotations=ordinary)(get_subject_frequency)
-    server.tool(annotations=selection)(get_timetable)
-    server.tool(annotations=ordinary)(get_announcements)
-    server.tool(annotations=selection)(get_agenda)
-    server.tool(annotations=ordinary)(get_agenda_detail)
-    server.tool(annotations=selection)(get_homework)
-    server.tool(annotations=ordinary)(get_homework_detail)
-    server.tool(annotations=selection)(get_completed_lessons)
+    # Changes Librus's remembered view, never school data.
+    selection = ToolAnnotations(read_only_hint=False, destructive_hint=False, open_world_hint=True)
+    server.tool(title="Grades by date", annotations=selection)(get_grades_window)
+    server.tool(title="Attendance by date", annotations=selection)(get_attendance_window)
+    server.tool(title="Attendance details", annotations=ordinary)(get_attendance_detail)
+    server.tool(title="Attendance frequency", annotations=ordinary)(get_attendance_frequency)
+    server.tool(title="Attendance by subject", annotations=ordinary)(get_subject_frequency)
+    server.tool(title="Timetable", annotations=selection)(get_timetable)
+    server.tool(title="Announcements", annotations=ordinary)(get_announcements)
+    server.tool(title="Calendar", annotations=selection)(get_agenda)
+    server.tool(title="Calendar event details", annotations=ordinary)(get_agenda_detail)
+    server.tool(title="Homework", annotations=selection)(get_homework)
+    server.tool(title="Homework details", annotations=ordinary)(get_homework_detail)
+    server.tool(title="Completed lessons", annotations=selection)(get_completed_lessons)
 
 
 async def get_grades_window(

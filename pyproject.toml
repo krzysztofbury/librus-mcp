@@ -1,6 +1,6 @@
 [project]
 name = "librus-mcp"
-version = "2.2.2"
+version = "2.3.0"
 description = "MCP server for Librus Synergia using the independent librus-python-api"
 authors = [{name = "Krzysztof Bury", email = "contact@datacraze.io"}]
 license = "MIT"
@@ -22,6 +22,8 @@ dependencies = [
     "mcp>=2.2.0,<3",
     "librus-python-api==1.6.4",
     "pydantic>=2.12,<3",
+    # Serves the self-hosted HTTP transport; mcp already depends on it.
+    "uvicorn>=0.35,<1",
     "pywin32>=312; sys_platform == 'win32'",
 ]
 
@@ -41,7 +43,7 @@ build-backend = "hatchling.build"
 packages = ["src/librus_mcp"]
 
 [tool.hatch.build.targets.sdist]
-only-include = ["src/librus_mcp", "tests_native", "release_verification", "scripts/qualify_native.py", "pyproject.toml", "uv.lock", "README.md", "server.json", "PRIVACY.md", "DISTRIBUTION.md", "CHANGELOG.md", "LICENSE", "LICENSE_REVIEW.md", "MIGRATION_2_0.md", "NATIVE_TEST_PLAN.md", "MUTATION_TESTING.md", "SPEC.md", "MCP_CONTRACT.md"]
+only-include = ["src/librus_mcp", "tests_native", "release_verification", "scripts/qualify_native.py", "pyproject.toml", "uv.lock", "README.md", "server.json", "Dockerfile", "PRIVACY.md", "DISTRIBUTION.md", "CHANGELOG.md", "LICENSE", "LICENSE_REVIEW.md", "MIGRATION_2_0.md", "NATIVE_TEST_PLAN.md", "MUTATION_TESTING.md", "SPEC.md", "MCP_CONTRACT.md"]
 
 [dependency-groups]
 dev = [

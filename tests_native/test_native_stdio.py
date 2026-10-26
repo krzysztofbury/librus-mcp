@@ -28,6 +28,7 @@ def server_process(
     state_dir=None,
     download_dir=None,
     setup_script="",
+    serve='server.run(transport="stdio")',
 ):
     environment = os.environ.copy()
     for name in list(environment):
@@ -70,10 +71,12 @@ from librus_mcp.server import create_server
 origin = os.environ["NATIVE_TEST_ORIGIN"]
 budget = None if "NATIVE_TEST_BUDGET_REQUESTS" not in os.environ else RequestBudget(
     max_requests=int(os.environ["NATIVE_TEST_BUDGET_REQUESTS"]))
-create_server(load_config(), connection=ConnectionSettings(
+server = create_server(load_config(), connection=ConnectionSettings(
     synergia_origin=origin, api_origin=origin, download_origin=origin,
-    messages_origin=origin), budget=budget).run(transport="stdio")
+    messages_origin=origin), budget=budget)
 """
+        + serve
+        + "\n"
     )
     return StdioServerParameters(
         command=sys.executable, args=["-c", script], cwd=REPOSITORY, env=environment

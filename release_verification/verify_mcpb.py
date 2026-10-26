@@ -27,7 +27,11 @@ from release_verification.verify_release import (  # noqa: E402
 )
 
 STARTUP_TIMEOUT_SECONDS = 600
-USER_CONFIG = {"username": "fixture-login", "password": "fixture-only", "alias": ""}
+USER_CONFIG = {
+    "username": "fixture-login",
+    "password": "fixture-only",  # pragma: allowlist secret - fixture only
+    "alias": "",
+}
 
 
 def resolve_bundle(path: Path) -> Path:
