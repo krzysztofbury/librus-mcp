@@ -101,10 +101,12 @@ def main() -> None:
     try:
         bundle = resolve_bundle(arguments.bundle)
         with tempfile.TemporaryDirectory() as temporary:
-            directory = Path(temporary) / "extension"
+            # Resolve the Windows short (8.3) temp name; storage rejects aliased paths.
+            private = Path(temporary).resolve()
+            directory = private / "extension"
             with zipfile.ZipFile(bundle) as archive:
                 archive.extractall(directory)
-            tools = anyio.run(check_server, directory, Path(temporary), version)
+            tools = anyio.run(check_server, directory, private, version)
     except VerificationError as error:
         raise SystemExit(f"bundle verification failed: {error}") from None
     print(f"verified bundle {bundle.name}: {tools} tools, host login loaded")
