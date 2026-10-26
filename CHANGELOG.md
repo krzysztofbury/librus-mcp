@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [2.2.2] - 2026-10-26
+
+### Security
+
+- Pin API 1.6.4, which fixes a denial of service in message body rendering
+  (GHSA-c9qq-qqr2-hf23). With 1.6.3, `get_message_content` on a crafted body of
+  a few hundred bytes, which any Librus user can send, blocked the server for
+  minutes. Tools, schemas and outputs are unchanged.
+- Publishing uses pypi-publish 1.14.3. Releases up to 1.14.2 trusted the revoked
+  emSign root CA in the Sigstore chain used for Trusted Publishing
+  (GHSA-5xjx-3w67-w9x9). CI and publishing use setup-uv 10.3.2.
+
 ### Changed
 
 - SECURITY.md adds GitHub private vulnerability reporting beside email and lists
