@@ -42,21 +42,16 @@ HTTP on the user's own Docker host is supported; see README.md.
    identity, PyPI ownership by the README marker of that version and image
    ownership by its label.
 
-### First release with the image
+### Image visibility
 
-A new GitHub Container Registry package is private, and GitHub offers no API to
-change that. The registry checks image ownership by pulling it anonymously, so
-on the first release the `registry` job stops before attaching the bundle or
-listing anything, with an error that points here. PyPI and the image are
-already published by then. To finish the release:
-
-1. Open the package at `https://github.com/users/krzysztofbury/packages/container/librus-mcp/settings`
-   and set its visibility to public. The image's `org.opencontainers.image.source`
-   label links it to this repository.
-2. Re-run the failed `registry` job. Attaching the bundle is idempotent, so the
-   re-run attaches it and lists PyPI, the image and the bundle together.
-
-Later releases reuse the public package and need no manual step.
+The registry checks image ownership by pulling the image anonymously. On the
+2.3.0 release the new GitHub Container Registry package inherited this
+repository's public visibility, linked through the image's
+`org.opencontainers.image.source` label, and the registry listed it at once.
+If the package is ever private, the `registry` job stops before attaching the
+bundle or listing anything, with an error that points here. Set the package
+public at `https://github.com/users/krzysztofbury/packages/container/librus-mcp/settings`
+and re-run the job; attaching the bundle is idempotent.
 
 ## The image
 
@@ -92,9 +87,11 @@ serves stdio and HTTP as described above, on amd64 with arm64 started under
 QEMU. The README Docker Compose setup was followed step by step against a
 locally built image, and the HTTP test covers a proxy's bare Host name.
 
-Not verified until a release or a manual check:
+The 2.3.0 release passed the registry's PyPI, image and bundle ownership
+checks; the listing shows all three packages.
 
-- the registry's ownership checks and the first publish, which need a release;
+Not verified yet, needing a manual check:
+
 - installing the bundle in Claude Desktop on macOS and Windows, including
   whether its uv runtime downloads Python 3.14;
 - Hermes Agent and other HTTP clients against the stateless, JSON-response
