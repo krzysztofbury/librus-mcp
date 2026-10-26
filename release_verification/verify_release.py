@@ -2,6 +2,7 @@
 """Verify that a release event, tag, checkout, and project version agree."""
 
 import argparse
+import json
 import re
 import subprocess
 import tomllib
@@ -25,6 +26,29 @@ def read_project_version(project_file: Path) -> str:
     return version
 
 
+def verify_registry_metadata(repository: Path, version: str) -> None:
+    """server.json and the README ownership marker must describe this release."""
+    with (repository / "pyproject.toml").open("rb") as file:
+        name = tomllib.load(file)["project"]["name"]
+    server = json.loads((repository / "server.json").read_text(encoding="utf-8"))
+    if server.get("version") != version:
+        raise VerificationError(f"server.json version must be {version!r}")
+    packages = [p for p in server["packages"] if p.get("registryType") == "pypi"]
+    if [(p.get("identifier"), p.get("version")) for p in packages] != [(name, version)]:
+        raise VerificationError(f"server.json must list PyPI package {name} {version}")
+    images = [p.get("identifier", "") for p in server["packages"] if p.get("registryType") == "oci"]
+    if not images or any(not image.endswith(f":{version}") for image in images):
+        raise VerificationError(f"server.json container images must be tagged {version}")
+    # The registry proves PyPI ownership from this marker in the published README
+    # and image ownership from this label.
+    marker = f"<!-- mcp-name: {server.get('name')} -->"
+    if marker not in (repository / "README.md").read_text(encoding="utf-8"):
+        raise VerificationError(f"README.md must contain {marker}")
+    label = f'io.modelcontextprotocol.server.name="{server.get("name")}"'
+    if label not in (repository / "Dockerfile").read_text(encoding="utf-8"):
+        raise VerificationError(f"Dockerfile must carry the label {label}")
+
+
 def resolve_commit(repository: Path, revision: str) -> str:
     result = subprocess.run(
         ["git", "-C", str(repository), "rev-parse", "--verify", revision],
@@ -41,6 +65,7 @@ def resolve_commit(repository: Path, revision: str) -> str:
 
 def verify_release(repository: Path, tag: str, event_sha: str) -> str:
     version = read_project_version(repository / "pyproject.toml")
+    verify_registry_metadata(repository, version)
     expected_tag = f"v{version}"
     if tag != expected_tag:
         raise VerificationError(f"release tag {tag!r} does not match {expected_tag!r}")

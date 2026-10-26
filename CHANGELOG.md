@@ -4,6 +4,57 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [2.3.0] - 2026-10-26
+
+New ways to install and run the server. Tools, inputs and results are
+unchanged; existing configuration, context keys and state keep working.
+
+### Added
+
+- **Self-hosted HTTP transport.** `--transport http` serves streamable HTTP at
+  `/mcp` for agents on other machines you control. Every request needs a bearer
+  token from `LIBRUS_MCP_TOKEN` or the private `LIBRUS_MCP_TOKEN_FILE`; the
+  server refuses to start without one. `--generate-token` creates a token,
+  `--host` (or `LIBRUS_MCP_HOST`) and `--port` choose the address (default
+  `127.0.0.1:8000`) and `--allowed-host` restricts the Host header, where
+  `NAME:*` accepts `NAME` with any port or none. Sessions are stateless, request
+  bodies are capped at 1 MiB and there is no TLS in process: use a reverse proxy
+  or a private network. One token grants every configured login.
+- **Container image** `ghcr.io/krzysztofbury/librus-mcp` for amd64 and arm64.
+  It runs as an unprivileged user, keeps state in `/data`, serves stdio by
+  default and HTTP on every container interface with `--transport http`.
+  Release images install the exact wheel published to PyPI and are verified
+  after they are pushed. README.md has a Docker Compose
+  setup with a multi-login configuration file and a Hermes Agent example.
+- **Desktop bundle** `librus-mcp-2.3.0.mcpb` on each GitHub release (preview):
+  one-click install in apps that support MCP Bundles, with the login and
+  password entered in the app. It installs Python 3.14 and the exact dependency
+  versions this release was tested with.
+- **MCP Registry listing** as `io.github.krzysztofbury/librus-mcp`, with the
+  PyPI package, the container image and the bundle, published by the release
+  workflow.
+- **One login from environment variables**: `LIBRUS_USERNAME` and
+  `LIBRUS_PASSWORD`, optionally `LIBRUS_ALIAS` (default `librus`). Empty values
+  count as unset; combining them with `LIBRUS_CONFIG` or `LIBRUS_ACCOUNTS`
+  fails at startup. Several logins still use the configuration file or
+  `LIBRUS_ACCOUNTS`.
+- Every tool has a display title, and every tool that is not read-only states
+  whether it is destructive. Tools that only change Librus's remembered view,
+  `preview_message` and `download_attachment` are not destructive; opening a
+  received message, sending, polling and acknowledging notifications are.
+- [PRIVACY.md](PRIVACY.md) and [DISTRIBUTION.md](DISTRIBUTION.md).
+
+### Changed
+
+- Without any configuration the server now says which sources it accepts,
+  instead of reporting an unreadable file.
+- A configuration file that others can read on a read-only mount, as in a
+  container, now reports that its mode must be 0600 instead of a generic read
+  error. Errors about the token file name the token file.
+- `account_alias` inputs describe themselves as the alias from `list_accounts`.
+- The catalog measures 120521 bytes for 31 default tools and 133772 bytes for 35
+  tools, within the 128 and 144 KiB budgets.
+
 ## [2.2.2] - 2026-10-26
 
 ### Security

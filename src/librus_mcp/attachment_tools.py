@@ -57,9 +57,15 @@ class SavedAttachmentResult(WireModel):
 
 
 def register_attachment_tools(server: MCPServer[Runtime]) -> None:
-    server.tool(annotations=ToolAnnotations(read_only_hint=False, open_world_hint=True))(
-        download_attachment
-    )
+    server.tool(
+        title="Download attachment",
+        annotations=ToolAnnotations(
+            # Writes a new file and never overwrites one.
+            read_only_hint=False,
+            destructive_hint=False,
+            open_world_hint=True,
+        ),
+    )(download_attachment)
     server.resource(
         "librus-attachment://files/{token}",
         mime_type="application/octet-stream",

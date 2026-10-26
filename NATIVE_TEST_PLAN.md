@@ -1,5 +1,50 @@
 # Native migration verification ownership
 
+## 2.3.0 distribution qualification
+
+2.3.0 adds the self-hosted HTTP transport, the container image, the MCP Bundle,
+the MCP Registry listing and a single environment login; tools, inputs and
+results are unchanged apart from titles and explicit destructive hints.
+
+- `test_http_transport.py` owns HTTP: only one matching bearer token reaches
+  MCP (missing, wrong, other scheme, non-ASCII and duplicate headers and
+  `OPTIONS` get 401, lifespan always passes), token sources fail closed, the CLI
+  refuses transport options outside serving and refuses HTTP without a token,
+  WebSocket scopes are closed, and a real subprocess serves two logins over
+  HTTP with grade reads from the synthetic wire, answers 421 for an unlisted
+  Host, accepts a proxy's bare Host name under `NAME:*` and answers 413 above
+  1 MiB. Blocking the lifespan in the middleware fails 25 cases; matching
+  `NAME:*` only with a port fails the bare-name case.
+- `test_config.py` owns the environment login, whose 8 cases fail without it,
+  and the read-only mount error for a shared configuration file.
+- `test_catalog_schema.py` asserts a title and explicit effect hints on every
+  tool in the default, minimal and all-feature profiles; 3 profiles fail
+  without the metadata. The catalog measures 120521 bytes for 31 default tools
+  and 133772 bytes for 35 tools.
+- `release_verification/test_registry_metadata.py` keeps `server.json`, the
+  README marker and the Dockerfile label in step with the version.
+- `verify_mcpb.py` starts the bundle through its own `mcp_config` command, and
+  CI runs it on Linux, macOS and Windows. `verify_image.py` checks the image
+  label, version, unprivileged user and contents, a stdio session from a
+  read-only two-login file, and HTTP as the image user with a named volume:
+  401 without the token, 421 for an unlisted Host, served with the token. CI
+  builds the image from source and starts an arm64 build under QEMU; the
+  release builds it from the verified wheel and verifies the pushed image.
+
+Locally, on the candidate: 143 passed and 1 Windows-only skip from source, 137
+passed and 1 skip from the isolated wheel built from the sdist, ruff, format,
+strict mypy, Bandit, pre-commit, `mcp-publisher validate` and `mcpb validate`
+passed. The README Docker Compose setup was followed with a locally built image:
+401 without the token, 421 for an unlisted Host, both logins served, state kept
+in `./data`.
+
+On 2026-10-26 the candidate passed the installed MCP academic profile over
+stdio: **56 reads** plus four identity checks with strict schema validation.
+Four disabled completed-lesson views and four absent homework-detail references
+were reported separately, using **104 requests and 3695812 response bytes**.
+The live profile does not exercise HTTP; the transport serves the same runtime
+and is verified offline and in the container checks.
+
 ## 2.2.2 security-update qualification
 
 API 1.6.4 replaces the backtracking regular expression that decided whether a

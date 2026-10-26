@@ -14,6 +14,8 @@ jobs:
     outputs:
       artifact-id: ${{ steps.upload.outputs.artifact-id }}
       checksum-manifest-sha256: ${{ steps.checksums.outputs.manifest-sha256 }}
+      bundle-artifact-id: ${{ steps.upload-bundle.outputs.artifact-id }}
+      bundle-sha256: ${{ steps.bundle.outputs.sha256 }}
     steps:
       - name: Check out the released tag
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -79,6 +81,23 @@ jobs:
           sha256sum dist/*.whl dist/*.tar.gz > dist/SHA256SUMS
           echo "manifest-sha256=$(sha256sum dist/SHA256SUMS | cut -d ' ' -f 1)" >> "$GITHUB_OUTPUT"
 
+      # The bundle carries the wheel verified above, never a rebuild.
+      - name: Build and verify the MCP Bundle
+        id: bundle
+        run: |
+          uv run python scripts/build_mcpb.py --wheel dist/*.whl --out-dir mcpb-dist
+          uv run python release_verification/verify_mcpb.py mcpb-dist
+          echo "sha256=$(sha256sum mcpb-dist/*.mcpb | cut -d ' ' -f 1)" >> "$GITHUB_OUTPUT"
+
+      - name: Upload verified bundle
+        id: upload-bundle
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: verified-bundle
+          path: mcpb-dist/
+          if-no-files-found: error
+          retention-days: 7
+
       - name: Upload verified distributions
         id: upload
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -124,3 +143,186 @@ jobs:
         with:
           packages-dir: verified-dist/
           attestations: true
+
+  image:
+    name: Publish the verified container image
+    needs: [verify, publish]
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+      packages: write
+    env:
+      RELEASE_TAG: ${{ github.event.release.tag_name }}
+    steps:
+      - name: Check out the released tag
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.release.tag_name }}
+          persist-credentials: false
+
+      - name: Download verified distributions
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          artifact-ids: ${{ needs.verify.outputs.artifact-id }}
+          path: dist/
+          merge-multiple: true
+
+      - name: Verify distribution checksums
+        env:
+          EXPECTED_MANIFEST_SHA256: ${{ needs.verify.outputs.checksum-manifest-sha256 }}
+        run: |
+          echo "$EXPECTED_MANIFEST_SHA256  dist/SHA256SUMS" | sha256sum --check --strict
+          sha256sum --check --strict dist/SHA256SUMS
+          mkdir verified-dist
+          cp -- dist/*.whl verified-dist/
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
+        with:
+          version: "0.13.5"
+          checksum: "f68d291c75783122dad58ab77def0e13f3233f358731db5d6d7e8715603b928f" # pragma: allowlist secret - public artifact checksum
+
+      - name: Install verifier dependencies
+        run: |
+          uv python install 3.14
+          uv sync --locked --python 3.14
+
+      # The image installs the wheel verified and published above, never a rebuild.
+      - name: Build and verify the image from the verified wheel
+        run: |
+          docker build --build-context verified=verified-dist --tag librus-mcp:release .
+          uv run python release_verification/verify_image.py librus-mcp:release
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+
+      - name: Push amd64 and arm64 images
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          image="ghcr.io/${GITHUB_REPOSITORY,,}"
+          tags=(--tag "$image:${RELEASE_TAG#v}")
+          # `latest` follows the newest release only, never a backport.
+          if [ "$(gh api "repos/$GITHUB_REPOSITORY/releases/latest" --jq .tag_name)" = "$RELEASE_TAG" ]; then
+            tags+=(--tag "$image:latest")
+          fi
+          docker buildx build \
+            --platform linux/amd64,linux/arm64 \
+            --build-context verified=verified-dist \
+            --provenance=false \
+            "${tags[@]}" \
+            --push .
+
+      # Verify what users pull, not only the local build above.
+      - name: Verify the pushed images
+        run: |
+          image="ghcr.io/${GITHUB_REPOSITORY,,}:${RELEASE_TAG#v}"
+          docker pull --platform linux/amd64 "$image"
+          uv run python release_verification/verify_image.py "$image"
+          docker run --rm --platform linux/arm64 "$image" --version | grep -Fx "librus-mcp ${RELEASE_TAG#v}"
+
+  registry:
+    name: List the release in the MCP Registry
+    needs: [verify, publish, image]
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: write # attach the bundle to the release
+      id-token: write # MCP Registry login for the io.github.krzysztofbury namespace
+    env:
+      MCP_PUBLISHER_VERSION: v1.8.5
+      RELEASE_TAG: ${{ github.event.release.tag_name }}
+    steps:
+      - name: Check out the released tag
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.release.tag_name }}
+          persist-credentials: false
+
+      # A new GHCR package is private until the owner makes it public once, and
+      # the registry pulls the image anonymously to check ownership. Stop before
+      # attaching or listing anything, so re-running this job afterwards works.
+      - name: Require a public container image
+        run: |
+          repository="${GITHUB_REPOSITORY,,}"
+          token=$(curl -fsS "https://ghcr.io/token?scope=repository:${repository}:pull" | jq -r .token || true)
+          if [ -z "$token" ] || ! curl -fsSI -o /dev/null \
+              -H "Authorization: Bearer $token" \
+              -H "Accept: application/vnd.oci.image.index.v1+json" \
+              "https://ghcr.io/v2/${repository}/manifests/${RELEASE_TAG#v}"; then
+            echo "::error::ghcr.io/${repository} is not public. Make the package public (see DISTRIBUTION.md), then re-run this job."
+            exit 1
+          fi
+
+      - name: Download verified bundle
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          artifact-ids: ${{ needs.verify.outputs.bundle-artifact-id }}
+          path: mcpb-dist/
+
+      - name: Attach the bundle to the release
+        env:
+          EXPECTED_SHA256: ${{ needs.verify.outputs.bundle-sha256 }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          bundle="mcpb-dist/librus-mcp-${RELEASE_TAG#v}.mcpb"
+          echo "$EXPECTED_SHA256  $bundle" | sha256sum --check --strict
+          # --clobber keeps a re-run idempotent; the bytes were checked above.
+          gh release upload "$RELEASE_TAG" "$bundle" --repo "$GITHUB_REPOSITORY" --clobber
+
+      # The registry checks PyPI ownership against the published README, and
+      # the PyPI JSON API can lag the upload by a few minutes.
+      - name: Wait for the release on PyPI
+        run: |
+          version="${RELEASE_TAG#v}"
+          for _ in $(seq 1 30); do
+            if curl -fsS "https://pypi.org/pypi/librus-mcp/$version/json" > /dev/null; then
+              exit 0
+            fi
+            sleep 20
+          done
+          echo "librus-mcp $version did not appear on PyPI" >&2
+          exit 1
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+
+      - name: Install a verified mcp-publisher
+        run: |
+          base="https://github.com/modelcontextprotocol/registry/releases/download/${MCP_PUBLISHER_VERSION}"
+          archive="mcp-publisher_linux_amd64.tar.gz"
+          curl -fsSL -o "$RUNNER_TEMP/$archive" "$base/$archive"
+          curl -fsSL -o "$RUNNER_TEMP/$archive.sigstore.json" "$base/$archive.sigstore.json"
+          cosign verify-blob \
+            --bundle "$RUNNER_TEMP/$archive.sigstore.json" \
+            --certificate-identity "https://github.com/modelcontextprotocol/registry/.github/workflows/release.yml@refs/tags/${MCP_PUBLISHER_VERSION}" \
+            --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
+            "$RUNNER_TEMP/$archive"
+          tar -xzf "$RUNNER_TEMP/$archive" -C "$RUNNER_TEMP" mcp-publisher
+
+      - name: Add the bundle to server.json
+        env:
+          BUNDLE_SHA256: ${{ needs.verify.outputs.bundle-sha256 }}
+        run: |
+          version="${RELEASE_TAG#v}"
+          url="https://github.com/${GITHUB_REPOSITORY}/releases/download/${RELEASE_TAG}/librus-mcp-${version}.mcpb"
+          jq --arg url "$url" --arg sha "$BUNDLE_SHA256" \
+            '.packages += [{"registryType": "mcpb", "identifier": $url, "fileSha256": $sha, "transport": {"type": "stdio"}}]' \
+            server.json > "$RUNNER_TEMP/server.json"
+          "$RUNNER_TEMP/mcp-publisher" validate "$RUNNER_TEMP/server.json"
+
+      - name: Publish to the MCP Registry
+        run: |
+          "$RUNNER_TEMP/mcp-publisher" login github-oidc
+          "$RUNNER_TEMP/mcp-publisher" publish "$RUNNER_TEMP/server.json"

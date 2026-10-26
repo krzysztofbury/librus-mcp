@@ -16,7 +16,7 @@ library `1.0.2`. Use an explicit version pin when selecting a release.
 
 ## Moving from 2.0 to 2.1
 
-2.2.2 pins API 1.6.4. Reuse the existing configuration,
+2.3.0 pins API 1.6.4. Reuse the existing configuration,
 context key, sends and notification stores. Refresh the host's tool catalog.
 Custom consumers must accept the new `formative` grade item variant and the
 nullable `formative_id` on existing variants; restart old grade cursors.
@@ -176,8 +176,10 @@ Oversized history fails closed, never silently truncates or acknowledges data.
 
 ## Configuration changes
 
-- Configuration comes from CLI `--config`, otherwise one of `LIBRUS_CONFIG` or
-  `LIBRUS_ACCOUNTS`, otherwise `$XDG_CONFIG_HOME/librus-mcp/config.json`
+- Configuration comes from CLI `--config`, otherwise one of `LIBRUS_CONFIG`,
+  `LIBRUS_ACCOUNTS` or a single `LIBRUS_USERNAME` and `LIBRUS_PASSWORD` login
+  (optional `LIBRUS_ALIAS`, default `librus`; empty values count as unset),
+  otherwise `$XDG_CONFIG_HOME/librus-mcp/config.json`
   (default `~/.config/librus-mcp/config.json`, or the 1.x name `secrets.json` in
   that directory when `config.json` is absent). CLI selection wins. Conflicting
   environment credential selectors fail. Cwd/project `secrets.json` discovery is

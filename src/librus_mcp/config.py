@@ -14,6 +14,7 @@ from pydantic import BaseModel, ConfigDict, Field, SecretStr, ValidationError, f
 
 MAX_CONFIG_BYTES = 1024 * 1024
 MAX_ACCOUNTS = 16
+DEFAULT_ENVIRONMENT_ALIAS = "librus"
 # Portable JSON Schema regex; Unicode printability is additionally checked below.
 # Rust-only Unicode properties cannot be compiled by common MCP JSON validators.
 ALIAS_PATTERN = (
@@ -127,19 +128,23 @@ def _json(value: str | bytes, *, source: str) -> Any:
         raise ConfigError(f"{source} contains invalid JSON") from None
 
 
-def read_config_file(path: Path) -> dict[str, Any]:
+def read_private_file(
+    path: Path, *, maximum: int = MAX_CONFIG_BYTES, label: str = "configuration"
+) -> bytes:
+    """Read the current user's private file: no symlink, regular, owner-only.
+
+    Reads at most ``maximum + 1`` bytes so callers can detect an oversized file.
+    ``label`` names the file in errors and notices.
+    """
     if os.name == "nt":
         from librus_mcp.windows_config import read_private_config
 
-        data = _json(read_private_config(path, MAX_CONFIG_BYTES), source="configuration file")
-        if not isinstance(data, dict):
-            raise ConfigError("configuration file must contain a JSON object")
-        return data
+        return read_private_config(path, maximum, label)
     # Bound special-file reads and reject symlinks on platforms with O_NOFOLLOW.
     descriptor = -1
     try:
         if path.is_symlink():
-            raise ConfigError("configuration must not be a symlink")
+            raise ConfigError(f"{label} must not be a symlink")
         descriptor = os.open(
             path,
             os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0),
@@ -148,25 +153,52 @@ def read_config_file(path: Path) -> dict[str, Any]:
             descriptor = -1
             status = os.fstat(file.fileno())
             if not stat.S_ISREG(status.st_mode):
-                raise ConfigError("configuration must be a regular file")
+                raise ConfigError(f"{label} must be a regular file")
             if os.name == "posix" and status.st_uid != os.getuid():
-                raise ConfigError("configuration must be owned by the current user")
+                raise ConfigError(f"{label} must be owned by the current user")
             if os.name == "posix" and stat.S_IMODE(status.st_mode) & 0o077:
                 # Restrict the user's own file in place, through the opened
                 # descriptor, rather than refusing to start.
-                os.fchmod(file.fileno(), 0o600)
-                notice("restricted the configuration file to owner-only access (0600)")
-            data = _json(file.read(MAX_CONFIG_BYTES + 1), source="configuration file")
+                try:
+                    os.fchmod(file.fileno(), 0o600)
+                except OSError:
+                    # A read-only mount, as in a container, cannot be repaired.
+                    raise ConfigError(
+                        f"{label} is readable by others and cannot be restricted; "
+                        "set its mode to 0600 before mounting it"
+                    ) from None
+                notice(f"restricted the {label} to owner-only access (0600)")
+            return file.read(maximum + 1)
     except OSError:
-        raise ConfigError(
-            "cannot read configuration file; check its path and permissions"
-        ) from None
+        raise ConfigError(f"cannot read {label}; check its path and permissions") from None
     finally:
         if descriptor >= 0:
             os.close(descriptor)
+
+
+def read_config_file(path: Path) -> dict[str, Any]:
+    data = _json(read_private_file(path, label="configuration file"), source="configuration file")
     if not isinstance(data, dict):
         raise ConfigError("configuration file must contain a JSON object")
     return data
+
+
+def _environment_login() -> dict[str, str] | None:
+    """One login from LIBRUS_USERNAME and LIBRUS_PASSWORD, as installers pass it.
+
+    Installers may pass an optional input left blank as an empty string, so an
+    empty value counts as unset.
+    """
+    username = os.environ.get("LIBRUS_USERNAME", "")
+    password = os.environ.get("LIBRUS_PASSWORD", "")
+    alias = os.environ.get("LIBRUS_ALIAS", "")
+    if not username and not password:
+        if alias:
+            raise ConfigError("LIBRUS_ALIAS requires LIBRUS_USERNAME and LIBRUS_PASSWORD")
+        return None
+    if not username or not password:
+        raise ConfigError("set both LIBRUS_USERNAME and LIBRUS_PASSWORD")
+    return {"alias": alias or DEFAULT_ENVIRONMENT_ALIAS, "username": username, "password": password}
 
 
 def load_config(config_path: Path | None = None) -> AppConfig:
@@ -176,10 +208,17 @@ def load_config(config_path: Path | None = None) -> AppConfig:
     )
     if config_path is None and selected is not None and "LIBRUS_ACCOUNTS" in os.environ:
         raise ConfigError("choose LIBRUS_CONFIG or LIBRUS_ACCOUNTS, not both")
+    login = None if config_path is not None else _environment_login()
+    if login is not None and (selected is not None or "LIBRUS_ACCOUNTS" in os.environ):
+        raise ConfigError(
+            "choose LIBRUS_CONFIG, LIBRUS_ACCOUNTS or LIBRUS_USERNAME and LIBRUS_PASSWORD"
+        )
     if selected is not None:
         data = read_config_file(selected.expanduser())
     elif "LIBRUS_ACCOUNTS" in os.environ:
         data = {"accounts": _json(os.environ["LIBRUS_ACCOUNTS"], source="LIBRUS_ACCOUNTS")}
+    elif login is not None:
+        data = {"accounts": [login]}
     else:
         root = Path(os.environ.get("XDG_CONFIG_HOME", str(Path.home() / ".config")))
         if not root.is_absolute():
@@ -190,6 +229,11 @@ def load_config(config_path: Path | None = None) -> AppConfig:
         default = directory / "config.json"
         if not os.path.lexists(default) and os.path.lexists(directory / "secrets.json"):
             default = directory / "secrets.json"
+        if not os.path.lexists(default):
+            raise ConfigError(
+                "no configuration: pass --config, or set LIBRUS_CONFIG, LIBRUS_ACCOUNTS, "
+                f"or LIBRUS_USERNAME and LIBRUS_PASSWORD, or create {default}"
+            )
         data = read_config_file(default)
     # Only these explicit operator overrides apply to a selected credential source.
     for name, field in (

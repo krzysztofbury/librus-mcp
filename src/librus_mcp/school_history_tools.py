@@ -27,8 +27,8 @@ ArchiveItem = ArchiveYearItem | ArchiveAchievementItem
 
 def register_school_history_tools(server: MCPServer[Runtime]) -> None:
     ordinary = ToolAnnotations(read_only_hint=True, open_world_hint=True)
-    server.tool(annotations=ordinary)(get_school_year_archive)
-    server.tool(annotations=ordinary)(get_class_free_days)
+    server.tool(title="School year archive", annotations=ordinary)(get_school_year_archive)
+    server.tool(title="Class-free days", annotations=ordinary)(get_class_free_days)
 
 
 async def get_school_year_archive(

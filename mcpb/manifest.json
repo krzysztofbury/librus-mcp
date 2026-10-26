@@ -1,0 +1,82 @@
+{
+  "manifest_version": "0.4",
+  "name": "librus-mcp",
+  "display_name": "Librus Synergia",
+  "version": "0.0.0",
+  "description": "Librus Synergia school gradebook: grades, attendance, timetable, homework and messages.",
+  "long_description": "Read-mostly access to a Librus Synergia parent or student login: grades, attendance, timetable, homework, calendar, announcements and messages. The server runs on this computer, keeps its state here and connects only to Librus. Sending messages is off.",
+  "author": {
+    "name": "Krzysztof Bury",
+    "url": "https://github.com/krzysztofbury"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/krzysztofbury/librus-mcp"
+  },
+  "homepage": "https://github.com/krzysztofbury/librus-mcp",
+  "documentation": "https://github.com/krzysztofbury/librus-mcp#readme",
+  "support": "https://github.com/krzysztofbury/librus-mcp/issues",
+  "license": "MIT",
+  "keywords": [
+    "librus",
+    "synergia",
+    "school",
+    "gradebook",
+    "education"
+  ],
+  "privacy_policies": [
+    "https://github.com/krzysztofbury/librus-mcp/blob/main/PRIVACY.md"
+  ],
+  "server": {
+    "type": "uv",
+    "entry_point": "src/server.py",
+    "mcp_config": {
+      "command": "uv",
+      "args": [
+        "run",
+        "--locked",
+        "--directory",
+        "${__dirname}",
+        "src/server.py"
+      ],
+      "env": {
+        "LIBRUS_USERNAME": "${user_config.username}",
+        "LIBRUS_PASSWORD": "${user_config.password}",
+        "LIBRUS_ALIAS": "${user_config.alias}"
+      }
+    }
+  },
+  "user_config": {
+    "username": {
+      "type": "string",
+      "title": "Librus login",
+      "description": "Your Librus Synergia login.",
+      "sensitive": true,
+      "required": true
+    },
+    "password": {
+      "type": "string",
+      "title": "Librus password",
+      "description": "Your Librus Synergia password. Accounts that require interactive two-factor login are not supported.",
+      "sensitive": true,
+      "required": true
+    },
+    "alias": {
+      "type": "string",
+      "title": "Account name",
+      "description": "Short name for this login in tool calls, for example a child's first name.",
+      "default": "librus",
+      "required": false
+    }
+  },
+  "compatibility": {
+    "platforms": [
+      "darwin",
+      "win32",
+      "linux"
+    ],
+    "runtimes": {
+      "python": ">=3.14,<3.15"
+    }
+  }
+}

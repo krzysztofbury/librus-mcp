@@ -10,21 +10,36 @@ history, class-free days and student information. It supports
 several logins at once, built on the independent
 [`librus-python-api`](https://github.com/krzysztofbury/librus-python-api).
 
+<!-- mcp-name: io.github.krzysztofbury/librus-mcp -->
+
 Version 2.0 replaces the `librus-apix` backend used by every earlier version.
 Upgrading from 1.x? See [Upgrading from 1.x](#upgrading-from-1x).
 
 ## Quick start
 
-The commands below pin **2.2.2**, using the native API 1.6.4.
+The commands below pin **2.3.0**, using the native API 1.6.4. You need your
+Librus Synergia login and password. Accounts that require interactive
+two-factor authentication are not supported.
+
+Pick one way to run it:
+
+| Way | Best for | Credentials |
+| --- | --- | --- |
+| [On your computer](#on-your-computer) | Claude Code, Claude Desktop, Gemini CLI, Codex, OpenCode, Hermes on the same machine | a private `config.json`, any number of logins |
+| [Desktop bundle](#desktop-bundle-preview) | one-click install in apps that support MCP Bundles | the app's settings form, one login |
+| [Self-hosted with Docker](#self-hosted-with-docker) | agents on another machine of yours, connecting over HTTP | a private `config.json` or environment, any number of logins |
+| [MCP Registry](#mcp-registry) | clients that install servers from the official registry | the client's settings form, one login |
+
+All of them run the server on a machine you control. It connects only to
+Librus; see [Privacy](#privacy).
+
+### On your computer
 
 You do not need to clone this repository or install Python yourself.
 [uv](https://docs.astral.sh/uv/) downloads Python 3.14 and the server
-automatically. You need your Librus Synergia login and password. Accounts that
-require interactive two-factor authentication are not supported.
+automatically.
 
-### 1. Install uv
-
-On macOS or Linux, open a terminal and run:
+**1. Install uv.** On macOS or Linux, open a terminal and run:
 
 ```bash
 curl -LsSf https://astral.sh/uv/install.sh | sh
@@ -38,10 +53,9 @@ powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | ie
 
 Close and reopen your AI assistant afterwards.
 
-### 2. Create a private configuration file
-
-Save this as `config.json` in a private folder under your user account, outside
-projects and synchronized folders, and fill in the login and password:
+**2. Create a private configuration file.** Save this as `config.json` in a
+private folder under your user account, outside projects and synchronized
+folders, and fill in the login and password:
 
 ```json
 {
@@ -52,7 +66,18 @@ projects and synchronized folders, and fill in the login and password:
 ```
 
 The `alias` is the short name you use when asking about this login. For more
-logins, add more objects to `accounts`. Suggested locations:
+logins, add more objects to `accounts`, each with its own alias:
+
+```json
+{
+  "accounts": [
+    {"alias": "anna", "username": "12345", "password": "FIRST_PASSWORD"},
+    {"alias": "jan", "username": "67890", "password": "SECOND_PASSWORD"}
+  ]
+}
+```
+
+Suggested locations:
 
 - macOS: `/Users/YOUR_NAME/.config/librus-mcp/config.json`
 - Linux: `/home/YOUR_NAME/.config/librus-mcp/config.json`
@@ -67,63 +92,179 @@ by default; sending messages is off. To change that, add for example:
 "features": {"notifications": true, "attachments": false, "send_message": true}
 ```
 
-### 3. Connect your assistant
+For a single login you can skip the file and set environment variables instead:
+`LIBRUS_USERNAME`, `LIBRUS_PASSWORD` and optionally `LIBRUS_ALIAS` (default
+`librus`). Installers that collect settings in a form use these.
 
-Replace the path with your file's absolute path.
+**3. Connect your assistant.** Replace the path with your file's absolute path.
 
-**Claude Code**
+Claude Code:
 
 ```bash
 claude mcp add --scope user --transport stdio librus \
-  -- uvx --python 3.14 librus-mcp==2.2.2 --config /absolute/path/to/config.json
+  -- uvx --python 3.14 librus-mcp==2.3.0 --config /absolute/path/to/config.json
 ```
 
-**Claude Desktop** (Settings > Developer > Edit Config)
+Claude Desktop (Settings > Developer > Edit Config):
 
 ```json
 {
   "mcpServers": {
     "librus": {
       "command": "uvx",
-      "args": ["--python", "3.14", "librus-mcp==2.2.2", "--config", "/absolute/path/to/config.json"]
+      "args": ["--python", "3.14", "librus-mcp==2.3.0", "--config", "/absolute/path/to/config.json"]
     }
   }
 }
 ```
 
-**Gemini CLI**
+Gemini CLI:
 
 ```bash
 gemini mcp add --scope user --transport stdio \
-  librus uvx --python 3.14 librus-mcp==2.2.2 --config /absolute/path/to/config.json
+  librus uvx --python 3.14 librus-mcp==2.3.0 --config /absolute/path/to/config.json
 ```
 
-**OpenAI Codex CLI**
+OpenAI Codex CLI:
 
 ```bash
 codex mcp add librus \
-  -- uvx --python 3.14 librus-mcp==2.2.2 --config /absolute/path/to/config.json
+  -- uvx --python 3.14 librus-mcp==2.3.0 --config /absolute/path/to/config.json
 ```
 
-**OpenCode**
+OpenCode:
 
 ```bash
 opencode mcp add librus --global -- \
-  uvx --python 3.14 librus-mcp==2.2.2 --config /absolute/path/to/config.json
+  uvx --python 3.14 librus-mcp==2.3.0 --config /absolute/path/to/config.json
+```
+
+Hermes Agent (`~/.hermes/config.yaml`):
+
+```yaml
+mcp_servers:
+  librus:
+    command: "uvx"
+    args: ["--python", "3.14", "librus-mcp==2.3.0", "--config", "/absolute/path/to/config.json"]
 ```
 
 Check the setup without contacting Librus:
 
 ```bash
-uvx --python 3.14 librus-mcp==2.2.2 --config /absolute/path/to/config.json --check-config
+uvx --python 3.14 librus-mcp==2.3.0 --config /absolute/path/to/config.json --check-config
 ```
 
 If a GUI assistant cannot find `uvx`, use its absolute path (`which uvx` or
 `where uvx`). Restart or reconnect the assistant after changing the file.
 
+### Desktop bundle (preview)
+
+Each release attaches `librus-mcp-2.3.0.mcpb` to its
+[GitHub release](https://github.com/krzysztofbury/librus-mcp/releases). Open it
+with an app that supports MCP Bundles, such as Claude Desktop. The app asks for
+the Librus login and password, keeps them in its settings, and installs Python
+3.14 and the exact dependency versions this release was tested with. The bundle
+serves one login; use [On your computer](#on-your-computer) for several.
+
+### Self-hosted with Docker
+
+Run the server on your own Docker host and connect agents on other machines over
+HTTP. Every request needs a bearer token. The server has no TLS of its own, so
+expose it only through a reverse proxy with TLS or a private network such as
+Tailscale or WireGuard. Never publish the port on a public or shared network.
+
+**1. Prepare a private folder** on the Docker host with the configuration and a
+token. The files must belong to the user that runs the container and be
+readable only by it:
+
+```bash
+mkdir -p ~/librus-mcp/data && cd ~/librus-mcp
+# config.json: the same format as above, any number of logins
+docker run --rm ghcr.io/krzysztofbury/librus-mcp:2.3.0 --generate-token > token
+chmod 600 config.json token
+```
+
+**2. Start it** with this `compose.yaml`, replacing `1000:1000` with the output
+of `id -u` and `id -g`:
+
+```yaml
+services:
+  librus-mcp:
+    image: ghcr.io/krzysztofbury/librus-mcp:2.3.0
+    command: ["--transport", "http", "--allowed-host", "librus-mcp.example.lan:*"]
+    user: "1000:1000"
+    environment:
+      LIBRUS_CONFIG: /config/config.json
+      LIBRUS_MCP_TOKEN_FILE: /config/token
+    volumes:
+      - ./config.json:/config/config.json:ro
+      - ./token:/config/token:ro
+      - ./data:/data
+    ports:
+      # Loopback for a reverse proxy on this host, or your VPN address instead.
+      - "127.0.0.1:8000:8000"
+    restart: unless-stopped
+```
+
+```bash
+docker compose up -d
+docker compose logs librus-mcp
+```
+
+The endpoint is `/mcp` at your proxy's HTTPS address, or at your VPN address on
+port 8000. `--allowed-host` lists the host names clients use; `NAME:*` accepts
+`NAME` with any port or none. A reverse proxy must forward the original Host
+header: Caddy and Traefik do by default, nginx needs
+`proxy_set_header Host $host;`. Without `--allowed-host` the server logs that
+Host header checks are off and relies on the token alone. In the image the
+server listens on every container interface; the `ports:` line decides who can
+reach it. `./data` keeps the private state, persistent key and downloads, so
+back it up.
+
+**3. Connect your agent** with the token as a bearer header. For Hermes Agent:
+
+```yaml
+mcp_servers:
+  librus:
+    url: "https://librus-mcp.example.lan/mcp"
+    headers:
+      Authorization: "Bearer YOUR_TOKEN"
+```
+
+Other clients that support streamable HTTP take the same URL and header.
+
+Things to know about HTTP mode:
+
+- One token grants every configured login. Run one deployment per trusted
+  person, and replace the token if it leaks.
+- Let one agent poll notifications for each login: delivery and
+  acknowledgement are designed for a single consumer.
+- `download_attachment` saves files on the Docker host under `./data/downloads`.
+  A remote agent cannot read that path; small files (up to 256 KiB) are also
+  offered as a short-lived MCP resource.
+- If you enable `send_message`, anyone with the token can confirm a send
+  preview. The server warns about this at startup.
+- Without a `user:` line the container runs as uid 10001; a named volume then
+  works as is, but the configuration and token files must belong to uid 10001.
+- Instead of files, `LIBRUS_ACCOUNTS` (a JSON list of accounts), or
+  `LIBRUS_USERNAME` and `LIBRUS_PASSWORD` for one login, and `LIBRUS_MCP_TOKEN`
+  can be passed as environment variables.
+
+The same image also runs over stdio for a client on the Docker host:
+`docker run -i --rm -v librus-mcp-data:/data -e LIBRUS_USERNAME -e LIBRUS_PASSWORD
+ghcr.io/krzysztofbury/librus-mcp:2.3.0`.
+
+### MCP Registry
+
+The server is listed in the official
+[MCP Registry](https://registry.modelcontextprotocol.io/) as
+`io.github.krzysztofbury/librus-mcp`, with the PyPI package, the container image
+and the desktop bundle. Clients that install from the registry ask for
+`LIBRUS_USERNAME` and `LIBRUS_PASSWORD`, and optionally `LIBRUS_ALIAS`.
+
 ## Upgrading from 1.x
 
-Change the version in your assistant's configuration to `librus-mcp==2.2.2`, add
+Change the version in your assistant's configuration to `librus-mcp==2.3.0`, add
 `--python 3.14` before it and keep your existing `--config` file. On first start
 2.0 adapts the old setup automatically: it creates the key, restricts shared
 1.x folders to your user, ignores the removed behaviour-notes setting and adopts
@@ -211,6 +352,13 @@ from `get_message_content` as `attachment_ref.identifier` and
 `attachment_ref.archived`. `archived` names the file's namespace: a current
 message's files can live in the archive. When omitted, it follows the message
 reference. Downloading does not open the message body.
+
+## Privacy
+
+The server runs on a machine you control, your computer or your own Docker
+host, and connects only to Librus. There is no telemetry, and nothing goes to
+the author or other third parties. Tool results go to the AI assistant that
+asked for them. See [PRIVACY.md](PRIVACY.md).
 
 ## Development
 
