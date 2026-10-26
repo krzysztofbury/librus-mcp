@@ -1,6 +1,6 @@
 # Native 2.0 license and provenance review
 
-Review date: 2026-10-05. Scope: the `2.2.1` native wheel and sdist, not a
+Review date: 2026-10-05. Scope: the `2.2.2` native wheel and sdist, not a
 retroactive license change to any published artifact. The owner requested MIT for
 their new 2.0 work. This is an engineering inventory, not legal advice or a claim
 that every dependency is itself MIT.
@@ -52,7 +52,7 @@ the MCP wheel or sdist.
 | idna | 3.19 | BSD-3-Clause |
 | jsonschema | 4.26.0 | MIT |
 | jsonschema-specifications | 2025.9.1 | MIT |
-| librus-python-api | 1.6.3 | MIT |
+| librus-python-api | 1.6.4 | MIT |
 | lxml | 6.1.2 | BSD-3-Clause with additional terms below |
 | mcp | 2.3.0 | MIT |
 | mcp-types | 2.3.0 | MIT |
@@ -93,6 +93,8 @@ versions above. Their PyPI license metadata is unchanged from the previously
 reviewed versions, and the runtime closure gains or loses no distribution.
 On 2026-10-25 a security update moved opentelemetry-api to 1.45.1, whose PyPI
 license expression (Apache-2.0) and requirements are unchanged.
+On 2026-10-26 the pin moved to 1.6.4, a security fix whose PyPI license
+expression and runtime requirements are unchanged from 1.6.3.
 The 2.1 projections use public native model/service contracts. New history,
 formative and mailbox-discovery fixtures in `tests_native/` use invented data
 authored from contract requirements; no live page dump, API test fixture or

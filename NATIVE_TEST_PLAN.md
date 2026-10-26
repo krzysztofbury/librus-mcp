@@ -1,5 +1,24 @@
 # Native migration verification ownership
 
+## 2.2.2 security-update qualification
+
+API 1.6.4 replaces the backtracking regular expression that decided whether a
+message body is an XML wrapper with a linear scan (GHSA-c9qq-qqr2-hf23). The
+library owns the regression tests; MCP source and tool catalog are unchanged.
+Publishing moves to pypi-publish 1.14.3 and CI to setup-uv 10.3.2.
+
+On 2026-10-26, after API 1.6.4 was published and its PyPI hashes matched the
+lock, `pip-audit` of the full lock reported no known vulnerabilities, and the
+candidate passed the source suite and the isolated wheel-from-sdist suite:
+**89 passed, 1 Windows-only skip** in each. Ruff, format, strict mypy, Bandit,
+native MIT archive inventory and installed CLI/stdio identity checks passed.
+The installed MCP academic profile passed **56 reads** plus four identity
+checks with strict schema validation. Four disabled completed-lesson views and
+four absent homework-detail references were reported separately, using **104
+requests and 3675065 response bytes**. The live profile does not open message
+bodies; the fixed rendering is verified by the library's tests and a crafted
+63 KB body rendered in 6 ms on the published 1.6.4.
+
 ## 2.2.1 attachment-namespace qualification
 
 2.2.1 restores the optional `attachment_ref.archived` input that 2.2.0 removed.
