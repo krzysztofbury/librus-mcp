@@ -207,6 +207,52 @@ def test_environment_secrets_are_hidden_and_overrides_validated(monkeypatch):
         load_config()
 
 
+LOGIN = {
+    "LIBRUS_USERNAME": "fixture-login",
+    "LIBRUS_PASSWORD": "fixture-only",  # pragma: allowlist secret - fixture only
+}
+
+
+@pytest.mark.parametrize(
+    ("environment", "alias"),
+    [({}, "librus"), ({"LIBRUS_ALIAS": ""}, "librus"), ({"LIBRUS_ALIAS": "fixture"}, "fixture")],
+)
+def test_single_login_from_environment_is_hidden_and_defaults_its_alias(
+    environment, alias, monkeypatch
+):
+    monkeypatch.setenv("LIBRUS_CONTEXT_KEY", config_data()["context_key"])
+    for name, value in (LOGIN | environment).items():
+        monkeypatch.setenv(name, value)
+    config = load_config()
+    assert [account.alias for account in config.accounts] == [alias]
+    assert config.accounts[0].username.get_secret_value() == "fixture-login"
+    rendered = repr(config)
+    assert "fixture-login" not in rendered and "fixture-only" not in rendered
+
+
+@pytest.mark.parametrize(
+    ("environment", "message"),
+    [
+        ({"LIBRUS_USERNAME": "fixture-login"}, "set both"),
+        (LOGIN | {"LIBRUS_PASSWORD": ""}, "set both"),
+        ({"LIBRUS_ALIAS": "fixture"}, "requires"),
+        (LOGIN | {"LIBRUS_ACCOUNTS": "[]"}, "choose LIBRUS_CONFIG, LIBRUS_ACCOUNTS or"),
+        (LOGIN | {"LIBRUS_CONFIG": "config.json"}, "choose LIBRUS_CONFIG, LIBRUS_ACCOUNTS or"),
+    ],
+)
+def test_environment_login_fails_closed_when_partial_or_competing(
+    environment, message, monkeypatch, tmp_path
+):
+    for name, value in environment.items():
+        monkeypatch.setenv(name, value)
+    with pytest.raises(ConfigError, match=message):
+        load_config()
+    # An explicit CLI file still wins over every environment source.
+    path = tmp_path / "explicit.json"
+    write_config(path)
+    assert load_config(path).accounts[0].alias == "fixture"
+
+
 def test_deeply_nested_json_is_a_redacted_configuration_error(monkeypatch):
     monkeypatch.setenv("LIBRUS_ACCOUNTS", "[" * 2000 + "]" * 2000)
     with pytest.raises(ConfigError, match="invalid"):

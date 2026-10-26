@@ -1,0 +1,51 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.krzysztofbury/librus-mcp",
+  "title": "Librus Synergia",
+  "description": "Librus Synergia school gradebook: grades, attendance, timetable, homework, messages.",
+  "repository": {
+    "url": "https://github.com/krzysztofbury/librus-mcp",
+    "source": "github"
+  },
+  "version": "2.2.2",
+  "packages": [
+    {
+      "registryType": "pypi",
+      "registryBaseUrl": "https://pypi.org",
+      "identifier": "librus-mcp",
+      "version": "2.2.2",
+      "runtimeHint": "uvx",
+      "runtimeArguments": [
+        {
+          "type": "named",
+          "name": "--python",
+          "value": "3.14",
+          "description": "The server requires Python 3.14; uv downloads it when missing."
+        }
+      ],
+      "transport": {
+        "type": "stdio"
+      },
+      "environmentVariables": [
+        {
+          "name": "LIBRUS_USERNAME",
+          "description": "Librus Synergia login.",
+          "isRequired": true,
+          "isSecret": true
+        },
+        {
+          "name": "LIBRUS_PASSWORD",
+          "description": "Librus Synergia password.",
+          "isRequired": true,
+          "isSecret": true
+        },
+        {
+          "name": "LIBRUS_ALIAS",
+          "description": "Short name for this login in tool calls.",
+          "isRequired": false,
+          "default": "librus"
+        }
+      ]
+    }
+  ]
+}

@@ -176,8 +176,10 @@ Oversized history fails closed, never silently truncates or acknowledges data.
 
 ## Configuration changes
 
-- Configuration comes from CLI `--config`, otherwise one of `LIBRUS_CONFIG` or
-  `LIBRUS_ACCOUNTS`, otherwise `$XDG_CONFIG_HOME/librus-mcp/config.json`
+- Configuration comes from CLI `--config`, otherwise one of `LIBRUS_CONFIG`,
+  `LIBRUS_ACCOUNTS` or a single `LIBRUS_USERNAME` and `LIBRUS_PASSWORD` login
+  (optional `LIBRUS_ALIAS`, default `librus`; empty values count as unset),
+  otherwise `$XDG_CONFIG_HOME/librus-mcp/config.json`
   (default `~/.config/librus-mcp/config.json`, or the 1.x name `secrets.json` in
   that directory when `config.json` is absent). CLI selection wins. Conflicting
   environment credential selectors fail. Cwd/project `secrets.json` discovery is

@@ -84,3 +84,9 @@ jobs:
         run: |
           uv run python -m release_verification.verify_sdist --sdist dist --out-dir dist/from-sdist
           uv run python release_verification/verify_wheel.py dist/from-sdist --consumer-tests
+
+      - name: Verify the MCP Bundle installs and starts as a host runs it
+        shell: bash
+        run: |
+          uv run python scripts/build_mcpb.py --wheel dist/from-sdist/*.whl --out-dir dist/mcpb
+          uv run python release_verification/verify_mcpb.py dist/mcpb

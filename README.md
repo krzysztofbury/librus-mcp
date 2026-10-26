@@ -10,6 +10,8 @@ history, class-free days and student information. It supports
 several logins at once, built on the independent
 [`librus-python-api`](https://github.com/krzysztofbury/librus-python-api).
 
+<!-- mcp-name: io.github.krzysztofbury/librus-mcp -->
+
 Version 2.0 replaces the `librus-apix` backend used by every earlier version.
 Upgrading from 1.x? See [Upgrading from 1.x](#upgrading-from-1x).
 
@@ -66,6 +68,11 @@ by default; sending messages is off. To change that, add for example:
 ```json
 "features": {"notifications": true, "attachments": false, "send_message": true}
 ```
+
+Installers that collect settings in a form, such as MCP registry clients, can
+pass one login as environment variables instead of a file: `LIBRUS_USERNAME`,
+`LIBRUS_PASSWORD` and optionally `LIBRUS_ALIAS` (default `librus`). Use the file
+for several logins or for feature changes.
 
 ### 3. Connect your assistant
 
@@ -211,6 +218,12 @@ from `get_message_content` as `attachment_ref.identifier` and
 `attachment_ref.archived`. `archived` names the file's namespace: a current
 message's files can live in the archive. When omitted, it follows the message
 reference. Downloading does not open the message body.
+
+## Privacy
+
+The server runs on your computer and connects only to Librus. There is no
+telemetry, and nothing goes to the author or other third parties. Tool results
+go to the AI assistant that asked for them. See [PRIVACY.md](PRIVACY.md).
 
 ## Development
 

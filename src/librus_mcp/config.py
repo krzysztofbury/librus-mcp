@@ -14,6 +14,7 @@ from pydantic import BaseModel, ConfigDict, Field, SecretStr, ValidationError, f
 
 MAX_CONFIG_BYTES = 1024 * 1024
 MAX_ACCOUNTS = 16
+DEFAULT_ENVIRONMENT_ALIAS = "librus"
 # Portable JSON Schema regex; Unicode printability is additionally checked below.
 # Rust-only Unicode properties cannot be compiled by common MCP JSON validators.
 ALIAS_PATTERN = (
@@ -169,6 +170,24 @@ def read_config_file(path: Path) -> dict[str, Any]:
     return data
 
 
+def _environment_login() -> dict[str, str] | None:
+    """One login from LIBRUS_USERNAME and LIBRUS_PASSWORD, as installers pass it.
+
+    Installers may pass an optional input left blank as an empty string, so an
+    empty value counts as unset.
+    """
+    username = os.environ.get("LIBRUS_USERNAME", "")
+    password = os.environ.get("LIBRUS_PASSWORD", "")
+    alias = os.environ.get("LIBRUS_ALIAS", "")
+    if not username and not password:
+        if alias:
+            raise ConfigError("LIBRUS_ALIAS requires LIBRUS_USERNAME and LIBRUS_PASSWORD")
+        return None
+    if not username or not password:
+        raise ConfigError("set both LIBRUS_USERNAME and LIBRUS_PASSWORD")
+    return {"alias": alias or DEFAULT_ENVIRONMENT_ALIAS, "username": username, "password": password}
+
+
 def load_config(config_path: Path | None = None) -> AppConfig:
     """CLI path wins; otherwise explicit environment selectors must not conflict."""
     selected = config_path or (
@@ -176,10 +195,17 @@ def load_config(config_path: Path | None = None) -> AppConfig:
     )
     if config_path is None and selected is not None and "LIBRUS_ACCOUNTS" in os.environ:
         raise ConfigError("choose LIBRUS_CONFIG or LIBRUS_ACCOUNTS, not both")
+    login = None if config_path is not None else _environment_login()
+    if login is not None and (selected is not None or "LIBRUS_ACCOUNTS" in os.environ):
+        raise ConfigError(
+            "choose LIBRUS_CONFIG, LIBRUS_ACCOUNTS or LIBRUS_USERNAME and LIBRUS_PASSWORD"
+        )
     if selected is not None:
         data = read_config_file(selected.expanduser())
     elif "LIBRUS_ACCOUNTS" in os.environ:
         data = {"accounts": _json(os.environ["LIBRUS_ACCOUNTS"], source="LIBRUS_ACCOUNTS")}
+    elif login is not None:
+        data = {"accounts": [login]}
     else:
         root = Path(os.environ.get("XDG_CONFIG_HOME", str(Path.home() / ".config")))
         if not root.is_absolute():

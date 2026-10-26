@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- One login can be passed as `LIBRUS_USERNAME` and `LIBRUS_PASSWORD`, with an
+  optional `LIBRUS_ALIAS` (default `librus`), for installers that collect
+  settings in a form. Empty values count as unset; combining them with
+  `LIBRUS_CONFIG` or `LIBRUS_ACCOUNTS` fails at startup.
+- MCP Registry listing (`server.json`, name `io.github.krzysztofbury/librus-mcp`)
+  and an MCP Bundle (`.mcpb`) built around the verified wheel and pinned to the
+  qualified lock. Releases attach the bundle and publish both to the registry
+  after PyPI. See [DISTRIBUTION.md](DISTRIBUTION.md).
+- [PRIVACY.md](PRIVACY.md) describes what the server handles, where it goes and
+  what it stores.
+
 ## [2.2.2] - 2026-10-26
 
 ### Security
