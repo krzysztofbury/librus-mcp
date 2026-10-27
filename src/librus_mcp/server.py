@@ -244,7 +244,7 @@ async def get_student_information(
 async def get_final_grades(
     account_alias: AccountAliasInput, ctx: Context[Runtime, Any]
 ) -> FinalGradesResult:
-    """Get midterm, predicted and annual grades per subject as the school published them; missing values are marked unavailable. For individual grades use get_grades or get_grades_window."""
+    """Get midterm, predicted and annual grades per subject as the school published them. A column the school does not show is unavailable; an empty or - raw value is not given yet. For individual grades use get_grades or get_grades_window."""
     runtime = ctx.request_context.lifespan_context
     result = await runtime.account(account_alias).final_grades(budget=runtime.budget)
     return FinalGradesResult(
@@ -293,7 +293,7 @@ async def get_attendance(
     cursor: Cursor[PresentationCursor] = None,
     limit: PageLimit = 100,
 ) -> AttendanceResult:
-    """List attendance records (absences, lateness, presence) with semester summaries. For a date range use get_attendance_window; for totals use get_attendance_frequency. scope also changes the view this login's Librus session remembers."""
+    """List attendance records. For a date range use get_attendance_window; for totals use get_attendance_frequency. scope also changes the view this login's Librus session remembers."""
     runtime = ctx.request_context.lifespan_context
     client = runtime.account(account_alias)
     query = ("attendance-all", scope.value)

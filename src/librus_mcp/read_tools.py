@@ -81,7 +81,7 @@ async def get_grades_window(
     cursor: Cursor[PresentationCursor] = None,
     limit: PageLimit = 100,
 ) -> WindowResult[GradeRecord]:
-    """List grades and formative assessments dated within date_from..date_to. Use this instead of get_grades for a date range. scope also changes the view this login's Librus session remembers. A grade whose formative_id equals a formative row's assessment.detail_id is one assessment."""
+    """List grades and formative assessments dated within date_from..date_to, without averages (see get_grades). scope also changes the view this login's Librus session remembers and may not apply to formative rows. A grade whose formative_id equals a formative row's assessment.detail_id is one assessment."""
     runtime = ctx.request_context.lifespan_context
     client = runtime.account(account_alias)
     validate_window_cursor(
@@ -152,11 +152,11 @@ async def get_attendance_window(
 async def get_attendance_detail(
     account_alias: AccountAliasInput,
     attendance_id: Annotated[
-        NumericID, Field(description="detail_id of a record from get_attendance.")
+        NumericID, Field(description="A record's detail_id, or a lesson's attendance_detail_id.")
     ],
     ctx: Context[Runtime, Any],
 ) -> DetailResult:
-    """Get every detail Librus shows for one attendance record, such as lesson, teacher and who entered it. Pass the record's detail_id from get_attendance or get_attendance_window."""
+    """Get every field Librus shows for one attendance record, such as date and topic. The id comes from get_attendance, get_attendance_window or get_completed_lessons."""
     runtime = ctx.request_context.lifespan_context
     result = await runtime.account(account_alias).attendance_detail(
         attendance_id, budget=runtime.budget
@@ -242,7 +242,7 @@ async def get_agenda(
     month: Annotated[int, Field(strict=True, ge=1, le=12, description="Month, 1 to 12.")],
     ctx: Context[Runtime, Any],
 ) -> AgendaResult:
-    """List one month of school calendar events such as tests, trips and days off. Pass an event's reference to get_agenda_detail for more. Selecting the month also changes the month this login's Librus session remembers."""
+    """List one month of school calendar events such as tests, trips and days off. Pass an event's reference, when present, to get_agenda_detail. Selecting the month also changes the month this login's Librus session remembers."""
     runtime = ctx.request_context.lifespan_context
     client = runtime.account(account_alias)
     result = await client.agenda(year, month, budget=runtime.budget)

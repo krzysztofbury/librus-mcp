@@ -69,7 +69,10 @@ def prepare(runtime: Runtime, alias: str, message: MessageSubmissionInput) -> Se
 async def preview_message(
     account_alias: AccountAliasInput,
     message: Annotated[
-        MessageSubmissionInput, Field(description="Recipients from get_recipients, subject, body.")
+        MessageSubmissionInput,
+        Field(
+            description="Recipients: get_recipients item references, each with that result's context and backend; subject; body."
+        ),
     ],
     ctx: Context[Runtime, Any],
 ) -> MessagePreviewResult:
@@ -100,7 +103,7 @@ async def send_message(
         bool, Field(strict=True, description="Must be true: the user approved this send.")
     ] = False,
 ) -> MessageSendResult:
-    """Send a message once, after the user approved its preview from preview_message. If the status is UNKNOWN or CLAIMED, check get_send_outcome and never retry."""
+    """Send a message once, after the user approved its preview from preview_message. If data.status is unknown or durable.requires_reconciliation is true, never retry; check get_send_outcome."""
     if not confirm:
         raise LibrusError(ErrorKind.INVALID_INPUT)
     runtime = ctx.request_context.lifespan_context
@@ -124,7 +127,7 @@ async def get_send_outcome(
     ],
     ctx: Context[Runtime, Any],
 ) -> SendOutcomeResult:
-    """Check what happened to a preview or send, from local records only. Use it after an UNKNOWN or CLAIMED send instead of retrying; it never permits a resend."""
+    """Check what happened to a preview or send, from local records only. Use it after an uncertain send instead of retrying; it never permits a resend."""
     runtime = ctx.request_context.lifespan_context
     result = await runtime.sends().send_outcome(
         confirmation_token, context=runtime.account(account_alias).context

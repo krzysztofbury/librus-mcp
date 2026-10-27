@@ -291,7 +291,7 @@ jobs:
         run: |
           version="${RELEASE_TAG#v}"
           for _ in $(seq 1 30); do
-            if curl -fsS "https://pypi.org/pypi/librus-mcp/$version/json" > /dev/null; then
+            if curl -fsS --max-time 30 "https://pypi.org/pypi/librus-mcp/$version/json" > /dev/null; then
               exit 0
             fi
             sleep 20

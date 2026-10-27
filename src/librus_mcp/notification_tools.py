@@ -158,7 +158,7 @@ async def get_new_notifications(
         bool, Field(strict=True, description="Consent to fetch read-once calendar news.")
     ] = False,
 ) -> NotificationsResult:
-    """Check a login for new grades, attendance, messages, announcements, calendar events or homework. The batch is stored and returned again until acknowledge_notifications. Librus reports new calendar events only once, so they need allow_consume_events=true. Never opens messages."""
+    """Check a login for new grades, attendance, messages, announcements, calendar events or homework. The batch is stored and returned again, for the same categories, until acknowledge_notifications. Librus reports new calendar events only once, so they need allow_consume_events=true. Changes the grade, attendance and homework views Librus remembers; never opens messages."""
     runtime = ctx.request_context.lifespan_context
     client = runtime.account(account_alias)
     store = runtime.notifications()

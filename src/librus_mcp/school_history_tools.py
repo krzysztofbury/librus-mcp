@@ -63,7 +63,7 @@ async def get_class_free_days(
     cursor: Cursor[PresentationCursor] = None,
     limit: PageLimit = 100,
 ) -> PagedResult[ClassFreeDay]:
-    """List the student's days and lesson ranges without classes, such as holidays and school free days. type_id is an opaque code, not a name; a day without lesson numbers is not necessarily free all day."""
+    """List the class's days and lesson ranges without classes, such as holidays and school free days. type_id is an opaque code, not a name; a day without lesson numbers is not necessarily free all day."""
     runtime = ctx.request_context.lifespan_context
     client = runtime.account(account_alias)
     query = ("class-free-days",)

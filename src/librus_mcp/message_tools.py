@@ -77,7 +77,13 @@ async def get_messages(
     limit: PageLimit = 100,
     max_pages: FetchPages = 2,
     page_size: Annotated[
-        int, Field(strict=True, ge=1, le=50, description="Messages per Librus page.")
+        int,
+        Field(
+            strict=True,
+            ge=1,
+            le=50,
+            description="Messages per Librus page; legacy accepts only 50.",
+        ),
     ] = 50,
     archived: Annotated[
         bool, Field(strict=True, description="Modern only: list earlier years' archive.")
@@ -90,7 +96,7 @@ async def get_messages(
         bool, Field(strict=True, description="Modern only: unread received mail only.")
     ] = False,
 ) -> MessagesResult:
-    """List message summaries (sender, subject, date, read state) without opening them; use get_message_content for the text. Modern accounts can list the archive or filter current mail by correspondent or unread_only; archives cannot be filtered. Repeat the same filters with cursor."""
+    """List message summaries (correspondent, subject, date, read state) without opening them; use get_message_content for the text. On legacy accounts the folder choice changes the view Librus remembers. Modern accounts can list the archive or filter current mail by correspondent or unread_only; archives cannot be filtered. Repeat the same filters with cursor."""
     runtime = ctx.request_context.lifespan_context
     client = runtime.account(account_alias)
     backend = runtime.messaging_backend(account_alias)
@@ -425,7 +431,7 @@ async def get_recipients(
     ],
     ctx: Context[Runtime, Any],
 ) -> RecipientsResult:
-    """List the people in one recipient group, to address a message. Virtual students or parents are included only with include_virtual=true in recipient_type. Selecting the group changes this login's Librus form state; nothing is sent."""
+    """List the people in one recipient group, to address a message. Modern students and parents groups include virtual accounts only with include_virtual=true in recipient_type. On legacy accounts the lookup changes this login's Librus form state. Nothing is sent."""
     runtime = ctx.request_context.lifespan_context
     require_binding(
         runtime,

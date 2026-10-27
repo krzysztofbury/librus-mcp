@@ -43,7 +43,10 @@ Cursor = Annotated[
     T | None, Field(description="next_cursor from the previous page; omit for the first page.")
 ]
 Scope = Annotated[
-    T, Field(description="Librus view: all, week (this week) or last_login (since last login).")
+    T,
+    Field(
+        description="Librus view: all, or its week or last_login recent-changes filter; not dates."
+    ),
 ]
 
 
@@ -57,7 +60,9 @@ def civil_date(value: object) -> date:
 
 ISODate = Annotated[date, BeforeValidator(civil_date)]
 FirstDay = Annotated[T, Field(description="First day, YYYY-MM-DD, inclusive.")]
-LastDay = Annotated[T, Field(description="Last day, YYYY-MM-DD, inclusive.")]
+LastDay = Annotated[
+    T, Field(description="Last day, YYYY-MM-DD, inclusive; at most 370 days after the first.")
+]
 
 
 class WindowResult(WireModel, Generic[T]):

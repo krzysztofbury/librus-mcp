@@ -2,8 +2,8 @@
 
 ## 2.3.1 tool definitions
 
-2.3.1 rewrites tool and parameter descriptions; names, input and output
-schemas apart from descriptions, titles and annotations are unchanged. A
+2.3.1 rewrites tool and parameter descriptions; names, titles, annotations
+and schemas are unchanged apart from descriptions and the alias pattern. A
 comparison of the 2.3.0 and 2.3.1 all-feature catalogs with every
 `description` removed found no difference other than the `account_alias`
 pattern, whose new form accepted the same strings as the old one in Python
@@ -17,7 +17,7 @@ characters.
 - pytest-timeout fails a test after 120 seconds; a parametrized test hanging
   inside `asyncio.run` failed with its parameter id. The slowest test takes
   about five seconds.
-- The catalog measures 125237 bytes for 31 default tools and 138703 bytes for
+- The catalog measures 125729 bytes for 31 default tools and 139273 bytes for
   35 tools.
 
 ## 2.3.0 distribution qualification
