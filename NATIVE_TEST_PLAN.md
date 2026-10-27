@@ -16,8 +16,13 @@ read ambiguous too.
   API 1.6.4.
 - An authorized live read of `grades`, `grades_window` and `final_grades` on
   the four owner logins, none of which has point grades, returned the same
-  counts on API 1.7.0 as on 1.6.4. A live check on a point-grade account is
-  pending.
+  counts on API 1.7.0 as on 1.6.4, both from source and from the tagged wheel.
+- `scripts/qualify_native.py --live --phase academic` on 2.4.0 with the
+  published API 1.7.0: every grade tool passed on all four logins; 58 checks
+  passed, 4 `get_completed_lessons` returned `VIEW_DISABLED` as before, and 6
+  detail checks had no reference, two more than in 2.3.x because two logins'
+  calendars currently list no detail entry. 102 requests.
+- A live check on a point-grade account is pending.
 - The catalog measures 126051 bytes for 31 default tools and
   139595 bytes for 35 tools.
 
