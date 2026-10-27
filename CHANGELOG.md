@@ -4,6 +4,21 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [2.4.1] - 2026-10-27
+
+Grade fixes from API 1.7.1. Tools, inputs and results are unchanged.
+
+### Fixed
+
+- `get_grades`, `get_grades_window` and grade notifications failed with
+  `PARSE` for any account with a multi-line teacher comment on a grade, in
+  every 2.x release. The comment is now returned with its line breaks.
+- The real point-grade page of the school that reported 2.4.0 failed every
+  grade tool: a formative entry among the point entries, an over-wide empty
+  footer and period titles split by a line break. Point midterm grades are
+  now read, and the formative entry is its formative row's mirror.
+- Formative assessments whose text has line breaks no longer fail.
+
 ## [2.4.0] - 2026-10-27
 
 Point grades. Accounts at schools that grade in points or percentages
