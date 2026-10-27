@@ -15,7 +15,7 @@ from html import escape
 from aiohttp import web
 
 from tests_native.academic_wire import academic_response
-from tests_native.history_wire import formative_table, history_response
+from tests_native.history_wire import formative_table, history_response, point_table
 from tests_native.legacy_wire import legacy_response
 
 
@@ -34,6 +34,7 @@ class Wire:
         self.message_queries = []
         self.history_empty = False
         self.formative = False
+        self.points = False
         self.formative_text = "Fixture formative assessment"
         self.sent_payloads = []
         self.send_unknown = False
@@ -320,6 +321,8 @@ class Wire:
                     '<a title="Data: 2026-09-24">',
                     '<a href="/przegladaj_oceny/szczegoly/ksztaltujace/401" title="Data: 2026-09-24">',
                 ).replace("</body>", formative_table(escape(self.formative_text)) + "</body>")
+            if self.points:
+                body = body.replace("</body>", point_table() + "</body>")
             return web.Response(text=body, content_type="text/html")
         if request.path == "/przegladaj_nb/uczen":
             assert request.method == "POST"

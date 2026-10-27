@@ -81,7 +81,7 @@ async def get_grades_window(
     cursor: Cursor[PresentationCursor] = None,
     limit: PageLimit = 100,
 ) -> WindowResult[GradeRecord]:
-    """List grades and formative assessments dated within date_from..date_to, without averages (see get_grades). scope also changes the view this login's Librus session remembers and may not apply to formative rows. A grade whose formative_id equals a formative row's assessment.detail_id is one assessment."""
+    """List grades and formative assessments dated within date_from..date_to, without averages (see get_grades). A point grade's raw is a score on the scale its category names. scope also changes the view this login's Librus session remembers and may not apply to formative rows. A grade whose formative_id equals a formative row's assessment.detail_id is one assessment."""
     runtime = ctx.request_context.lifespan_context
     client = runtime.account(account_alias)
     validate_window_cursor(

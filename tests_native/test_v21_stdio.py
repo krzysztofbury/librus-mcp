@@ -64,6 +64,66 @@ async def test_formative_grades_share_paging_dates_and_source_binding():
 
 
 @pytest.mark.asyncio
+async def test_point_grades_are_scores_with_their_period_result(tmp_path):
+    async with Wire().serve() as wire:
+        wire.points = True
+        process = server_process(
+            wire.origin,
+            [("first", "71")],
+            features={"notifications": True},
+            state_dir=tmp_path / "state",
+        )
+        with anyio.fail_after(30):
+            async with stdio_client(process) as streams:
+                async with ClientSession(*streams) as session:
+                    await session.initialize()
+                    for tool in ("get_grades", "get_grades_window"):
+                        grades = await session.call_tool(tool, {"account_alias": "first"})
+                        assert not grades.is_error, grades
+                        await assert_matches_published_schema(session, tool, grades)
+                        items = grades.structured_content["items"]
+                        points = [item for item in items if item["record_type"] == "point"]
+                        assert [(item["subject"], item["raw"]) for item in points] == [
+                            ("Point Subject", "90"),
+                            ("Point Subject", "44"),
+                        ]
+                        assert points[0]["category"] == "Fixture test (0-100)"
+                        assert points[0]["counts_toward_average"] is None
+                        assert ["Licz do wyniku", "TAK"] in points[0]["metadata"]
+                        assert {item["record_type"] for item in items} == {"numeric", "point"}
+                    # The period result is a score, kept out of the grade-scale averages.
+                    assert grades.structured_content.get("point_results") is None
+                    grades = await session.call_tool("get_grades", {"account_alias": "first"})
+                    assert grades.structured_content["point_results"][0] == {
+                        "subject": "Point Subject",
+                        "semester": 1,
+                        "value": {"availability": "available", "raw": "67"},
+                    }
+                    assert all(
+                        average["subject"] == "Example Subject"
+                        for average in grades.structured_content["averages"]
+                    )
+                    final = await session.call_tool("get_final_grades", {"account_alias": "first"})
+                    assert not final.is_error, final
+                    point = final.structured_content["items"][1]
+                    assert (point["subject"], point["annual"]["raw"]) == ("Point Subject", "-")
+                    news = await session.call_tool(
+                        "get_new_notifications",
+                        {"account_alias": "first", "categories": ["grades"]},
+                    )
+                    assert not news.is_error, news
+                    hrefs = {
+                        item["value"].get("href")
+                        for item in news.structured_content["data"]["items"]
+                    }
+                    assert {
+                        "/przegladaj_oceny_punktowe/szczegoly/501",
+                        "/przegladaj_oceny_punktowe/szczegoly/502",
+                    } <= hrefs
+                    assert not any("/szczegoly/" in path for _, path, _ in wire.calls)
+
+
+@pytest.mark.asyncio
 async def test_new_school_and_directory_reads_page_without_losing_native_fields():
     async with Wire().serve() as wire:
         with anyio.fail_after(40):

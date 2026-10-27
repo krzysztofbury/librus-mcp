@@ -7,13 +7,13 @@
     "url": "https://github.com/krzysztofbury/librus-mcp",
     "source": "github"
   },
-  "version": "2.3.1",
+  "version": "2.4.0",
   "packages": [
     {
       "registryType": "pypi",
       "registryBaseUrl": "https://pypi.org",
       "identifier": "librus-mcp",
-      "version": "2.3.1",
+      "version": "2.4.0",
       "runtimeHint": "uvx",
       "runtimeArguments": [
         {
@@ -49,7 +49,7 @@
     },
     {
       "registryType": "oci",
-      "identifier": "ghcr.io/krzysztofbury/librus-mcp:2.3.1",
+      "identifier": "ghcr.io/krzysztofbury/librus-mcp:2.4.0",
       "runtimeHint": "docker",
       "runtimeArguments": [
         {

@@ -4,6 +4,34 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [2.4.0] - 2026-10-27
+
+Point grades. Accounts at schools that grade in points or percentages
+("Oceny punktowe") got `PARSE` from every grade tool and from grade
+notifications; they now get their grades. For schools without point grades,
+tools, inputs and results are unchanged apart from an empty `point_results`.
+
+### Added
+
+- `get_grades` and `get_grades_window` return point entries with
+  `record_type: "point"`. `raw` is the score and `category` names its scale,
+  such as `(0-100)`; it is not a grade symbol.
+- `get_grades` has `point_results`: the school's period results ("Wyn.I") for
+  point subjects, on the score scale. They are never mixed into `averages`.
+
+### Changed
+
+- `get_final_grades` includes point subjects when the point table has titled
+  summary columns.
+- Grade notifications carry point entries as numeric grades; their detail
+  link, `category` scale and "Licz do wyniku" metadata identify them.
+- API 1.7.0 recognises the point table beside, or instead of, the ordinary
+  grade table. The layout was established offline from an affected user's
+  screenshot and a public issue report on another Librus client; a live check
+  on an account with point grades is pending.
+- The catalog measures 126051 bytes for 31 default tools and
+  139595 bytes for 35 tools, within the 128 and 144 KiB budgets.
+
 ## [2.3.1] - 2026-10-27
 
 Clearer tool definitions for agents. Tool names, titles, annotations, inputs

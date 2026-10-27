@@ -1,6 +1,6 @@
 [project]
 name = "librus-mcp"
-version = "2.3.1"
+version = "2.4.0"
 description = "MCP server for Librus Synergia using the independent librus-python-api"
 authors = [{name = "Krzysztof Bury", email = "contact@datacraze.io"}]
 license = "MIT"
@@ -20,7 +20,7 @@ classifiers = [
 # interchangeable here.
 dependencies = [
     "mcp>=2.2.0,<3",
-    "librus-python-api==1.6.4",
+    "librus-python-api==1.7.0",
     "pydantic>=2.12,<3",
     # Serves the self-hosted HTTP transport; mcp already depends on it.
     "uvicorn>=0.35,<1",
@@ -68,7 +68,7 @@ mutation = [
 exclude-newer = "2026-10-15T00:00:00Z"
 # Admit the reviewed stable native release without relaxing the quarantine for
 # unrelated dependencies.
-exclude-newer-package = { librus-python-api = "2026-10-27T00:00:00Z" }
+exclude-newer-package = { librus-python-api = "2026-10-29T00:00:00Z" }
 
 [tool.ruff]
 line-length = 100

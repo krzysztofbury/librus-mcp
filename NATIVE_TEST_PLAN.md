@@ -1,5 +1,31 @@
 # Native migration verification ownership
 
+## 2.4.0 point grades
+
+API 1.7.0 reads the "Oceny punktowe" table; MCP 2.4.0 adds the `point`
+grade record type. The cause, both grade reads failing with `PARSE`, was
+reproduced offline from a relayed screenshot: the point table is a second
+table with current-grade headers, and an annual title in it made the summary
+read ambiguous too.
+
+- `test_point_grades_are_scores_with_their_period_result` serves an original
+  point table over loopback. It checks the `point` items of both grade tools
+  against the published output schema, their scale category and metadata, the
+  "Wyn.I" result in `point_results` and not in `averages`, the point subject
+  in final grades, and the point entries in grade notifications. It fails on
+  API 1.6.4.
+- An authorized live read of `grades`, `grades_window` and `final_grades` on
+  the four owner logins, none of which has point grades, returned the same
+  counts on API 1.7.0 as on 1.6.4, both from source and from the tagged wheel.
+- `scripts/qualify_native.py --live --phase academic` on 2.4.0 with the
+  published API 1.7.0: every grade tool passed on all four logins; 58 checks
+  passed, 4 `get_completed_lessons` returned `VIEW_DISABLED` as before, and 6
+  detail checks had no reference, two more than in 2.3.x because two logins'
+  calendars currently list no detail entry. 102 requests.
+- A live check on a point-grade account is pending.
+- The catalog measures 126051 bytes for 31 default tools and
+  139595 bytes for 35 tools.
+
 ## 2.3.1 tool definitions
 
 2.3.1 rewrites tool and parameter descriptions; names, titles, annotations

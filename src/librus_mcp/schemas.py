@@ -81,7 +81,7 @@ class FinalGradesResult(WireModel):
 
 class GradeItem(WireModel):
     # Suppress inert HTML hrefs; no grade-detail tool accepts raw routes in 2.0.
-    record_type: Literal["numeric", "descriptive"]
+    record_type: Literal["numeric", "point", "descriptive"]
     subject: str
     raw: str
     day: date
@@ -107,6 +107,7 @@ GradeRecord = GradeItem | FormativeItem
 class GradesResult(WireModel):
     items: tuple[GradeRecord, ...]
     averages: tuple[SchoolAverage, ...]
+    point_results: tuple[SchoolAverage, ...]
     descriptive_summaries: tuple[DescriptiveGradeSummary, ...]
     scope: GradeView
     identity: Identity
@@ -140,7 +141,7 @@ def descriptive_item(record: DescriptiveGrade) -> GradeItem:
 
 def numeric_item(record: NumericGrade) -> GradeItem:
     return GradeItem(
-        record_type="numeric",
+        record_type="numeric" if record.point_grade_id is None else "point",
         subject=record.subject,
         raw=record.raw,
         day=record.day,
