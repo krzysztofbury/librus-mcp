@@ -11,6 +11,7 @@ jobs:
   verify:
     name: Verify and build release
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     outputs:
       artifact-id: ${{ steps.upload.outputs.artifact-id }}
       checksum-manifest-sha256: ${{ steps.checksums.outputs.manifest-sha256 }}
@@ -111,6 +112,7 @@ jobs:
     name: Publish verified distributions to PyPI
     needs: verify
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     environment:
       name: pypi
       url: https://pypi.org/p/librus-mcp
@@ -148,6 +150,7 @@ jobs:
     name: Publish the verified container image
     needs: [verify, publish]
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     permissions:
       actions: read
       contents: read
@@ -236,6 +239,7 @@ jobs:
     name: List the release in the MCP Registry
     needs: [verify, publish, image]
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     permissions:
       actions: read
       contents: write # attach the bundle to the release

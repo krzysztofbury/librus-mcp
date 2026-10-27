@@ -4,6 +4,25 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [2.3.1] - 2026-10-27
+
+Clearer tool definitions for agents. Tool names, inputs, results and
+annotations are unchanged; only descriptions differ.
+
+### Changed
+
+- Every tool description now starts with what the tool returns, names the tool
+  to use instead where two overlap, and says when a call changes the view,
+  week, month or date range that Librus remembers for the login. Terms such as
+  "stage/replay", "bound type" and "source drift" are gone.
+- Every input parameter has a description. In 2.3.0 only four tools described
+  `account_alias`, because a second definition of the alias type had none.
+- The `account_alias` pattern has a shorter form that accepts exactly the same
+  strings. The catalog measures 125237 bytes for 31 default tools and 138703
+  bytes for 35 tools, within the 128 and 144 KiB budgets.
+- A hung test fails after two minutes, and every CI and release job has a
+  timeout. AGENTS.md describes the project rules for coding agents.
+
 ## [2.3.0] - 2026-10-26
 
 New ways to install and run the server. Tools, inputs and results are

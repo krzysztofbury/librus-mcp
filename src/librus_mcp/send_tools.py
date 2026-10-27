@@ -68,10 +68,12 @@ def prepare(runtime: Runtime, alias: str, message: MessageSubmissionInput) -> Se
 
 async def preview_message(
     account_alias: AccountAliasInput,
-    message: MessageSubmissionInput,
+    message: Annotated[
+        MessageSubmissionInput, Field(description="Recipients from get_recipients, subject, body.")
+    ],
     ctx: Context[Runtime, Any],
 ) -> MessagePreviewResult:
-    """Persist a five-minute exact-input preview without HTTP. Obtain human approval before sending."""
+    """Prepare a message without sending it: store an exact preview for five minutes and return a confirmation_token. Show the preview to the user and get their approval before send_message."""
     runtime = ctx.request_context.lifespan_context
     attempt = prepare(runtime, account_alias, message)
     confirmation = await runtime.sends().preview_send(attempt)
@@ -87,12 +89,18 @@ async def preview_message(
 
 async def send_message(
     account_alias: AccountAliasInput,
-    message: MessageSubmissionInput,
-    confirmation_token: ConfirmationToken,
+    message: Annotated[
+        MessageSubmissionInput, Field(description="The exact message given to preview_message.")
+    ],
+    confirmation_token: Annotated[
+        ConfirmationToken, Field(description="Token from preview_message.")
+    ],
     ctx: Context[Runtime, Any],
-    confirm: Annotated[bool, Field(strict=True)] = False,
+    confirm: Annotated[
+        bool, Field(strict=True, description="Must be true: the user approved this send.")
+    ] = False,
 ) -> MessageSendResult:
-    """Redeem a preview once after explicit approval. UNKNOWN/CLAIMED require reconciliation, never retry."""
+    """Send a message once, after the user approved its preview from preview_message. If the status is UNKNOWN or CLAIMED, check get_send_outcome and never retry."""
     if not confirm:
         raise LibrusError(ErrorKind.INVALID_INPUT)
     runtime = ctx.request_context.lifespan_context
@@ -111,10 +119,12 @@ async def send_message(
 
 async def get_send_outcome(
     account_alias: AccountAliasInput,
-    confirmation_token: ConfirmationToken,
+    confirmation_token: Annotated[
+        ConfirmationToken, Field(description="Token from preview_message.")
+    ],
     ctx: Context[Runtime, Any],
 ) -> SendOutcomeResult:
-    """Inspect durable preview/send outcome offline; this never authorizes resubmission."""
+    """Check what happened to a preview or send, from local records only. Use it after an UNKNOWN or CLAIMED send instead of retrying; it never permits a resend."""
     runtime = ctx.request_context.lifespan_context
     result = await runtime.sends().send_outcome(
         confirmation_token, context=runtime.account(account_alias).context
@@ -125,7 +135,7 @@ async def get_send_outcome(
 async def get_send_history(
     account_alias: AccountAliasInput, ctx: Context[Runtime, Any]
 ) -> SendHistoryResult:
-    """Inspect bounded durable history offline, including uncertainty after lost tokens/responses."""
+    """List this login's recent previews and sends from local records, including sends whose result is uncertain. Offline."""
     runtime = ctx.request_context.lifespan_context
     client = runtime.account(account_alias)
     return SendHistoryResult(

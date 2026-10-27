@@ -26,7 +26,7 @@ from librus_python_api import (
 from librus_python_api.exceptions import ErrorKind, LibrusError
 from pydantic import Field
 
-from librus_mcp.read_schemas import AccountAliasInput, NumericID
+from librus_mcp.read_schemas import NumericID, ReferenceAccount
 from librus_mcp.schemas import HexDigest, Pagination, WireModel
 
 SeenIDs = Annotated[tuple[NumericID, ...], Field(max_length=2000)]
@@ -37,7 +37,7 @@ class MessageReferenceInput(WireModel):
     backend: MessagingBackend
     folder: MessageFolder
     identifier: NumericID
-    account: AccountAliasInput
+    account: ReferenceAccount
     archived: Annotated[bool, Field(strict=True)] = False
 
     def native(self) -> MessageReference | ModernMessageReference:
@@ -58,7 +58,7 @@ class MessageReferenceInput(WireModel):
 class LegacyCursor(WireModel):
     backend: Literal["legacy"] = "legacy"
     context: HexDigest
-    account: AccountAliasInput
+    account: ReferenceAccount
     folder: MessageFolder
     page: Annotated[int, Field(strict=True, ge=0, le=999)]
     offset: Annotated[int, Field(strict=True, ge=0, le=50)]
@@ -81,7 +81,7 @@ class LegacyCursor(WireModel):
 class ModernCursor(WireModel):
     backend: Literal["modern"] = "modern"
     context: HexDigest
-    account: AccountAliasInput
+    account: ReferenceAccount
     folder: MessageFolder
     page: Annotated[int, Field(strict=True, ge=1, le=1000)]
     offset: Annotated[int, Field(strict=True, ge=0, le=50)]
@@ -144,7 +144,7 @@ class CorrespondentReferenceInput(WireModel):
     backend: Literal["modern"] = "modern"
     folder: MessageFolder
     identifier: NumericID
-    account: AccountAliasInput
+    account: ReferenceAccount
 
     def native(self) -> ModernCorrespondentReference:
         return ModernCorrespondentReference(
@@ -171,7 +171,7 @@ class MessageContentResult(WireModel):
 class RecipientTypeInput(WireModel):
     context: HexDigest
     backend: MessagingBackend
-    account: AccountAliasInput
+    account: ReferenceAccount
     identifier: Annotated[str, Field(min_length=1, max_length=80)]
     selection_id: NumericID = "0"
     include_virtual: Annotated[bool, Field(strict=True)] = False

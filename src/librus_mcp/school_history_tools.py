@@ -7,7 +7,7 @@ from mcp.server.mcpserver import Context, MCPServer
 from mcp.types import ToolAnnotations
 
 from librus_mcp.presentation import validate_window_cursor, window_page
-from librus_mcp.read_schemas import AccountAliasInput, Limit, PagedResult
+from librus_mcp.read_schemas import AccountAliasInput, Cursor, PagedResult, PageLimit
 from librus_mcp.runtime import Runtime
 from librus_mcp.schemas import PresentationCursor, WireModel
 
@@ -34,10 +34,10 @@ def register_school_history_tools(server: MCPServer[Runtime]) -> None:
 async def get_school_year_archive(
     account_alias: AccountAliasInput,
     ctx: Context[Runtime, Any],
-    cursor: PresentationCursor | None = None,
-    limit: Limit = 10,
+    cursor: Cursor[PresentationCursor] = None,
+    limit: PageLimit = 10,
 ) -> PagedResult[ArchiveItem]:
-    """Page earlier school years then achievements. Preserve raw marks/behaviour cells; year_end is not asserted to equal annual grades. Each page refreshes the native archive and rejects source drift."""
+    """List earlier school years with their marks and behaviour, then achievements. Cells keep Librus's exact text; a year's year_end mark may differ from that year's annual grade. Each page rereads the archive."""
     runtime = ctx.request_context.lifespan_context
     client = runtime.account(account_alias)
     query = ("school-year-archive",)
@@ -60,10 +60,10 @@ async def get_school_year_archive(
 async def get_class_free_days(
     account_alias: AccountAliasInput,
     ctx: Context[Runtime, Any],
-    cursor: PresentationCursor | None = None,
-    limit: Limit = 100,
+    cursor: Cursor[PresentationCursor] = None,
+    limit: PageLimit = 100,
 ) -> PagedResult[ClassFreeDay]:
-    """Page native class-free date/lesson ranges. Type IDs are opaque; absent lesson bounds do not establish all-day holidays. Continuation rejects source drift."""
+    """List the student's days and lesson ranges without classes, such as holidays and school free days. type_id is an opaque code, not a name; a day without lesson numbers is not necessarily free all day."""
     runtime = ctx.request_context.lifespan_context
     client = runtime.account(account_alias)
     query = ("class-free-days",)

@@ -12,7 +12,7 @@ from librus_python_api import (
 from librus_python_api.persistence import DurableSendOutcome, DurableSendRecord
 from pydantic import Field
 
-from librus_mcp.read_schemas import AccountAliasInput, NumericID
+from librus_mcp.read_schemas import NumericID, ReferenceAccount
 from librus_mcp.schemas import HexDigest, Pagination, WireModel
 
 ConfirmationToken = Annotated[
@@ -23,7 +23,7 @@ ConfirmationToken = Annotated[
 class LegacyRecipientInput(WireModel):
     backend: Literal["legacy"] = "legacy"
     context: HexDigest
-    account: AccountAliasInput
+    account: ReferenceAccount
     identifier: NumericID
     group_type: Annotated[str, Field(min_length=1, max_length=80)]
     selection_id: NumericID
@@ -40,7 +40,7 @@ class LegacyRecipientInput(WireModel):
 class ModernRecipientInput(WireModel):
     backend: Literal["modern"] = "modern"
     context: HexDigest
-    account: AccountAliasInput
+    account: ReferenceAccount
     account_id: NumericID
     user_id: NumericID
     recipient_type: Annotated[str, Field(min_length=1, max_length=80)]

@@ -22,20 +22,24 @@ from librus_mcp.read_schemas import (
     AgendaEventOutput,
     AgendaResult,
     CollectionResult,
+    Cursor,
     DetailData,
     DetailResult,
+    FetchPages,
+    FirstDay,
     FrequencyData,
     FrequencyResult,
     HomeworkItemOutput,
     HomeworkResult,
     ISODate,
+    LastDay,
     LessonsCursorInput,
     LessonsPagination,
     LessonsResult,
-    Limit,
-    MaxPages,
     NumericID,
+    PageLimit,
     SchoolReferenceInput,
+    Scope,
     SubjectFrequencyResult,
     TimetableResult,
     WindowResult,
@@ -71,13 +75,13 @@ def register_read_tools(server: MCPServer[Runtime]) -> None:
 async def get_grades_window(
     account_alias: AccountAliasInput,
     ctx: Context[Runtime, Any],
-    date_from: ISODate | None = None,
-    date_to: ISODate | None = None,
-    scope: GradeView = GradeView.ALL,
-    cursor: PresentationCursor | None = None,
-    limit: Limit = 100,
+    date_from: FirstDay[ISODate | None] = None,
+    date_to: LastDay[ISODate | None] = None,
+    scope: Scope[GradeView] = GradeView.ALL,
+    cursor: Cursor[PresentationCursor] = None,
+    limit: PageLimit = 100,
 ) -> WindowResult[GradeRecord]:
-    """Page dated grades and formative assessments. Match formative_id to assessment.detail_id for mirrors. Dates filter both; formative scope semantics are unverified. Cursors reject source drift."""
+    """List grades and formative assessments dated within date_from..date_to. Use this instead of get_grades for a date range. scope also changes the view this login's Librus session remembers. A grade whose formative_id equals a formative row's assessment.detail_id is one assessment."""
     runtime = ctx.request_context.lifespan_context
     client = runtime.account(account_alias)
     validate_window_cursor(
@@ -112,13 +116,13 @@ async def get_grades_window(
 async def get_attendance_window(
     account_alias: AccountAliasInput,
     ctx: Context[Runtime, Any],
-    date_from: ISODate | None = None,
-    date_to: ISODate | None = None,
-    scope: AttendanceView = AttendanceView.ALL,
-    cursor: PresentationCursor | None = None,
-    limit: Limit = 100,
+    date_from: FirstDay[ISODate | None] = None,
+    date_to: LastDay[ISODate | None] = None,
+    scope: Scope[AttendanceView] = AttendanceView.ALL,
+    cursor: Cursor[PresentationCursor] = None,
+    limit: PageLimit = 100,
 ) -> WindowResult[AttendanceRecord]:
-    """Page dated attendance locally; changed source data invalidates continuation."""
+    """List attendance records dated within date_from..date_to. Use this instead of get_attendance for a date range. scope also changes the view this login's Librus session remembers."""
     runtime = ctx.request_context.lifespan_context
     client = runtime.account(account_alias)
     validate_window_cursor(
@@ -147,10 +151,12 @@ async def get_attendance_window(
 
 async def get_attendance_detail(
     account_alias: AccountAliasInput,
-    attendance_id: NumericID,
+    attendance_id: Annotated[
+        NumericID, Field(description="detail_id of a record from get_attendance.")
+    ],
     ctx: Context[Runtime, Any],
 ) -> DetailResult:
-    """Read normalized attendance detail fields for a numeric record ID."""
+    """Get every detail Librus shows for one attendance record, such as lesson, teacher and who entered it. Pass the record's detail_id from get_attendance or get_attendance_window."""
     runtime = ctx.request_context.lifespan_context
     result = await runtime.account(account_alias).attendance_detail(
         attendance_id, budget=runtime.budget
@@ -166,7 +172,7 @@ async def get_attendance_frequency(
     account_alias: AccountAliasInput,
     ctx: Context[Runtime, Any],
 ) -> FrequencyResult:
-    """Read attended/total/excluded/unknown counts and ratios in 0..1 or null."""
+    """Get attendance totals for each semester and the year: attended, total, excluded and unknown lessons, with ratios from 0 to 1 (null when undefined). For a per-subject breakdown use get_subject_frequency."""
     runtime = ctx.request_context.lifespan_context
     result = await runtime.account(account_alias).attendance_frequency(budget=runtime.budget)
     return FrequencyResult(
@@ -183,10 +189,10 @@ async def get_attendance_frequency(
 async def get_subject_frequency(
     account_alias: AccountAliasInput,
     ctx: Context[Runtime, Any],
-    date_from: ISODate | None = None,
-    date_to: ISODate | None = None,
+    date_from: FirstDay[ISODate | None] = None,
+    date_to: LastDay[ISODate | None] = None,
 ) -> SubjectFrequencyResult:
-    """Read per-subject native ratios/counts in an inclusive civil-date window."""
+    """Get attendance counts and ratios per subject, optionally within a window of up to 371 days. For overall totals use get_attendance_frequency."""
     runtime = ctx.request_context.lifespan_context
     result = await runtime.account(account_alias).subject_frequency(
         start=date_from,
@@ -204,10 +210,10 @@ async def get_subject_frequency(
 
 async def get_timetable(
     account_alias: AccountAliasInput,
-    monday: ISODate,
+    monday: Annotated[ISODate, Field(description="Monday of the week, YYYY-MM-DD.")],
     ctx: Context[Runtime, Any],
 ) -> TimetableResult:
-    """Select a Monday-starting week; return school wall-time periods and changes."""
+    """Get the lesson plan for one week, with substitutions and cancellations, in school local time. Selecting the week also changes the week this login's Librus session remembers."""
     runtime = ctx.request_context.lifespan_context
     result = await runtime.account(account_alias).timetable(monday, budget=runtime.budget)
     return TimetableResult(
@@ -222,7 +228,7 @@ async def get_announcements(
     account_alias: AccountAliasInput,
     ctx: Context[Runtime, Any],
 ) -> CollectionResult[Announcement]:
-    """Read complete inert announcement text without marking it read."""
+    """Get all school announcements with their full text. Does not mark them read in Librus."""
     runtime = ctx.request_context.lifespan_context
     result = await runtime.account(account_alias).announcements(budget=runtime.budget)
     return CollectionResult[Announcement](
@@ -232,11 +238,11 @@ async def get_announcements(
 
 async def get_agenda(
     account_alias: AccountAliasInput,
-    year: Annotated[int, Field(strict=True, ge=1900, le=9999)],
-    month: Annotated[int, Field(strict=True, ge=1, le=12)],
+    year: Annotated[int, Field(strict=True, ge=1900, le=9999, description="Calendar year.")],
+    month: Annotated[int, Field(strict=True, ge=1, le=12, description="Month, 1 to 12.")],
     ctx: Context[Runtime, Any],
 ) -> AgendaResult:
-    """Read a calendar month, with account/context-bound event references."""
+    """List one month of school calendar events such as tests, trips and days off. Pass an event's reference to get_agenda_detail for more. Selecting the month also changes the month this login's Librus session remembers."""
     runtime = ctx.request_context.lifespan_context
     client = runtime.account(account_alias)
     result = await client.agenda(year, month, budget=runtime.budget)
@@ -281,10 +287,12 @@ def require_school_reference(
 
 async def get_agenda_detail(
     account_alias: AccountAliasInput,
-    event_ref: SchoolReferenceInput,
+    event_ref: Annotated[
+        SchoolReferenceInput, Field(description="An event's reference from get_agenda, unchanged.")
+    ],
     ctx: Context[Runtime, Any],
 ) -> DetailResult:
-    """Read normalized event detail from a bound reference returned by get_agenda."""
+    """Get every detail of one calendar event. Use the same account_alias that get_agenda used."""
     runtime = ctx.request_context.lifespan_context
     require_school_reference(event_ref, runtime, account_alias, "agenda")
     result = await runtime.account(account_alias).agenda_detail(
@@ -304,10 +312,10 @@ async def get_agenda_detail(
 async def get_homework(
     account_alias: AccountAliasInput,
     ctx: Context[Runtime, Any],
-    date_from: ISODate | None = None,
-    date_to: ISODate | None = None,
+    date_from: FirstDay[ISODate | None] = None,
+    date_to: LastDay[ISODate | None] = None,
 ) -> HomeworkResult:
-    """Read a bounded homework range; omitted dates select today through today+14 in Warsaw."""
+    """List homework in a date range; give both dates or neither (today to 14 days ahead, Warsaw time). Pass an item's reference to get_homework_detail. The range also changes what this login's Librus session remembers."""
     runtime = ctx.request_context.lifespan_context
     if (date_from is None) != (date_to is None):
         raise LibrusError(ErrorKind.INVALID_INPUT)
@@ -345,10 +353,12 @@ async def get_homework(
 
 async def get_homework_detail(
     account_alias: AccountAliasInput,
-    homework_ref: SchoolReferenceInput,
+    homework_ref: Annotated[
+        SchoolReferenceInput, Field(description="An item's reference from get_homework, unchanged.")
+    ],
     ctx: Context[Runtime, Any],
 ) -> DetailResult:
-    """Read homework detail without the separate upstream mark-read request."""
+    """Get the full text of one homework assignment. Does not mark it read in Librus."""
     runtime = ctx.request_context.lifespan_context
     require_school_reference(homework_ref, runtime, account_alias, "homework")
     result = await runtime.account(account_alias).homework_detail(
@@ -367,14 +377,14 @@ async def get_homework_detail(
 
 async def get_completed_lessons(
     account_alias: AccountAliasInput,
-    date_from: ISODate,
-    date_to: ISODate,
+    date_from: FirstDay[ISODate],
+    date_to: LastDay[ISODate],
     ctx: Context[Runtime, Any],
-    cursor: LessonsCursorInput | None = None,
-    limit: Limit = 100,
-    max_pages: MaxPages = 2,
+    cursor: Cursor[LessonsCursorInput] = None,
+    limit: PageLimit = 100,
+    max_pages: FetchPages = 2,
 ) -> LessonsResult:
-    """Read a bounded native lesson batch; continuation is account/date-bound and best effort."""
+    """List lessons already held between two dates: subject, teacher, topic and attendance mark. Continue with the returned cursor and the same dates. The range also changes what this login's Librus session remembers."""
     runtime = ctx.request_context.lifespan_context
     client = runtime.account(account_alias)
     if cursor is not None and cursor.context != client.context.identifier:

@@ -17,7 +17,9 @@ from tests_native.test_config import config_data
         ({"send_message": True}, 35),
     ],
 )
-async def test_every_tool_has_a_title_explicit_effect_hints_and_compiling_schemas(features, count):
+async def test_every_tool_has_a_title_effect_hints_described_inputs_and_compiling_schemas(
+    features, count
+):
     data = config_data() | ({} if features is None else {"features": features})
     server = create_server(AppConfig.model_validate(data))
     tools = await server.list_tools()
@@ -29,6 +31,10 @@ async def test_every_tool_has_a_title_explicit_effect_hints_and_compiling_schema
         assert tool.annotations is not None and tool.annotations.read_only_hint is not None
         if not tool.annotations.read_only_hint:
             assert tool.annotations.destructive_hint is not None, tool.name
+        # Agents choose arguments from these; a second, undescribed alias type
+        # once left account_alias bare on most tools.
+        for name, schema in tool.input_schema.get("properties", {}).items():
+            assert schema.get("description"), (tool.name, name)
         validator_for(tool.input_schema).check_schema(tool.input_schema)
         assert tool.output_schema is not None
         validator_for(tool.output_schema).check_schema(tool.output_schema)
