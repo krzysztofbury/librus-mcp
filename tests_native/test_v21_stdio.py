@@ -64,6 +64,39 @@ async def test_formative_grades_share_paging_dates_and_source_binding():
 
 
 @pytest.mark.asyncio
+async def test_point_grades_are_scores_with_their_period_result():
+    async with Wire().serve() as wire:
+        wire.points = True
+        with anyio.fail_after(30):
+            async with stdio_client(server_process(wire.origin, [("first", "71")])) as streams:
+                async with ClientSession(*streams) as session:
+                    await session.initialize()
+                    grades = await session.call_tool("get_grades", {"account_alias": "first"})
+                    assert not grades.is_error, grades
+                    await assert_matches_published_schema(session, "get_grades", grades)
+                    items = grades.structured_content["items"]
+                    points = [item for item in items if item["record_type"] == "point"]
+                    assert [(item["subject"], item["raw"]) for item in points] == [
+                        ("Point Subject", "90"),
+                        ("Point Subject", "44"),
+                    ]
+                    assert points[0]["category"] == "Fixture test (0-100)"
+                    assert {item["record_type"] for item in items} == {"numeric", "point"}
+                    assert {
+                        "subject": "Point Subject",
+                        "semester": 1,
+                        "value": {"availability": "available", "raw": "67"},
+                    } in grades.structured_content["averages"]
+                    final = await session.call_tool("get_final_grades", {"account_alias": "first"})
+                    assert not final.is_error, final
+                    assert [item["subject"] for item in final.structured_content["items"]] == [
+                        "Example Subject",
+                        "Point Subject",
+                    ]
+                    assert not any("/szczegoly/" in path for _, path, _ in wire.calls)
+
+
+@pytest.mark.asyncio
 async def test_new_school_and_directory_reads_page_without_losing_native_fields():
     async with Wire().serve() as wire:
         with anyio.fail_after(40):

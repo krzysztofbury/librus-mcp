@@ -43,6 +43,15 @@ HTML, causes or raw exception text are included. Unanticipated errors are
 `MODULE_UNAVAILABLE` means the school's product lacks a module; it is distinct
 from `VIEW_DISABLED`, `ACCESS_DENIED` and parser failures.
 
+## Additive 2.4 point grades
+
+- Grade `items` can have `record_type="point"`: an entry from the school's
+  "Oceny punktowe" table with the numeric item fields. `raw` is a score on the
+  scale `category` names, not a grade symbol; `counts_toward_average` stays
+  null and the tooltip's "Licz do wyniku" stays in `metadata`. The table's
+  "Wyn." period results are the subject's `averages`, and its titled summary
+  columns join `get_final_grades`. There are no point-grade detail fetches.
+
 ## Additive 2.1 reads
 
 - Grade `items` now include `record_type="formative"` with an `assessment` object

@@ -1,5 +1,24 @@
 # Native migration verification ownership
 
+## 2.4.0 point grades
+
+API 1.7.0 reads the "Oceny punktowe" table; MCP 2.4.0 adds the `point`
+grade record type. The cause, both grade reads failing with `PARSE`, was
+reproduced offline from a relayed screenshot: the point table is a second
+table with current-grade headers, and an annual title in it made the summary
+read ambiguous too.
+
+- `test_point_grades_are_scores_with_their_period_result` serves an original
+  point table over loopback and checks the `point` items, their scale category,
+  the "Wyn.I" result as an average and the point subject in final grades,
+  against the published output schema. It fails on API 1.6.4.
+- An authorized live read of `grades`, `grades_window` and `final_grades` on
+  the four owner logins, none of which has point grades, returned the same
+  counts on API 1.7.0 as on 1.6.4. A live check on a point-grade account is
+  pending.
+- The catalog measures 125897 bytes for 31 default tools and 139441 bytes for
+  35 tools.
+
 ## 2.3.1 tool definitions
 
 2.3.1 rewrites tool and parameter descriptions; names, titles, annotations

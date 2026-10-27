@@ -53,6 +53,22 @@ def history_response(request, wire):
     return web.Response(text="<html>" + body + "</html>", content_type="text/html")
 
 
+def point_table():
+    """An original "Oceny punktowe" table: two percentage entries and a result."""
+    entry = (
+        '<span class="grade-box"><a title="Kategoria: Fixture test (0-100)&lt;br&gt;'
+        'Data: 2026-09-26&lt;br&gt;Licz do wyniku: TAK" '
+        'href="/przegladaj_oceny_punktowe/szczegoly/{}">{}</a></span>'
+    )
+    return f"""<h3 class="center">Oceny punktowe</h3><table class="decorated stretch">
+    <thead><tr><td rowspan="2"></td><td rowspan="2">Przedmiot</td><td colspan="2">Okres 1</td>
+    <td colspan="2">Okres 2</td></tr><tr><td>Oceny bieżące</td><td>Wyn.I</td>
+    <td>Oceny bieżące</td><td title="Ocena roczna">R</td></tr></thead><tbody>
+    <tr><td><img id="przedmioty_OP_81_node"></td><td>Point Subject</td>
+    <td>{entry.format(501, 90)}{entry.format(502, 44)}</td><td>67</td><td>Brak ocen</td>
+    <td>-</td></tr></tbody></table>"""
+
+
 def formative_table(text):
     return f"""<h3>Oceny kształtujące</h3><table class="stretch decorated">
     <thead><tr><td>Przedmiot</td><td>Ocena kształtująca</td><td>Kategoria</td>
