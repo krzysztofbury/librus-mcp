@@ -102,6 +102,19 @@ Not verified yet, needing a manual check:
 
 Aggregators such as Glama index the MCP Registry and GitHub. A personal-account
 repository is claimed on Glama by signing in with GitHub; no `glama.json` is
-needed. Glama builds the repository's Dockerfile to inspect the server; with
-dummy `LIBRUS_USERNAME` and `LIBRUS_PASSWORD` the image lists its tools without
-contacting Librus.
+needed.
+
+Glama does not build this repository's Dockerfile. It generates its own image
+from a build spec kept in its admin pages, which the inferred defaults got
+wrong (Python 3.15 and a configuration path that does not exist). The spec
+that passes its build test is:
+
+- base image `debian:trixie-slim`, Python `3.14`;
+- build steps `["uv sync --locked --no-dev"]`;
+- command `["mcp-proxy", "--", "uv", "run", "--no-sync", "librus-mcp"]`;
+- placeholder parameters `{"LIBRUS_USERNAME": "glama-placeholder",
+  "LIBRUS_PASSWORD": "glama-placeholder"}`. Listing tools needs no Librus <!-- pragma: allowlist secret -->
+  connection, so a placeholder login is enough.
+
+Glama scores tool definitions (TDQS) per Glama release, from the built
+image's catalog.

@@ -1,5 +1,25 @@
 # Native migration verification ownership
 
+## 2.3.1 tool definitions
+
+2.3.1 rewrites tool and parameter descriptions; names, titles, annotations
+and schemas are unchanged apart from descriptions and the alias pattern. A
+comparison of the 2.3.0 and 2.3.1 all-feature catalogs with every
+`description` removed found no difference other than the `account_alias`
+pattern, whose new form accepted the same strings as the old one in Python
+`re`, pydantic-core and ECMAScript over all 402234 strings of up to five
+characters from an alphabet of printable, space, control and Unicode space
+characters.
+
+- `test_catalog_schema.py` also asserts a description on every input property
+  in all three profiles; on 2.3.0 the default, minimal and all-feature
+  profiles fail.
+- pytest-timeout fails a test after 120 seconds; a parametrized test hanging
+  inside `asyncio.run` failed with its parameter id. The slowest test takes
+  about five seconds.
+- The catalog measures 125729 bytes for 31 default tools and 139273 bytes for
+  35 tools.
+
 ## 2.3.0 distribution qualification
 
 2.3.0 adds the self-hosted HTTP transport, the container image, the MCP Bundle,

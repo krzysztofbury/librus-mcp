@@ -75,12 +75,21 @@ def register_attachment_tools(server: MCPServer[Runtime]) -> None:
 
 async def download_attachment(
     account_alias: AccountAliasInput,
-    attachment_ref: AttachmentInput,
-    filename: Annotated[str, Field(min_length=1, max_length=4096)],
+    attachment_ref: Annotated[
+        AttachmentInput,
+        Field(
+            description="message: the message_ref you opened; identifier, archived: from the attachment."
+        ),
+    ],
+    filename: Annotated[
+        str, Field(min_length=1, max_length=4096, description="Name to save as, e.g. its filename.")
+    ],
     ctx: Context[Runtime, Any],
-    max_bytes: Annotated[int, Field(strict=True, ge=1, le=50 * 1024 * 1024)] = 10 * 1024 * 1024,
+    max_bytes: Annotated[
+        int, Field(strict=True, ge=1, le=50 * 1024 * 1024, description="Refuse larger files.")
+    ] = 10 * 1024 * 1024,
 ) -> SavedAttachmentResult:
-    """Save a selected attachment to the configured private native-v2 directory; never opens a body."""
+    """Save one message attachment to the server's private download folder and return its local path, size and SHA-256. Never overwrites a file or opens the message. On Linux and macOS, files up to 256 KiB are may also be offered as a 15-minute MCP resource."""
     runtime = ctx.request_context.lifespan_context
     if not runtime.config.features.attachments:
         raise LibrusError(ErrorKind.UNSUPPORTED_CAPABILITY)

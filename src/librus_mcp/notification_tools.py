@@ -24,7 +24,7 @@ from librus_mcp.legacy_state import (
     legacy_stems,
     restrict_own_files,
 )
-from librus_mcp.read_schemas import AccountAliasInput
+from librus_mcp.read_schemas import AccountAliasInput, ReferenceAccount
 from librus_mcp.runtime import Runtime
 from librus_mcp.schemas import HexDigest, WireModel
 
@@ -45,7 +45,7 @@ class NotificationStatusResult(WireModel):
 class BatchContextInput(WireModel):
     """The batch's `context` object, accepted verbatim as returned by a poll."""
 
-    alias: AccountAliasInput
+    alias: ReferenceAccount
     identifier: HexDigest
 
 
@@ -152,11 +152,13 @@ def register_notification_tools(server: MCPServer[Runtime]) -> None:
 
 async def get_new_notifications(
     account_alias: AccountAliasInput,
-    categories: Categories,
+    categories: Annotated[Categories, Field(description="Which kinds of news to check.")],
     ctx: Context[Runtime, Any],
-    allow_consume_events: Annotated[bool, Field(strict=True)] = False,
+    allow_consume_events: Annotated[
+        bool, Field(strict=True, description="Consent to fetch read-once calendar news.")
+    ] = False,
 ) -> NotificationsResult:
-    """Stage/replay selected categories until ack. Fresh agenda consumes require explicit consent; never opens bodies."""
+    """Check a login for new grades, attendance, messages, announcements, calendar events or homework. The batch is stored and returned again, for the same categories, until acknowledge_notifications. Librus reports new calendar events only once, so they need allow_consume_events=true. Changes the grade, attendance and homework views Librus remembers; never opens messages."""
     runtime = ctx.request_context.lifespan_context
     client = runtime.account(account_alias)
     store = runtime.notifications()
@@ -173,7 +175,7 @@ async def get_new_notifications(
 async def get_notification_status(
     account_alias: AccountAliasInput, ctx: Context[Runtime, Any]
 ) -> NotificationStatusResult:
-    """Inspect delivery/raw/uncertainty offline, without clearing, polling, acknowledging or registering a context."""
+    """Show whether a login has an unacknowledged notification batch or an uncertain delivery to resolve. Offline: it does not check Librus or acknowledge anything."""
     runtime = ctx.request_context.lifespan_context
     status = await runtime.notifications().recovery_status(
         context=runtime.account(account_alias).context
@@ -183,11 +185,13 @@ async def get_notification_status(
 
 async def acknowledge_notifications(
     account_alias: AccountAliasInput,
-    receipt: HexDigest,
-    context: HexDigest | BatchContextInput,
+    receipt: Annotated[HexDigest, Field(description="The batch's receipt.")],
+    context: Annotated[
+        HexDigest | BatchContextInput, Field(description="The batch's context or its identifier.")
+    ],
     ctx: Context[Runtime, Any],
 ) -> NotificationAckResult:
-    """Commit a delivered batch's receipt and context (object or identifier). Call only after delivery."""
+    """Confirm that a batch from get_new_notifications reached the user, so it is not returned again. Call only after delivery; this cannot be undone."""
     runtime = ctx.request_context.lifespan_context
     client = runtime.account(account_alias)
     identifier = context if isinstance(context, str) else context.identifier

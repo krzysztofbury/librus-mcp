@@ -36,7 +36,7 @@ from librus_mcp.message_schemas import (
     UnreadCountsResult,
 )
 from librus_mcp.presentation import validate_window_cursor, window_page
-from librus_mcp.read_schemas import AccountAliasInput, Limit, MaxPages, PagedResult
+from librus_mcp.read_schemas import AccountAliasInput, Cursor, FetchPages, PagedResult, PageLimit
 from librus_mcp.runtime import Runtime
 from librus_mcp.schemas import PresentationCursor
 
@@ -70,16 +70,33 @@ def require_binding(runtime: Runtime, alias: str, account: str, context: str, ba
 async def get_messages(
     account_alias: AccountAliasInput,
     ctx: Context[Runtime, Any],
-    folder: MessageFolder = MessageFolder.RECEIVED,
-    cursor: MessageCursorInput | None = None,
-    limit: Limit = 100,
-    max_pages: MaxPages = 2,
-    page_size: Annotated[int, Field(strict=True, ge=1, le=50)] = 50,
-    archived: Annotated[bool, Field(strict=True)] = False,
-    correspondent: CorrespondentReferenceInput | None = None,
-    unread_only: Annotated[bool, Field(strict=True)] = False,
+    folder: Annotated[
+        MessageFolder, Field(description="received or sent mail.")
+    ] = MessageFolder.RECEIVED,
+    cursor: Cursor[MessageCursorInput] = None,
+    limit: PageLimit = 100,
+    max_pages: FetchPages = 2,
+    page_size: Annotated[
+        int,
+        Field(
+            strict=True,
+            ge=1,
+            le=50,
+            description="Messages per Librus page; legacy accepts only 50.",
+        ),
+    ] = 50,
+    archived: Annotated[
+        bool, Field(strict=True, description="Modern only: list earlier years' archive.")
+    ] = False,
+    correspondent: Annotated[
+        CorrespondentReferenceInput | None,
+        Field(description="Modern only: a reference from get_message_correspondents."),
+    ] = None,
+    unread_only: Annotated[
+        bool, Field(strict=True, description="Modern only: unread received mail only.")
+    ] = False,
 ) -> MessagesResult:
-    """Page message summaries without opening bodies. Modern supports archive listing or current-mailbox correspondent/unread filters. Archives cannot be filtered or opened; unread_only is received-only. Repeat query fields with cursors. No backend fallback."""
+    """List message summaries (correspondent, subject, date, read state) without opening them; use get_message_content for the text. On legacy accounts the folder choice changes the view Librus remembers. Modern accounts can list the archive or filter current mail by correspondent or unread_only; archives cannot be filtered. Repeat the same filters with cursor."""
     runtime = ctx.request_context.lifespan_context
     client = runtime.account(account_alias)
     backend = runtime.messaging_backend(account_alias)
@@ -215,11 +232,15 @@ def message_result(
 
 async def get_message_content(
     account_alias: AccountAliasInput,
-    message_ref: MessageReferenceInput,
+    message_ref: Annotated[
+        MessageReferenceInput, Field(description="A message's reference from get_messages.")
+    ],
     ctx: Context[Runtime, Any],
-    allow_mark_read: Annotated[bool, Field(strict=True)] = False,
+    allow_mark_read: Annotated[
+        bool, Field(strict=True, description="Consent to mark a received message read.")
+    ] = False,
 ) -> MessageContentResult:
-    """Read inert message content; received opens require explicit allow_mark_read=true consent."""
+    """Get a message's full text and attachments. Librus marks a received message read when it is opened, so that needs allow_mark_read=true with the user's consent; sent messages do not. Archived messages cannot be opened."""
     runtime = ctx.request_context.lifespan_context
     require_binding(
         runtime, account_alias, message_ref.account, message_ref.context, message_ref.backend.value
@@ -248,11 +269,13 @@ async def get_message_content(
 async def get_message_correspondents(
     account_alias: AccountAliasInput,
     ctx: Context[Runtime, Any],
-    folder: MessageFolder = MessageFolder.RECEIVED,
-    cursor: PresentationCursor | None = None,
-    limit: Limit = 100,
+    folder: Annotated[
+        MessageFolder, Field(description="received or sent mail.")
+    ] = MessageFolder.RECEIVED,
+    cursor: Cursor[PresentationCursor] = None,
+    limit: PageLimit = 100,
 ) -> PagedResult[CorrespondentItem]:
-    """Page modern mailbox senders/receivers for get_messages filters, not send recipients. References bind login, backend and folder; cursors reject source drift."""
+    """Modern accounts: list the people in a mailbox folder, to filter get_messages by correspondent. These references cannot address a new message; use get_recipients for that."""
     runtime = ctx.request_context.lifespan_context
     if runtime.messaging_backend(account_alias) is not MessagingBackend.MODERN:
         raise LibrusError(ErrorKind.UNSUPPORTED_CAPABILITY)
@@ -287,10 +310,10 @@ async def get_message_correspondents(
 async def get_teacher_subjects(
     account_alias: AccountAliasInput,
     ctx: Context[Runtime, Any],
-    cursor: PresentationCursor | None = None,
-    limit: Limit = 100,
+    cursor: Cursor[PresentationCursor] = None,
+    limit: PageLimit = 100,
 ) -> PagedResult[ModernTeacherSubject]:
-    """Page modern teacher-account/subject pairs. IDs are informational, not send-recipient references. Use get_recipients for sending; cursors reject source drift."""
+    """Modern accounts: list teachers with the subjects they teach. The IDs are informational and cannot address a message; use get_recipients for that."""
     runtime = ctx.request_context.lifespan_context
     if runtime.messaging_backend(account_alias) is not MessagingBackend.MODERN:
         raise LibrusError(ErrorKind.UNSUPPORTED_CAPABILITY)
@@ -313,7 +336,7 @@ async def get_message_unread_counts(
     account_alias: AccountAliasInput,
     ctx: Context[Runtime, Any],
 ) -> UnreadCountsResult:
-    """Read modern current/archive unread counters without opening messages. Folder names retain upstream semantics; separate from durable MCP notification delivery/status."""
+    """Modern accounts: get unread message counts for the current and archive folders without opening messages. Independent of get_new_notifications."""
     runtime = ctx.request_context.lifespan_context
     if runtime.messaging_backend(account_alias) is not MessagingBackend.MODERN:
         raise LibrusError(ErrorKind.UNSUPPORTED_CAPABILITY)
@@ -326,7 +349,7 @@ async def get_recipient_types(
     account_alias: AccountAliasInput,
     ctx: Context[Runtime, Any],
 ) -> RecipientTypesResult:
-    """Read backend-specific recipient branches and lookup capabilities without sending."""
+    """List the recipient groups this login can message and whether each can be looked up. Pass a group's reference to get_recipients, or on legacy accounts to get_recipient_choices. Sends nothing."""
     runtime = ctx.request_context.lifespan_context
     client = runtime.account(account_alias)
     backend = runtime.messaging_backend(account_alias)
@@ -373,10 +396,12 @@ async def get_recipient_types(
 
 async def get_recipient_choices(
     account_alias: AccountAliasInput,
-    recipient_type: RecipientTypeInput,
+    recipient_type: Annotated[
+        RecipientTypeInput, Field(description="A group's reference from get_recipient_types.")
+    ],
     ctx: Context[Runtime, Any],
 ) -> RecipientChoicesResult:
-    """Read legacy hierarchical group choices; unsupported on a modern-configured account."""
+    """Legacy accounts only: list the sub-choices of a hierarchical recipient group, such as classes. Put the chosen item's reference.selection_id into recipient_type for get_recipients. Modern accounts return UNSUPPORTED_CAPABILITY."""
     runtime = ctx.request_context.lifespan_context
     require_binding(
         runtime,
@@ -401,10 +426,12 @@ async def get_recipient_choices(
 
 async def get_recipients(
     account_alias: AccountAliasInput,
-    recipient_type: RecipientTypeInput,
+    recipient_type: Annotated[
+        RecipientTypeInput, Field(description="A group's reference from get_recipient_types.")
+    ],
     ctx: Context[Runtime, Any],
 ) -> RecipientsResult:
-    """Read recipients from a bound type; no fallback, automatic virtual expansion or send."""
+    """List the people in one recipient group, to address a message. Modern students and parents groups include virtual accounts only with include_virtual=true in recipient_type. On legacy accounts the lookup changes this login's Librus form state. Nothing is sent."""
     runtime = ctx.request_context.lifespan_context
     require_binding(
         runtime,

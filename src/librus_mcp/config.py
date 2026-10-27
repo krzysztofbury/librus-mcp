@@ -17,9 +17,9 @@ MAX_ACCOUNTS = 16
 DEFAULT_ENVIRONMENT_ALIAS = "librus"
 # Portable JSON Schema regex; Unicode printability is additionally checked below.
 # Rust-only Unicode properties cannot be compiled by common MCP JSON validators.
-ALIAS_PATTERN = (
-    r"^(?:[^\s\x00-\x1f\x7f]|[^\s\x00-\x1f\x7f](?:[^\s\x00-\x1f\x7f]| )*[^\s\x00-\x1f\x7f])$"
-)
+# Printable characters with single or repeated inner spaces, none at either end;
+# the same language as 2.3.0's longer form, shorter in every published schema.
+ALIAS_PATTERN = r"^[^\s\x00-\x1f\x7f](?: *[^\s\x00-\x1f\x7f])*$"
 
 
 class ConfigError(ValueError):

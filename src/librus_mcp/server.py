@@ -3,7 +3,7 @@
 import json
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from typing import Annotated, Any
+from typing import Any
 
 from librus_python_api import AttendanceView, ConnectionSettings, GradeView, RequestBudget
 from librus_python_api.exceptions import LibrusError
@@ -11,15 +11,14 @@ from mcp.server.mcpserver import Context, MCPServer
 from mcp.server.mcpserver.exceptions import ToolError, UnexpectedToolError
 from mcp.types import CallToolResult, InputRequiredResult, TextContent, ToolAnnotations
 from mcp.types import Tool as MCPTool
-from pydantic import Field
 
 from librus_mcp import __version__
 from librus_mcp.attachment_tools import register_attachment_tools
-from librus_mcp.config import ALIAS_PATTERN, AppConfig
+from librus_mcp.config import AppConfig
 from librus_mcp.message_tools import register_message_tools
 from librus_mcp.notification_tools import register_notification_tools
 from librus_mcp.presentation import validate_window_cursor, window_page
-from librus_mcp.read_schemas import Limit
+from librus_mcp.read_schemas import AccountAliasInput, Cursor, PageLimit, Scope
 from librus_mcp.read_tools import register_read_tools
 from librus_mcp.runtime import Runtime, prepare_runtime
 from librus_mcp.schemas import (
@@ -39,15 +38,6 @@ from librus_mcp.school_history_tools import register_school_history_tools
 from librus_mcp.send_tools import register_send_tools
 
 MAX_RESULT_BYTES = 512 * 1024
-AccountAliasInput = Annotated[
-    str,
-    Field(
-        min_length=1,
-        max_length=80,
-        pattern=ALIAS_PATTERN,
-        description="Login alias from list_accounts.",
-    ),
-]
 
 
 def _error(code: str) -> CallToolResult:
@@ -222,7 +212,7 @@ def create_server(
 
 
 async def list_accounts(ctx: Context[Runtime, Any]) -> AccountsResult:
-    """List configured login aliases without contacting Librus."""
+    """List the configured login aliases. Call this first: every other tool takes one as account_alias. Offline."""
     return AccountsResult(
         items=tuple(
             AccountAlias(account_alias=account.alias)
@@ -234,7 +224,7 @@ async def list_accounts(ctx: Context[Runtime, Any]) -> AccountsResult:
 async def get_student_information(
     account_alias: AccountAliasInput, ctx: Context[Runtime, Any]
 ) -> ProfileResult:
-    """Read the represented student's profile from the selected independent login."""
+    """Get the profile of the student a login represents: name, class, register number, tutor, school and lucky number. Each login is an independent parent or student account."""
     runtime = ctx.request_context.lifespan_context
     result = await runtime.account(account_alias).student_information(budget=runtime.budget)
     return ProfileResult(
@@ -254,7 +244,7 @@ async def get_student_information(
 async def get_final_grades(
     account_alias: AccountAliasInput, ctx: Context[Runtime, Any]
 ) -> FinalGradesResult:
-    """Read school-provided midterm/predicted/annual values, with explicit availability."""
+    """Get midterm, predicted and annual grades per subject as the school published them. A column the school does not show is unavailable; an empty or - raw value is not given yet. For individual grades use get_grades or get_grades_window."""
     runtime = ctx.request_context.lifespan_context
     result = await runtime.account(account_alias).final_grades(budget=runtime.budget)
     return FinalGradesResult(
@@ -265,11 +255,11 @@ async def get_final_grades(
 async def get_grades(
     account_alias: AccountAliasInput,
     ctx: Context[Runtime, Any],
-    scope: GradeView = GradeView.ALL,
-    cursor: PresentationCursor | None = None,
-    limit: Limit = 100,
+    scope: Scope[GradeView] = GradeView.ALL,
+    cursor: Cursor[PresentationCursor] = None,
+    limit: PageLimit = 100,
 ) -> GradesResult:
-    """Page grades and formative assessments, including observation cards. Match formative_id to assessment.detail_id for mirrors. Formative scope semantics are unverified; scope changes this login's filter."""
+    """List grades with averages: numeric, descriptive and formative assessments, including observation cards. For a date range use get_grades_window. scope also changes the view this login's Librus session remembers and may not apply to formative rows. A grade whose formative_id equals a formative row's assessment.detail_id is one assessment, not two."""
     runtime = ctx.request_context.lifespan_context
     client = runtime.account(account_alias)
     query = ("grades-all", scope.value)
@@ -299,11 +289,11 @@ async def get_grades(
 async def get_attendance(
     account_alias: AccountAliasInput,
     ctx: Context[Runtime, Any],
-    scope: AttendanceView = AttendanceView.ALL,
-    cursor: PresentationCursor | None = None,
-    limit: Limit = 100,
+    scope: Scope[AttendanceView] = AttendanceView.ALL,
+    cursor: Cursor[PresentationCursor] = None,
+    limit: PageLimit = 100,
 ) -> AttendanceResult:
-    """Read attendance records, paged by cursor. Scope selection mutates this login's session filter."""
+    """List attendance records. For a date range use get_attendance_window; for totals use get_attendance_frequency. scope also changes the view this login's Librus session remembers."""
     runtime = ctx.request_context.lifespan_context
     client = runtime.account(account_alias)
     query = ("attendance-all", scope.value)

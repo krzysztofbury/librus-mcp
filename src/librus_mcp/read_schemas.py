@@ -27,11 +27,27 @@ from librus_mcp.schemas import (
     WireModel,
 )
 
-AccountAliasInput = Annotated[str, Field(min_length=1, max_length=80, pattern=ALIAS_PATTERN)]
+ReferenceAccount = Annotated[str, Field(min_length=1, max_length=80, pattern=ALIAS_PATTERN)]
+# Tool parameters are described for the agent choosing arguments. Fields nested
+# in references stay bare: they are copied back unchanged and cost catalog bytes.
+AccountAliasInput = Annotated[
+    ReferenceAccount, Field(description="Login alias from list_accounts.")
+]
 NumericID = Annotated[str, Field(pattern=r"^[0-9]{1,64}$")]
 Limit = Annotated[int, Field(strict=True, ge=1, le=256)]
+PageLimit = Annotated[Limit, Field(description="Maximum items in this page.")]
 MaxPages = Annotated[int, Field(strict=True, ge=1, le=8)]
+FetchPages = Annotated[MaxPages, Field(description="Maximum Librus pages fetched by this call.")]
 T = TypeVar("T")
+Cursor = Annotated[
+    T | None, Field(description="next_cursor from the previous page; omit for the first page.")
+]
+Scope = Annotated[
+    T,
+    Field(
+        description="Librus view: all, or its week or last_login recent-changes filter; not dates."
+    ),
+]
 
 
 def civil_date(value: object) -> date:
@@ -43,6 +59,10 @@ def civil_date(value: object) -> date:
 
 
 ISODate = Annotated[date, BeforeValidator(civil_date)]
+FirstDay = Annotated[T, Field(description="First day, YYYY-MM-DD, inclusive.")]
+LastDay = Annotated[
+    T, Field(description="Last day, YYYY-MM-DD, inclusive; at most 370 days after the first.")
+]
 
 
 class WindowResult(WireModel, Generic[T]):
@@ -59,7 +79,7 @@ class SchoolReferenceInput(WireModel):
     context: HexDigest
     kind: Literal["agenda", "homework"]
     identifier: NumericID
-    account: AccountAliasInput
+    account: ReferenceAccount
 
     @classmethod
     def from_native(cls, value: SchoolReference, context: str) -> "SchoolReferenceInput":
@@ -159,7 +179,7 @@ class HomeworkResult(CollectionResult[HomeworkItemOutput]):
 class LessonsCursorInput(WireModel):
     version: Literal[1] = 1
     context: HexDigest
-    account: AccountAliasInput
+    account: ReferenceAccount
     start: ISODate
     end: ISODate
     page: Annotated[int, Field(strict=True, ge=0, le=999)]

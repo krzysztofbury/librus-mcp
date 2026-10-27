@@ -1,6 +1,6 @@
 [project]
 name = "librus-mcp"
-version = "2.3.0"
+version = "2.3.1"
 description = "MCP server for Librus Synergia using the independent librus-python-api"
 authors = [{name = "Krzysztof Bury", email = "contact@datacraze.io"}]
 license = "MIT"
@@ -53,6 +53,7 @@ dev = [
     "pytest>=8.0.0",
     "pytest-asyncio>=0.24.0",
     "mypy>=1.19,<3",
+    "pytest-timeout>=2.3",
 ]
 mutation = [
     # mutmut's fork-based runner is POSIX-only; normal platform CI stays offline
@@ -105,6 +106,9 @@ line-ending = "auto"
 [tool.pytest.ini_options]
 asyncio_mode = "strict"
 testpaths = ["tests_native", "release_verification"]
+# A hung test fails with its id after two minutes instead of holding a CI job
+# until the job timeout; the slowest test takes about five seconds.
+timeout = 120
 
 [tool.mutmut]
 source_paths = ["src/librus_mcp"]
