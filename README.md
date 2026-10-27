@@ -315,7 +315,8 @@ your assistant to refresh its tool catalog. The server pins API 1.7.0.
   `get_grades_window`. `items` can now have `record_type="formative"` with an
   `assessment` object. Numeric/descriptive records gain `formative_id`; matching
   `assessment.detail_id` identifies mirrored entries, not extra grades.
-  Custom consumers must handle the new variant. Restart old grade cursors.
+  Custom consumers must handle the new variant, and `point` since 2.4. Restart
+  old grade cursors.
 - Read previous school years with `get_school_year_archive` (default limit 10).
   Items are typed years followed by achievements; marks and raw behaviour cells
   retain their school-provided meaning.

@@ -48,9 +48,20 @@ from `VIEW_DISABLED`, `ACCESS_DENIED` and parser failures.
 - Grade `items` can have `record_type="point"`: an entry from the school's
   "Oceny punktowe" table with the numeric item fields. `raw` is a score on the
   scale `category` names, not a grade symbol; `counts_toward_average` stays
-  null and the tooltip's "Licz do wyniku" stays in `metadata`. The table's
-  "Wyn." period results are the subject's `averages`, and its titled summary
-  columns join `get_final_grades`. There are no point-grade detail fetches.
+  null and the tooltip's "Licz do wyniku" stays in `metadata`. Point items are
+  part of the numeric group in the numeric, descriptive, formative page order.
+- `get_grades` has `point_results`: the table's "Wyn." period results per
+  subject and period, on the score scale. They are never merged into
+  `averages`, which stay the ordinary grade-scale means; `get_grades_window`
+  has neither.
+- A point table with titled summary columns (midterm, predicted or annual)
+  adds its subjects to `get_final_grades`; a column it lacks is unavailable.
+- Grade notifications have no new payload variant: point entries are
+  `NumericGrade` values, recognisable by their point-grade detail `href`,
+  `category` scale and "Licz do wyniku" metadata.
+- There are no point-grade detail fetches. Classification needs each current
+  point entry to link to a point-grade detail; another layout fails with
+  `PARSE` instead of returning point scores as grade symbols.
 
 ## Additive 2.1 reads
 

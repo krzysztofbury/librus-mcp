@@ -9,15 +9,17 @@ table with current-grade headers, and an annual title in it made the summary
 read ambiguous too.
 
 - `test_point_grades_are_scores_with_their_period_result` serves an original
-  point table over loopback and checks the `point` items, their scale category,
-  the "Wyn.I" result as an average and the point subject in final grades,
-  against the published output schema. It fails on API 1.6.4.
+  point table over loopback. It checks the `point` items of both grade tools
+  against the published output schema, their scale category and metadata, the
+  "Wyn.I" result in `point_results` and not in `averages`, the point subject
+  in final grades, and the point entries in grade notifications. It fails on
+  API 1.6.4.
 - An authorized live read of `grades`, `grades_window` and `final_grades` on
   the four owner logins, none of which has point grades, returned the same
   counts on API 1.7.0 as on 1.6.4. A live check on a point-grade account is
   pending.
-- The catalog measures 125897 bytes for 31 default tools and 139441 bytes for
-  35 tools.
+- The catalog measures 126051 bytes for 31 default tools and
+  139595 bytes for 35 tools.
 
 ## 2.3.1 tool definitions
 

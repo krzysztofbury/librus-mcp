@@ -107,6 +107,7 @@ GradeRecord = GradeItem | FormativeItem
 class GradesResult(WireModel):
     items: tuple[GradeRecord, ...]
     averages: tuple[SchoolAverage, ...]
+    point_results: tuple[SchoolAverage, ...]
     descriptive_summaries: tuple[DescriptiveGradeSummary, ...]
     scope: GradeView
     identity: Identity

@@ -18,8 +18,9 @@ library `1.0.2`. Use an explicit version pin when selecting a release.
 
 2.4.0 pins API 1.7.0. Reuse the existing configuration,
 context key, sends and notification stores. Refresh the host's tool catalog.
-Custom consumers must accept the new `formative` grade item variant and the
-nullable `formative_id` on existing variants; restart old grade cursors.
+Custom consumers must accept the new `formative` grade item variant, the
+`point` variant (2.4) and the nullable `formative_id` on existing variants;
+restart old grade cursors.
 Message references/cursors without the new fields still select current,
 unfiltered mail. New archive/filter fields must be preserved on round trips.
 No migration command or state reset is required. The new history, class-free-day

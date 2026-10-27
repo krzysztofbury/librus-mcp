@@ -68,7 +68,7 @@ mutation = [
 exclude-newer = "2026-10-15T00:00:00Z"
 # Admit the reviewed stable native release without relaxing the quarantine for
 # unrelated dependencies.
-exclude-newer-package = { librus-python-api = "2026-10-28T00:00:00Z" }
+exclude-newer-package = { librus-python-api = "2026-10-29T00:00:00Z" }
 
 [tool.ruff]
 line-length = 100

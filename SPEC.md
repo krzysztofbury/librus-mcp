@@ -22,7 +22,8 @@ unshipped 1.x references retain their scoped GPL license. See
 
 2.4.0 uses API 1.7.0. Native history, class-free-day and directory collections are
 paged in MCP without duplicating upstream traversal. Grade presentation includes
-formative records and their mirror IDs. Modern message query/reference/cursor
+formative records and their mirror IDs, and point records with their period
+results. Modern message query/reference/cursor
 projections preserve archive and filter selection. See [MCP_CONTRACT.md](MCP_CONTRACT.md)
 for exact wire shapes and capability limits. Default/all-feature catalog budgets
 are 128/144 KiB for 31/35 tools; the minimal profile has 27 tools.
