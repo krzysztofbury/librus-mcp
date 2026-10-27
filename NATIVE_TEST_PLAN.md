@@ -1,5 +1,22 @@
 # Native migration verification ownership
 
+## 2.4.1 grade fixes
+
+2.4.1 pins API 1.7.1 and changes no tool, input or result shape.
+
+- The real point-grade page relayed by the school that reported 2.4.0 parses
+  offline through the API and the MCP item mapping: 19 `point` items, one
+  `numeric` formative mirror with its `formative_id`, 63 `point_results` and
+  21 final summaries. The page is not committed; API 1.7.1 has original
+  fixtures that follow its structure.
+- An authorized live read found two owner logins failing every grade tool
+  with `PARSE` on 2.4.0, from a multi-line teacher comment. On 2.4.1,
+  `scripts/qualify_native.py --live --phase academic` passed every grade tool
+  on all four logins: 58 passed, 4 `VIEW_DISABLED` (completed lessons, as
+  before) and 6 detail checks without a reference, 102 requests.
+- The catalog is unchanged: 126051 bytes for 31 default tools and 139595 bytes
+  for 35 tools.
+
 ## 2.4.0 point grades
 
 API 1.7.0 reads the "Oceny punktowe" table; MCP 2.4.0 adds the `point`
