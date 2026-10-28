@@ -10,7 +10,7 @@ resolution-markers = [
 exclude-newer = "2026-10-15T00:00:00Z"
 
 [options.exclude-newer-package]
-librus-python-api = "2026-10-29T00:00:00Z"
+librus-python-api = "2026-10-30T00:00:00Z"
 
 [[package]]
 name = "aiohappyeyeballs"
@@ -677,7 +677,7 @@ wheels = [
 
 [[package]]
 name = "librus-mcp"
-version = "2.4.1"
+version = "2.5.0"
 source = { editable = "." }
 dependencies = [
     { name = "librus-python-api" },
@@ -703,7 +703,7 @@ mutation = [
 
 [package.metadata]
 requires-dist = [
-    { name = "librus-python-api", specifier = "==1.7.1" },
+    { name = "librus-python-api", specifier = "==1.8.0" },
     { name = "mcp", specifier = ">=2.2.0,<3" },
     { name = "pydantic", specifier = ">=2.12,<3" },
     { name = "pywin32", marker = "sys_platform == 'win32'", specifier = ">=312" },
@@ -724,7 +724,7 @@ mutation = [{ name = "mutmut", marker = "sys_platform != 'win32'", specifier = "
 
 [[package]]
 name = "librus-python-api"
-version = "1.7.1"
+version = "1.8.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "aiohttp" },
@@ -734,9 +734,9 @@ dependencies = [
     { name = "tzdata", marker = "sys_platform == 'win32'" },
     { name = "yarl" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/5c/1d/316fe26992ebdcf2a88a4d67e21dd963fa7a9dff09a46bd312baa03cf981/librus_python_api-1.7.1.tar.gz", hash = "sha256:a1b97f7e825c76aa7a5082db775b2dc27bf331fe767f24443b531cae423d1de1", size = 327646, upload-time = "2026-10-27T21:58:52.285Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/d3/73/68afbb17dc9594068b49f407a3d5b20e4689fd0b6bf2ed6906f28e7b7ee7/librus_python_api-1.8.0.tar.gz", hash = "sha256:55d48213f9c0bfc09a03cf496fa25b4df9d8d7f75962eb8fa30a629230a02492", size = 341800, upload-time = "2026-10-28T08:12:02.57Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/32/83/3acac85439aedc8a1c70c2c0c4f461b9d3584bd7c8f66012331a03b1085e/librus_python_api-1.7.1-py3-none-any.whl", hash = "sha256:d908dc5de145f783f3d2ab94e08b16a693eb1cd8a3f2a1c6edb994568ce52bc0", size = 164596, upload-time = "2026-10-27T21:58:50.937Z" },
+    { url = "https://files.pythonhosted.org/packages/93/a7/d5a44def6bd21477dda5b397778de0e54614ca7c2a01aded40e9976116ff/librus_python_api-1.8.0-py3-none-any.whl", hash = "sha256:e29164b29ff38c718aaf3b5bc5ec36e88003b1b4c1c4915853f5d95bf5b3a5a3", size = 178300, upload-time = "2026-10-28T08:12:01.328Z" },
 ]
 
 [[package]]

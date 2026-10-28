@@ -98,7 +98,9 @@ expression and runtime requirements are unchanged from 1.6.3.
 On 2026-10-27 the pin moved to 1.7.0, which reads point grades; its PyPI
 license expression (MIT) and runtime requirements, read from PyPI after
 publication, are unchanged from 1.6.4. The 1.7.1 fix release keeps the same
-license expression and runtime requirements on PyPI.
+license expression and runtime requirements on PyPI, and so does 1.8.0. The
+2.5.0 `check-tools` command imports jsonschema, already in the runtime
+closure through mcp.
 2.3.0 declares uvicorn (BSD-3-Clause, already in the runtime closure through
 mcp) as a direct dependency for the self-hosted HTTP transport; the closure is
 unchanged. The container image adds the Debian-based `python:3.14-slim` base
