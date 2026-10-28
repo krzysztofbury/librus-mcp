@@ -358,6 +358,22 @@ reference. Downloading does not open the message body.
 
 ## Troubleshooting
 
+Diagnostics never print school data, logins or aliases; review any output
+before sharing it anyway.
+
+| Situation | What to use | What you get |
+| --- | --- | --- |
+| A tool returns an error | the error result itself | `code`, `where` (code locations, the failure site last), `versions` |
+| You want to see failures in the logs | the server's standard error (`docker logs` for the image) | one line per failed call |
+| You want the page structure of a failure | `LIBRUS_MCP_DIAGNOSE_FAILURES=1` | the masked HTML structure around the failure, on standard error |
+| You want a trace of every Librus read | `LIBRUS_MCP_LOG_OPERATIONS=1` | one line per read: operation, outcome, time, requests, failure site |
+| The assistant says `Invalid structured content returned by tool ...` | reload the assistant's tool list, then `librus-mcp check-tools` | the failing result path and schema rule |
+| A page fails to parse and you want to report it | `librus-mcp inspect-page grades page.html` | counts, or code locations and the masked structure, offline |
+
+With Docker, pass the variables with `-e NAME=1` and read `docker logs`; run
+the commands with `docker exec CONTAINER librus-mcp ...` (the container's own
+configuration is used).
+
 - **`Invalid structured content returned by tool ...`** comes from your
   assistant, not the server: it checks each result against the tool list it
   saved. After an upgrade, reload the tool list (Hermes: `/reload-mcp`;
@@ -379,16 +395,9 @@ reference. Downloading does not open the message body.
      (or `final-grades`). With Docker:
      `docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/in:ro" ghcr.io/krzysztofbury/librus-mcp:2.5.0 inspect-page grades /in/page.html`
      (add `:z` after `ro` on SELinux hosts).
-     It runs offline and prints counts, or the failure's code locations and
-     the page structure with all text and values masked.
   3. Review the output and attach it to an
      [issue](https://github.com/krzysztofbury/librus-mcp/issues), together
      with the `where` and `versions` from the error.
-- Every failed call also writes a line to the server's standard error. Set
-  `LIBRUS_MCP_DIAGNOSE_FAILURES=1` to add the masked page structure there, and
-  `LIBRUS_MCP_LOG_OPERATIONS=1` to log every Librus read (name, outcome, time,
-  requests and failure site); with Docker, pass them with `-e` and read
-  `docker logs`. See [PRIVACY.md](PRIVACY.md).
 
 ## Privacy
 
