@@ -43,6 +43,9 @@ own policy.
   page structure around the failure to standard error: tags, known labels and
   lengths, with all page text and values masked. It is off by default; review
   it before sharing.
+- If you set `LIBRUS_MCP_LOG_OPERATIONS=1`, every Librus read writes a line
+  to standard error: the operation name, outcome, time, request and byte
+  counts and, on failure, code locations. No login, alias or school data.
 - `librus-mcp inspect-page` reads only the file you give it and makes no
   request. `librus-mcp check-tools` performs ordinary reads for every
   configured login and prints only positions, tool names, counts, schema paths

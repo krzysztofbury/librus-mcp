@@ -22,6 +22,9 @@ later. Inputs and successful results are unchanged.
 - `librus-mcp inspect-page {grades,final-grades} FILE` parses a saved page or
   copied table offline, without configuration, and prints counts or the
   failure report, with all page text and values masked.
+- `LIBRUS_MCP_LOG_OPERATIONS=1` writes one standard-error line per Librus read:
+  operation, outcome, time, request and byte counts, and failure code
+  locations from the library's diagnostic events. Off by default.
 - `librus-mcp check-tools` calls the read tools for every configured login
   through a real MCP client session and checks each result against the
   published schema as hosts do. A mismatch is reported as a result path, the

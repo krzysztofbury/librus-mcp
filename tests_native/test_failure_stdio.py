@@ -174,3 +174,25 @@ async def test_check_tools_reports_a_schema_mismatch_without_values(tmp_path, mo
     assert report.startswith("login 1 get_grades: SCHEMA MISMATCH at items/")
     assert '/record_type: enum ["numeric", "descriptive"], value type str' in report
     assert ALIAS not in "\n".join(lines) and "Point Subject" not in "\n".join(lines)
+
+
+@pytest.mark.asyncio
+async def test_operation_log_lists_each_librus_read_without_logins(tmp_path):
+    stderr_path = tmp_path / "stderr.txt"
+    async with BrokenTooltipWire().serve() as wire:
+        process = server_process(wire.origin, [(ALIAS, "71")])
+        process.env["LIBRUS_MCP_LOG_OPERATIONS"] = "1"
+        with anyio.fail_after(30), stderr_path.open("w") as errlog:
+            async with stdio_client(process, errlog=errlog) as streams:
+                async with ClientSession(*streams) as session:
+                    await session.initialize()
+                    profile = await session.call_tool(
+                        "get_student_information", {"account_alias": ALIAS}
+                    )
+                    assert not profile.is_error
+                    await session.call_tool("get_grades", {"account_alias": ALIAS})
+    stderr = stderr_path.read_text(encoding="utf-8")
+    assert "librus-mcp: operation student_information OK " in stderr
+    assert "librus-mcp: operation grades PARSE " in stderr
+    assert "at markup:tooltip_fields:" in stderr.split("operation grades PARSE", 1)[1]
+    assert ALIAS not in stderr and SECRET not in stderr

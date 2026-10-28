@@ -385,8 +385,10 @@ reference. Downloading does not open the message body.
      [issue](https://github.com/krzysztofbury/librus-mcp/issues), together
      with the `where` and `versions` from the error.
 - Every failed call also writes a line to the server's standard error. Set
-  `LIBRUS_MCP_DIAGNOSE_FAILURES=1` to add the masked page structure there
-  (see [PRIVACY.md](PRIVACY.md)).
+  `LIBRUS_MCP_DIAGNOSE_FAILURES=1` to add the masked page structure there, and
+  `LIBRUS_MCP_LOG_OPERATIONS=1` to log every Librus read (name, outcome, time,
+  requests and failure site); with Docker, pass them with `-e` and read
+  `docker logs`. See [PRIVACY.md](PRIVACY.md).
 
 ## Privacy
 
