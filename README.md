@@ -17,7 +17,7 @@ Upgrading from 1.x? See [Upgrading from 1.x](#upgrading-from-1x).
 
 ## Quick start
 
-The commands below pin **2.4.1**, using the native API 1.7.1. You need your
+The commands below pin **2.5.0**, using the native API 1.8.0. You need your
 Librus Synergia login and password. Accounts that require interactive
 two-factor authentication are not supported.
 
@@ -102,7 +102,7 @@ Claude Code:
 
 ```bash
 claude mcp add --scope user --transport stdio librus \
-  -- uvx --python 3.14 librus-mcp==2.4.1 --config /absolute/path/to/config.json
+  -- uvx --python 3.14 librus-mcp==2.5.0 --config /absolute/path/to/config.json
 ```
 
 Claude Desktop (Settings > Developer > Edit Config):
@@ -112,7 +112,7 @@ Claude Desktop (Settings > Developer > Edit Config):
   "mcpServers": {
     "librus": {
       "command": "uvx",
-      "args": ["--python", "3.14", "librus-mcp==2.4.1", "--config", "/absolute/path/to/config.json"]
+      "args": ["--python", "3.14", "librus-mcp==2.5.0", "--config", "/absolute/path/to/config.json"]
     }
   }
 }
@@ -122,21 +122,21 @@ Gemini CLI:
 
 ```bash
 gemini mcp add --scope user --transport stdio \
-  librus uvx --python 3.14 librus-mcp==2.4.1 --config /absolute/path/to/config.json
+  librus uvx --python 3.14 librus-mcp==2.5.0 --config /absolute/path/to/config.json
 ```
 
 OpenAI Codex CLI:
 
 ```bash
 codex mcp add librus \
-  -- uvx --python 3.14 librus-mcp==2.4.1 --config /absolute/path/to/config.json
+  -- uvx --python 3.14 librus-mcp==2.5.0 --config /absolute/path/to/config.json
 ```
 
 OpenCode:
 
 ```bash
 opencode mcp add librus --global -- \
-  uvx --python 3.14 librus-mcp==2.4.1 --config /absolute/path/to/config.json
+  uvx --python 3.14 librus-mcp==2.5.0 --config /absolute/path/to/config.json
 ```
 
 Hermes Agent (`~/.hermes/config.yaml`):
@@ -145,13 +145,13 @@ Hermes Agent (`~/.hermes/config.yaml`):
 mcp_servers:
   librus:
     command: "uvx"
-    args: ["--python", "3.14", "librus-mcp==2.4.1", "--config", "/absolute/path/to/config.json"]
+    args: ["--python", "3.14", "librus-mcp==2.5.0", "--config", "/absolute/path/to/config.json"]
 ```
 
 Check the setup without contacting Librus:
 
 ```bash
-uvx --python 3.14 librus-mcp==2.4.1 --config /absolute/path/to/config.json --check-config
+uvx --python 3.14 librus-mcp==2.5.0 --config /absolute/path/to/config.json --check-config
 ```
 
 If a GUI assistant cannot find `uvx`, use its absolute path (`which uvx` or
@@ -159,7 +159,7 @@ If a GUI assistant cannot find `uvx`, use its absolute path (`which uvx` or
 
 ### Desktop bundle (preview)
 
-Each release attaches `librus-mcp-2.4.1.mcpb` to its
+Each release attaches `librus-mcp-2.5.0.mcpb` to its
 [GitHub release](https://github.com/krzysztofbury/librus-mcp/releases). Open it
 with an app that supports MCP Bundles, such as Claude Desktop. The app asks for
 the Librus login and password, keeps them in its settings, and installs Python
@@ -180,7 +180,7 @@ readable only by it:
 ```bash
 mkdir -p ~/librus-mcp/data && cd ~/librus-mcp
 # config.json: the same format as above, any number of logins
-docker run --rm ghcr.io/krzysztofbury/librus-mcp:2.4.1 --generate-token > token
+docker run --rm ghcr.io/krzysztofbury/librus-mcp:2.5.0 --generate-token > token
 chmod 600 config.json token
 ```
 
@@ -190,7 +190,7 @@ of `id -u` and `id -g`:
 ```yaml
 services:
   librus-mcp:
-    image: ghcr.io/krzysztofbury/librus-mcp:2.4.1
+    image: ghcr.io/krzysztofbury/librus-mcp:2.5.0
     command: ["--transport", "http", "--allowed-host", "librus-mcp.example.lan:*"]
     user: "1000:1000"
     environment:
@@ -252,7 +252,7 @@ Things to know about HTTP mode:
 
 The same image also runs over stdio for a client on the Docker host:
 `docker run -i --rm -v librus-mcp-data:/data -e LIBRUS_USERNAME -e LIBRUS_PASSWORD
-ghcr.io/krzysztofbury/librus-mcp:2.4.1`.
+ghcr.io/krzysztofbury/librus-mcp:2.5.0`.
 
 ### MCP Registry
 
@@ -264,7 +264,7 @@ and the desktop bundle. Clients that install from the registry ask for
 
 ## Upgrading from 1.x
 
-Change the version in your assistant's configuration to `librus-mcp==2.4.1`, add
+Change the version in your assistant's configuration to `librus-mcp==2.5.0`, add
 `--python 3.14` before it and keep your existing `--config` file. On first start
 2.0 adapts the old setup automatically: it creates the key, restricts shared
 1.x folders to your user, ignores the removed behaviour-notes setting and adopts
@@ -309,7 +309,7 @@ value is a score on the scale named by their category.
 ### What's new in 2.1
 
 Keep your existing 2.0 configuration, context key and durable state; reconnect
-your assistant to refresh its tool catalog. The server pins API 1.7.1.
+your assistant to refresh its tool catalog. The server pins API 1.8.0.
 
 - Ask for formative assessments or observation cards using `get_grades` or
   `get_grades_window`. `items` can now have `record_type="formative"` with an
@@ -355,6 +355,52 @@ from `get_message_content` as `attachment_ref.identifier` and
 `attachment_ref.archived`. `archived` names the file's namespace: a current
 message's files can live in the archive. When omitted, it follows the message
 reference. Downloading does not open the message body.
+
+## Troubleshooting
+
+Diagnostics never print school data, logins or aliases; review any output
+before sharing it anyway.
+
+| Situation | What to use | What you get |
+| --- | --- | --- |
+| A tool returns an error | the error result itself | `code`, `where` (code locations, the failure site last), `versions` |
+| You want to see failures in the logs | the server's standard error (`docker logs` for the image) | one line per failed call |
+| You want the page structure of a failure | `LIBRUS_MCP_DIAGNOSE_FAILURES=1` | the masked HTML structure around the failure, on standard error |
+| You want a trace of every Librus read | `LIBRUS_MCP_LOG_OPERATIONS=1` | one line per read: operation, outcome, time, requests, failure site |
+| The assistant says `Invalid structured content returned by tool ...` | reload the assistant's tool list, then `librus-mcp check-tools` | the failing result path and schema rule |
+| A page fails to parse and you want to report it | `librus-mcp inspect-page grades page.html` | counts, or code locations and the masked structure, offline |
+
+With Docker, pass the variables with `-e NAME=1` and read `docker logs`. Run
+`check-tools` in the running container with
+`docker exec CONTAINER librus-mcp check-tools` (it uses the container's own
+configuration and signs every login in a second time, so the server's next
+read may have to sign in again). `inspect-page` needs the file inside the
+container; use the `docker run` form in step 2 below.
+
+- **`Invalid structured content returned by tool ...`** comes from your
+  assistant, not the server: it checks each result against the tool list it
+  saved. After an upgrade, reload the tool list (Hermes: `/reload-mcp`;
+  otherwise restart the assistant or reconnect the server). If it persists,
+  run `uvx --python 3.14 librus-mcp==2.5.0 --config /path/to/config.json check-tools`.
+  It calls the read tools for every login (normal Librus reads, which change
+  the views Librus remembers as the tools do), checks each result the way
+  assistants do and prints the failing path and schema rule, never school
+  data.
+- **A tool returns `PARSE` or `UNSUPPORTED_CAPABILITY`**: the error lists
+  `where` it failed and the `versions`. Your school's page has a layout the
+  library does not read yet. To report it without sharing school data:
+  1. In the browser, open the failing page (for grades,
+     `https://synergia.librus.pl/przegladaj_oceny/uczen`), press Ctrl+U to
+     view the source the server sent, and save it as `page.html` (UTF-8). A
+     copied table (Inspect, Copy outer HTML) also works, but shows the page
+     after its scripts ran.
+  2. Run `uvx --python 3.14 librus-mcp==2.5.0 inspect-page grades page.html`
+     (or `final-grades`). With Docker:
+     `docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/in:ro" ghcr.io/krzysztofbury/librus-mcp:2.5.0 inspect-page grades /in/page.html`
+     (add `:z` after `ro` on SELinux hosts).
+  3. Review the output and attach it to an
+     [issue](https://github.com/krzysztofbury/librus-mcp/issues), together
+     with the `where` and `versions` from the error.
 
 ## Privacy
 

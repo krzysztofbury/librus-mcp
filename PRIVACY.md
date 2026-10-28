@@ -34,6 +34,22 @@ own policy.
 - Installing the server downloads it and its dependencies from PyPI, or Python
   through uv, as with any Python package.
 - Sending messages to the school is off unless you enable it.
+- When a tool call fails, the server writes a line to its standard error
+  (which your assistant or Docker usually keeps in a log): the tool name (or
+  "unknown tool"), the error code or exception class, code locations and the
+  versions. It never includes the login, alias, arguments or school data. The error result returned to the assistant
+  holds the same code, locations and versions.
+- If you set `LIBRUS_MCP_DIAGNOSE_FAILURES=1`, a failed read also writes the
+  page structure around the failure to standard error: tags, known labels and
+  lengths, with all page text and values masked. It is off by default; review
+  it before sharing.
+- If you set `LIBRUS_MCP_LOG_OPERATIONS=1`, every Librus read writes a line
+  to standard error: the operation name, outcome, time, request and byte
+  counts and, on failure, code locations. No login, alias or school data.
+- `librus-mcp inspect-page` reads only the file you give it and makes no
+  request. `librus-mcp check-tools` performs ordinary reads for every
+  configured login and prints only positions, tool names, counts, schema paths
+  and rules.
 
 ## What it stores on your computer
 

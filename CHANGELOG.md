@@ -4,6 +4,51 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [2.5.0] - 2026-10-28
+
+Failures say where they happened, output schemas tolerate fields added later,
+and schools on the new descriptive grading schema get their descriptive
+grades. Inputs are unchanged; other successful results are unchanged.
+
+### Added
+
+- Error results add `where`, the failure's code locations (for example
+  `markup:tooltip_fields:113`, the original site last), and `versions`
+  (`{"mcp":...,"api":...}`); `INTERNAL_ERROR` adds the exception class name.
+  No alias, argument, message or school data is included.
+- Each failed call writes a line to standard error with the tool, code,
+  locations and versions; a tool name the client made up is shown as
+  "unknown tool". `LIBRUS_MCP_DIAGNOSE_FAILURES=1` also writes the
+  masked page structure around the failure.
+- `librus-mcp inspect-page {grades,final-grades} FILE` parses a saved page or
+  copied table offline, without configuration, and prints counts or the
+  failure report, with all page text and values masked.
+- `LIBRUS_MCP_LOG_OPERATIONS=1` writes one standard-error line per Librus read:
+  operation, outcome, time, request and byte counts, and failure code
+  locations from the library's diagnostic events. Off by default.
+- `librus-mcp check-tools` calls the read tools for every configured login
+  through a real MCP client session and checks each result against the
+  published schema as hosts do. A mismatch is reported as a result path, the
+  schema rule and the value type, never the value, so the cause of a host's
+  `Invalid structured content` error can be shared.
+- README troubleshooting: the stale-catalog error and how to report a layout.
+- Schools on the new descriptive grading schema (an empty subject table whose
+  grades load from gateway JSON) get those grades as `descriptive` items in
+  `get_grades` (default `all` scope) and `get_grades_window`, from API 1.8.0.
+  The routes and fields are source-informed; an authorized live read parsed
+  populated records on one school's login.
+
+### Changed
+
+- Output schemas no longer publish `additionalProperties: false`, so a host
+  that keeps an older catalog accepts results with fields added later. Hosts
+  that cached a 2.3 catalog still need one reload for 2.4's `point` grades
+  (Hermes: `/reload-mcp`). Input schemas are unchanged.
+- Pins librus-python-api 1.8.0 (failure diagnostics, gateway descriptive
+  grades).
+- The catalog measures 123615 bytes for 31 default tools and 136927 bytes for
+  35 tools, within the 128 and 144 KiB budgets.
+
 ## [2.4.1] - 2026-10-27
 
 Grade fixes from API 1.7.1. Tools, inputs and results are unchanged.

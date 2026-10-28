@@ -5,6 +5,7 @@ import pytest
 from mcp.client import ClientSession
 from mcp.client.stdio import stdio_client
 
+from tests_native.errors import closed
 from tests_native.test_native_stdio import server_process
 from tests_native.wire import Wire
 
@@ -66,7 +67,7 @@ async def test_preview_binding_claim_outcome_and_restart_never_replays_send(
                 no_consent = await session.call_tool(
                     "send_message", arguments | {"confirmation_token": token}
                 )
-                assert no_consent.is_error and no_consent.structured_content == {
+                assert no_consent.is_error and closed(no_consent.structured_content) == {
                     "error": {"code": "INVALID_INPUT"}
                 }
                 assert len(wire.calls) == calls
@@ -79,7 +80,7 @@ async def test_preview_binding_claim_outcome_and_restart_never_replays_send(
                         "confirm": True,
                     },
                 )
-                assert changed.is_error and changed.structured_content == {
+                assert changed.is_error and closed(changed.structured_content) == {
                     "error": {"code": "INVALID_INPUT"}
                 }
                 assert len(wire.calls) == calls
@@ -105,14 +106,14 @@ async def test_preview_binding_claim_outcome_and_restart_never_replays_send(
                 replay = await session.call_tool(
                     "send_message", arguments | {"confirmation_token": token, "confirm": True}
                 )
-                assert replay.is_error and replay.structured_content == {
+                assert replay.is_error and closed(replay.structured_content) == {
                     "error": {"code": "INVALID_INPUT"}
                 }
                 duplicate = await session.call_tool("preview_message", arguments)
                 if expected == "rejected":
                     assert not duplicate.is_error
                 else:
-                    assert duplicate.is_error and duplicate.structured_content == {
+                    assert duplicate.is_error and closed(duplicate.structured_content) == {
                         "error": {"code": "UNKNOWN_DELIVERY"}
                     }
                 assert len(wire.calls) == calls
@@ -137,7 +138,7 @@ async def test_preview_binding_claim_outcome_and_restart_never_replays_send(
                 foreign = await session.call_tool(
                     "get_send_outcome", {"account_alias": "other", "confirmation_token": token}
                 )
-                assert foreign.is_error and foreign.structured_content == {
+                assert foreign.is_error and closed(foreign.structured_content) == {
                     "error": {"code": "INVALID_INPUT"}
                 }
                 assert len(wire.calls) == calls
@@ -226,7 +227,7 @@ PersistenceStore.execute_send = unavailable
                 result = await session.call_tool(
                     "send_message", arguments | {"confirmation_token": token, "confirm": True}
                 )
-                assert result.is_error and result.structured_content == {
+                assert result.is_error and closed(result.structured_content) == {
                     "error": {"code": "STORAGE"}
                 }
                 history = await session.call_tool(

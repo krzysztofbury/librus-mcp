@@ -13,6 +13,7 @@ import pytest
 from mcp.client import ClientSession
 from mcp.client.stdio import StdioServerParameters, stdio_client
 
+from tests_native.errors import closed
 from tests_native.mutation_support import prepare_mutation_child
 from tests_native.wire import Wire
 
@@ -166,7 +167,7 @@ async def test_four_logins_share_traffic_but_not_sessions_and_catalog_does_not_l
                     bad = await session.call_tool(
                         "get_student_information", {"account_alias": "unknown"}
                     )
-                    assert bad.is_error and bad.structured_content == {
+                    assert bad.is_error and closed(bad.structured_content) == {
                         "error": {"code": "INVALID_INPUT"}
                     }
                     assert len(wire.calls) == calls
@@ -220,7 +221,9 @@ async def test_native_grade_attendance_contracts_and_effect_annotations():
                         {"account_alias": "account", "scope": "private-sensitive-value"},
                     )
                     assert invalid.is_error
-                    assert invalid.structured_content == {"error": {"code": "INVALID_INPUT"}}
+                    assert closed(invalid.structured_content) == {
+                        "error": {"code": "INVALID_INPUT"}
+                    }
                     assert "private-sensitive-value" not in invalid.model_dump_json()
                     assert len(wire.calls) == before
 
@@ -237,7 +240,7 @@ async def test_rejected_account_and_parse_failure_are_classified_not_empty():
                     bad = await session.call_tool(
                         "get_student_information", {"account_alias": "bad"}
                     )
-                    assert bad.is_error and bad.structured_content == {
+                    assert bad.is_error and closed(bad.structured_content) == {
                         "error": {"code": "CREDENTIALS_REJECTED"}
                     }
                     assert wire.logins["denied"] == 1
@@ -250,7 +253,7 @@ async def test_rejected_account_and_parse_failure_are_classified_not_empty():
                     parsed = await session.call_tool(
                         "get_student_information", {"account_alias": "good"}
                     )
-                    assert parsed.is_error and parsed.structured_content == {
+                    assert parsed.is_error and closed(parsed.structured_content) == {
                         "error": {"code": "PARSE"}
                     }
                     assert "unrecognized sensitive page" not in parsed.model_dump_json()
@@ -259,7 +262,7 @@ async def test_rejected_account_and_parse_failure_are_classified_not_empty():
                     unavailable = await session.call_tool(
                         "get_student_information", {"account_alias": "good"}
                     )
-                    assert unavailable.is_error and unavailable.structured_content == {
+                    assert unavailable.is_error and closed(unavailable.structured_content) == {
                         "error": {"code": "MODULE_UNAVAILABLE"}
                     }
                     assert "/modul_niedostepny" not in unavailable.model_dump_json()
@@ -297,7 +300,7 @@ async def test_full_mcp_result_size_limit_returns_explicit_error(monkeypatch):
 
     monkeypatch.setattr(module, "MAX_RESULT_BYTES", 400)
     result = await server.call_tool("fixture_large_output", {})
-    assert result.is_error and result.structured_content == {"error": {"code": "LIMIT"}}
+    assert result.is_error and closed(result.structured_content) == {"error": {"code": "LIMIT"}}
     assert "\u017c" not in result.model_dump_json()
 
 

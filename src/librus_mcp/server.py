@@ -1,11 +1,14 @@
 """Native MCP registration; the public API owns every upstream request."""
 
 import json
+import os
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from typing import Any
 
 from librus_python_api import AttendanceView, ConnectionSettings, GradeView, RequestBudget
+from librus_python_api import __version__ as api_version
+from librus_python_api.diagnostics import describe_failure, failure_frames
 from librus_python_api.exceptions import LibrusError
 from mcp.server.mcpserver import Context, MCPServer
 from mcp.server.mcpserver.exceptions import ToolError, UnexpectedToolError
@@ -14,7 +17,7 @@ from mcp.types import Tool as MCPTool
 
 from librus_mcp import __version__
 from librus_mcp.attachment_tools import register_attachment_tools
-from librus_mcp.config import AppConfig
+from librus_mcp.config import AppConfig, notice
 from librus_mcp.message_tools import register_message_tools
 from librus_mcp.notification_tools import register_notification_tools
 from librus_mcp.presentation import validate_window_cursor, window_page
@@ -38,11 +41,25 @@ from librus_mcp.school_history_tools import register_school_history_tools
 from librus_mcp.send_tools import register_send_tools
 
 MAX_RESULT_BYTES = 512 * 1024
+VERSIONS = {"mcp": __version__, "api": api_version}
+_OWN_PACKAGES = ("librus_python_api", "librus_mcp")
+# Opt-in: also print the redacted page structure of a failure to stderr.
+DIAGNOSE_FAILURES = "LIBRUS_MCP_DIAGNOSE_FAILURES"
+_STRUCTURE_KINDS = frozenset({"PARSE", "UNSUPPORTED_CAPABILITY", "INTERNAL_ERROR"})
 
 
-def _error(code: str) -> CallToolResult:
-    # Closed codes only, no validation input, cause text, login, token or HTML.
-    payload = {"error": {"code": code}}
+def _error(
+    code: str, *, where: tuple[str, ...] = (), exception: str | None = None
+) -> CallToolResult:
+    # Closed codes, opaque code locations, an exception class name and versions
+    # only: no validation input, alias, message, cause text, login, token or HTML.
+    detail: dict[str, Any] = {"code": code}
+    if where:
+        detail["where"] = list(where)
+    if exception is not None:
+        detail["exception"] = exception
+    detail["versions"] = VERSIONS
+    payload = {"error": detail}
     return CallToolResult(
         is_error=True,
         content=[TextContent(type="text", text=json.dumps(payload, separators=(",", ":")))],
@@ -106,7 +123,7 @@ class NativeServer(MCPServer[Runtime]):
             tool.model_copy(
                 update={
                     "input_schema": compact_schema(tool.input_schema),
-                    "output_schema": compact_schema(tool.output_schema),
+                    "output_schema": _open_output(compact_schema(tool.output_schema)),
                 }
             )
             for tool in await super().list_tools()
@@ -118,18 +135,9 @@ class NativeServer(MCPServer[Runtime]):
         try:
             result = await super().call_tool(name, arguments, context)
         except ToolError as error:
-            cause: BaseException | None = error
-            # SDK wraps anticipated and unexpected tool failures. Inspect only type
-            # and canonical kind, never concatenate exception messages.
-            for _ in range(8):
-                if isinstance(cause, LibrusError):
-                    return _error(cause.kind.value.upper())
-                if cause is None:
-                    break
-                cause = cause.__cause__
-            return _error(
-                "INTERNAL_ERROR" if isinstance(error, UnexpectedToolError) else "INVALID_INPUT"
-            )
+            # A client-sent name is shown only when it is a registered tool.
+            known = self._tool_manager.get_tool(name) is not None
+            return _failure(name if known else "unknown tool", error)
         if (
             isinstance(result, CallToolResult)
             and result.structured_content is not None
@@ -153,8 +161,70 @@ class NativeServer(MCPServer[Runtime]):
                 }
             )
         if len(result.model_dump_json(by_alias=True).encode("utf-8")) > MAX_RESULT_BYTES:
+            _notice(f"{name} failed: LIMIT, the result is over {MAX_RESULT_BYTES} bytes")
             return _error("LIMIT")
         return result
+
+
+def _failure(tool: str, error: ToolError) -> CallToolResult:
+    """Report a failed call by type, kind and code location, never by message."""
+    cause: BaseException = error
+    root: BaseException = error
+    # SDK wraps anticipated and unexpected tool failures. Inspect only type
+    # and canonical kind, never concatenate exception messages.
+    for _ in range(8):
+        if isinstance(cause, LibrusError):
+            break
+        if not isinstance(cause, ToolError):
+            root = cause
+        if cause.__cause__ is None:
+            break
+        cause = cause.__cause__
+    exception = None
+    if isinstance(cause, LibrusError):
+        code = cause.kind.value.upper()
+        where = failure_frames(cause, packages=_OWN_PACKAGES)
+    elif isinstance(error, UnexpectedToolError):
+        code, cause = "INTERNAL_ERROR", root
+        where = failure_frames(root, packages=_OWN_PACKAGES)
+        exception = type(root).__name__
+    else:
+        code, where = "INVALID_INPUT", ()
+    location = f" at {' < '.join(reversed(where))}" if where else ""
+    versions = f"mcp {VERSIONS['mcp']}, api {VERSIONS['api']}"
+    kind = f"{code} ({exception})" if exception else code
+    _notice(f"{tool} failed: {kind}{location} ({versions})")
+    if code in _STRUCTURE_KINDS and os.environ.get(DIAGNOSE_FAILURES) == "1":
+        report = describe_failure(cause)
+        if report is not None:
+            _notice(f"{tool} failure structure (no page text or values):\n{report}")
+    return _error(code, where=where, exception=exception)
+
+
+def _notice(message: str) -> None:
+    # A closed or full stderr must not turn an error result into a protocol error.
+    try:
+        notice(message)
+    except OSError, ValueError:
+        pass
+
+
+def _open_output(schema: Any) -> Any:
+    """An output schema without `additionalProperties: false`.
+
+    Hosts validate results against the catalog they cached. Without the closed
+    objects, a field added in a later release does not break a host that kept
+    an older catalog. Results are still built from closed models.
+    """
+    if isinstance(schema, dict):
+        return {
+            key: _open_output(value)
+            for key, value in schema.items()
+            if not (key == "additionalProperties" and value is False)
+        }
+    if isinstance(schema, list):
+        return [_open_output(value) for value in schema]
+    return schema
 
 
 def create_server(

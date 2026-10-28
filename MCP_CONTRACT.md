@@ -37,11 +37,28 @@ cursor/truncation information. Whole grade/attendance reads page by `limit`
 (default 100) like the date-window tools, so results stay bounded by design. References are inert identifiers, not upstream URLs.
 
 Domain/protocol errors return `isError=true` and
-`{"error":{"code":"CLOSED_CODE"}}`. No validation inputs, credentials, tokens,
-HTML, causes or raw exception text are included. Unanticipated errors are
+`{"error":{"code":"CLOSED_CODE","where":[...],"versions":{"mcp":"X","api":"Y"}}}`.
+Since 2.5, `where` lists the failure's code locations in `librus_mcp` and
+`librus_python_api` (`module:function:line`, the original site last; omitted
+when there is none) and `versions` names both packages; unanticipated errors
+add `exception`, the exception class name. Code locations are opaque and
+change between releases: report them, do not parse them. No validation
+inputs, aliases, messages, credentials, tokens, HTML, causes or raw exception
+text are included. Unanticipated errors are
 `INTERNAL_ERROR`. Unsupported capability and valid empty results are distinct.
 `MODULE_UNAVAILABLE` means the school's product lacks a module; it is distinct
 from `VIEW_DISABLED`, `ACCESS_DENIED` and parser failures.
+
+## Output schema evolution (2.5)
+
+Hosts validate results against the tool catalog they cached, and some keep it
+across a server upgrade. From 2.5, output schemas do not publish
+`additionalProperties: false` (input schemas still do, and results are still
+built from closed models), so a later release can add an optional result field
+without breaking such a host. A new enum value, a changed type, a renamed or
+removed field still needs the host to reload the catalog; the CHANGELOG says
+so for each release that has one. The symptom of a stale catalog is the
+host's own error, `Invalid structured content returned by tool <name>`.
 
 ## Additive 2.4 point grades
 

@@ -18,10 +18,30 @@ from librus_python_api import (
 )
 from librus_python_api.exceptions import ErrorKind, LibrusError
 from librus_python_api.files import prepare_attachment_directory
+from librus_python_api.models import DiagnosticEvent
 from librus_python_api.persistence import NotificationLimits, NotificationStore, PersistenceStore
 
 from librus_mcp.config import AppConfig, notice
 from librus_mcp.resources import AttachmentResources
+
+# Opt-in: one stderr line per Librus operation, without logins or school data.
+LOG_OPERATIONS = "LIBRUS_MCP_LOG_OPERATIONS"
+
+
+def operation_log(event: DiagnosticEvent) -> None:
+    """Write an operation's name, outcome, time, traffic and failure site."""
+    outcome = event.outcome if isinstance(event.outcome, str) else event.outcome.value
+    line = (
+        f"operation {event.operation} {outcome.upper()} "
+        f"{event.elapsed_seconds:.2f}s requests={event.budget_requests_dispatched} "
+        f"bytes={event.budget_response_bytes}"
+    )
+    if event.frames:
+        line += f" at {' < '.join(reversed(event.frames))}"
+    try:
+        notice(line)
+    except OSError, ValueError:
+        pass
 
 
 def notification_limits() -> NotificationLimits:
@@ -124,6 +144,7 @@ class Runtime:
             {account.alias: account.credentials() for account in config.accounts},
             context_key=config.key_bytes(),
             connection=connection,
+            diagnostic_sink=(operation_log if os.environ.get(LOG_OPERATIONS) == "1" else None),
         )
 
     def account(self, alias: str) -> AccountClient:
