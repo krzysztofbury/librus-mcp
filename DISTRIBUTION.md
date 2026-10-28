@@ -90,6 +90,15 @@ locally built image, and the HTTP test covers a proxy's bare Host name.
 The 2.3.0 release passed the registry's PyPI, image and bundle ownership
 checks; the listing shows all three packages.
 
+The 2.5.0 troubleshooting commands in README.md were run as written after
+publication, on Linux: `uvx --python 3.14 librus-mcp==2.5.0 inspect-page
+grades page.html` and the same with `--config FILE check-tools` (four logins,
+all calls OK); `docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/in:ro"
+ghcr.io/krzysztofbury/librus-mcp:2.5.0 inspect-page grades /in/page.html`;
+and `docker exec CONTAINER librus-mcp check-tools` in a container started
+with `LIBRUS_USERNAME`/`LIBRUS_PASSWORD` from an env file and the data
+volume. SELinux (`:z`) and macOS/Windows Docker were not run.
+
 Not verified yet, needing a manual check:
 
 - installing the bundle in Claude Desktop on macOS and Windows, including
