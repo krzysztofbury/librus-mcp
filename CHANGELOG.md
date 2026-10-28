@@ -32,6 +32,11 @@ later. Inputs and successful results are unchanged.
   `Invalid structured content` error can be shared.
 - README troubleshooting: the stale-catalog error and how to report a layout.
 
+- Schools on the new descriptive grading schema (an empty subject table whose
+  grades load from gateway JSON) get those grades as `descriptive` items in
+  `get_grades` and `get_grades_window`, from API 1.8.0. The routes and fields
+  are source-informed; live confirmation on such a school is pending.
+
 ### Changed
 
 - Output schemas no longer publish `additionalProperties: false`, so a host
