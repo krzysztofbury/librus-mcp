@@ -370,9 +370,12 @@ before sharing it anyway.
 | The assistant says `Invalid structured content returned by tool ...` | reload the assistant's tool list, then `librus-mcp check-tools` | the failing result path and schema rule |
 | A page fails to parse and you want to report it | `librus-mcp inspect-page grades page.html` | counts, or code locations and the masked structure, offline |
 
-With Docker, pass the variables with `-e NAME=1` and read `docker logs`; run
-the commands with `docker exec CONTAINER librus-mcp ...` (the container's own
-configuration is used).
+With Docker, pass the variables with `-e NAME=1` and read `docker logs`. Run
+`check-tools` in the running container with
+`docker exec CONTAINER librus-mcp check-tools` (it uses the container's own
+configuration and signs every login in a second time, so the server's next
+read may have to sign in again). `inspect-page` needs the file inside the
+container; use the `docker run` form in step 2 below.
 
 - **`Invalid structured content returned by tool ...`** comes from your
   assistant, not the server: it checks each result against the tool list it

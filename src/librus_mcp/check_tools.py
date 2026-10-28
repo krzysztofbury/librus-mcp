@@ -80,6 +80,10 @@ async def check_tools(
                     else:
                         write(f"{label}: client error {type(error).__name__}")
                     continue
+                except Exception as error:  # Reported by type; messages may hold data.
+                    valid = False
+                    write(f"{label}: client error {type(error).__name__}")
+                    continue
                 content = result.structured_content or {}
                 if result.is_error:
                     valid = False

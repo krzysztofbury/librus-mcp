@@ -6,8 +6,9 @@ All notable changes to this project will be documented in this file.
 
 ## [2.5.0] - 2026-10-28
 
-Failures say where they happened, and output schemas tolerate fields added
-later. Inputs and successful results are unchanged.
+Failures say where they happened, output schemas tolerate fields added later,
+and schools on the new descriptive grading schema get their descriptive
+grades. Inputs are unchanged; other successful results are unchanged.
 
 ### Added
 
@@ -31,11 +32,11 @@ later. Inputs and successful results are unchanged.
   schema rule and the value type, never the value, so the cause of a host's
   `Invalid structured content` error can be shared.
 - README troubleshooting: the stale-catalog error and how to report a layout.
-
 - Schools on the new descriptive grading schema (an empty subject table whose
   grades load from gateway JSON) get those grades as `descriptive` items in
-  `get_grades` and `get_grades_window`, from API 1.8.0. The routes and fields
-  are source-informed; live confirmation on such a school is pending.
+  `get_grades` (default `all` scope) and `get_grades_window`, from API 1.8.0.
+  The routes and fields are source-informed; an authorized live read parsed
+  populated records on one school's login.
 
 ### Changed
 
@@ -43,7 +44,8 @@ later. Inputs and successful results are unchanged.
   that keeps an older catalog accepts results with fields added later. Hosts
   that cached a 2.3 catalog still need one reload for 2.4's `point` grades
   (Hermes: `/reload-mcp`). Input schemas are unchanged.
-- Pins librus-python-api 1.8.0 (failure diagnostics).
+- Pins librus-python-api 1.8.0 (failure diagnostics, gateway descriptive
+  grades).
 - The catalog measures 123615 bytes for 31 default tools and 136927 bytes for
   35 tools, within the 128 and 144 KiB budgets.
 
