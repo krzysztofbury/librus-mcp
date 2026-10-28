@@ -14,6 +14,7 @@ from mcp.client.stdio import stdio_client
 
 from librus_mcp.config import ConfigError, load_config
 from librus_mcp.migration import notification_state
+from tests_native.errors import closed
 from tests_native.published_schema import assert_matches_published_schema
 from tests_native.test_config import config_data, write_config
 from tests_native.test_native_stdio import server_process
@@ -45,7 +46,7 @@ async def test_notification_consent_restart_exact_replay_ack_and_account_isolati
                         "get_new_notifications",
                         {"account_alias": "first", "categories": categories},
                     )
-                    assert rejected.is_error and rejected.structured_content == {
+                    assert rejected.is_error and closed(rejected.structured_content) == {
                         "error": {"code": "INVALID_INPUT"}
                     }
                     assert wire.calls == []
@@ -86,7 +87,7 @@ async def test_notification_consent_restart_exact_replay_ack_and_account_isolati
                 foreign = await session.call_tool(
                     "acknowledge_notifications", ack | {"account_alias": "second"}
                 )
-                assert foreign.is_error and foreign.structured_content == {
+                assert foreign.is_error and closed(foreign.structured_content) == {
                     "error": {"code": "INVALID_INPUT"}
                 }
                 assert len(wire.calls) == calls
@@ -103,7 +104,9 @@ async def test_notification_consent_restart_exact_replay_ack_and_account_isolati
                     rejected = await session.call_tool(
                         "acknowledge_notifications", ack | {"context": wrong}
                     )
-                    assert rejected.structured_content == {"error": {"code": "INVALID_INPUT"}}
+                    assert closed(rejected.structured_content) == {
+                        "error": {"code": "INVALID_INPUT"}
+                    }
                 assert len(wire.calls) == calls
             async with stdio_client(process) as streams, ClientSession(*streams) as session:
                 await session.initialize()
@@ -159,7 +162,7 @@ async def test_lost_consume_response_remains_uncertain_until_explicit_loss_accep
                 )
                 assert status.structured_content["data"]["uncertain_consume"] is True
                 again = await session.call_tool("get_new_notifications", query)
-                assert again.is_error and again.structured_content == {
+                assert again.is_error and closed(again.structured_content) == {
                     "error": {"code": "CHECKPOINT"}
                 }
                 assert len(wire.calls) == calls
@@ -221,7 +224,7 @@ async def test_malformed_legacy_state_stays_quarantined_for_its_account_only(tmp
                 blocked = await session.call_tool(
                     "get_new_notifications", {"account_alias": "old", "categories": ["grades"]}
                 )
-                assert blocked.is_error and blocked.structured_content == {
+                assert blocked.is_error and closed(blocked.structured_content) == {
                     "error": {"code": "STORAGE"}
                 }
                 assert (
@@ -259,7 +262,7 @@ async def test_consumed_checkpoint_replays_or_stays_quarantined_without_second_c
                     "get_new_notifications", query | {"allow_consume_events": True}
                 )
                 if malformed:
-                    assert result.is_error and result.structured_content == {
+                    assert result.is_error and closed(result.structured_content) == {
                         "error": {"code": "PARSE"}
                     }
                 else:
@@ -285,7 +288,7 @@ async def test_consumed_checkpoint_replays_or_stays_quarantined_without_second_c
                 assert status.structured_content["data"]["uncertain_consume"] is False
                 replay = await session.call_tool("get_new_notifications", query)
                 if malformed:
-                    assert replay.is_error and replay.structured_content == {
+                    assert replay.is_error and closed(replay.structured_content) == {
                         "error": {"code": "PARSE"}
                     }
                     retry = await session.call_tool(

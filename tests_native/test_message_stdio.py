@@ -7,6 +7,7 @@ import pytest
 from mcp.client import ClientSession
 from mcp.client.stdio import stdio_client
 
+from tests_native.errors import closed
 from tests_native.published_schema import assert_matches_published_schema
 from tests_native.test_native_stdio import server_process
 from tests_native.wire import Wire
@@ -42,7 +43,7 @@ async def test_paging_content_consent_directory_and_context_binding(backend):
                         bad = await session.call_tool(
                             "get_messages", query | {"cursor": cursor} | changes
                         )
-                        assert bad.is_error and bad.structured_content == {
+                        assert bad.is_error and closed(bad.structured_content) == {
                             "error": {"code": "INVALID_INPUT"}
                         }
                         assert len(wire.calls) == calls
@@ -60,14 +61,14 @@ async def test_paging_content_consent_directory_and_context_binding(backend):
                             "get_message_content",
                             base | {"message_ref": reference | change, "allow_mark_read": True},
                         )
-                        assert invalid.is_error and invalid.structured_content == {
+                        assert invalid.is_error and closed(invalid.structured_content) == {
                             "error": {"code": "INVALID_INPUT"}
                         }
                         assert len(wire.calls) == calls
                     rejected = await session.call_tool(
                         "get_message_content", base | {"message_ref": reference}
                     )
-                    assert rejected.is_error and rejected.structured_content == {
+                    assert rejected.is_error and closed(rejected.structured_content) == {
                         "error": {"code": "INVALID_INPUT"}
                     }
                     assert len(wire.calls) == calls
@@ -119,7 +120,7 @@ async def test_paging_content_consent_directory_and_context_binding(backend):
                         choices = await session.call_tool(
                             "get_recipient_choices", base | {"recipient_type": selected}
                         )
-                        assert choices.is_error and choices.structured_content == {
+                        assert choices.is_error and closed(choices.structured_content) == {
                             "error": {"code": "UNSUPPORTED_CAPABILITY"}
                         }
                         assert len(wire.calls) == calls

@@ -7,6 +7,7 @@ import pytest
 from mcp.client import ClientSession
 from mcp.client.stdio import stdio_client
 
+from tests_native.errors import closed
 from tests_native.test_native_stdio import server_process
 from tests_native.wire import Wire
 
@@ -43,7 +44,7 @@ async def test_window_cursor_rejects_wrong_query_account_and_changed_source():
                         bad = await session.call_tool(
                             "get_grades_window", query | {"cursor": cursor} | changed
                         )
-                        assert bad.is_error and bad.structured_content == {
+                        assert bad.is_error and closed(bad.structured_content) == {
                             "error": {"code": "INVALID_INPUT"}
                         }
                         assert len(wire.calls) == calls
@@ -52,7 +53,7 @@ async def test_window_cursor_rejects_wrong_query_account_and_changed_source():
                     past_end = await session.call_tool(
                         "get_grades_window", query | {"cursor": cursor | {"offset": 2}}
                     )
-                    assert past_end.is_error and past_end.structured_content == {
+                    assert past_end.is_error and closed(past_end.structured_content) == {
                         "error": {"code": "STALE_CURSOR"}
                     }
                     second = await session.call_tool(
@@ -65,7 +66,7 @@ async def test_window_cursor_rejects_wrong_query_account_and_changed_source():
                     assert second.structured_content["pagination"]["reason"] is None
                     wire.grade_suffix = "2"
                     stale = await session.call_tool("get_grades_window", query | {"cursor": cursor})
-                    assert stale.is_error and stale.structured_content == {
+                    assert stale.is_error and closed(stale.structured_content) == {
                         "error": {"code": "STALE_CURSOR"}
                     }
 
@@ -107,7 +108,7 @@ async def test_reference_backend_context_and_mark_read_guards_are_preflight_only
                                 "allow_mark_read": consent,
                             },
                         )
-                        assert result.is_error and result.structured_content == {
+                        assert result.is_error and closed(result.structured_content) == {
                             "error": {"code": "INVALID_INPUT"}
                         }
                         assert len(wire.calls) == calls
@@ -120,7 +121,7 @@ async def test_reference_backend_context_and_mark_read_guards_are_preflight_only
                     result = await session.call_tool(
                         "get_homework_detail", {"account_alias": "account", "homework_ref": school}
                     )
-                    assert result.is_error and result.structured_content == {
+                    assert result.is_error and closed(result.structured_content) == {
                         "error": {"code": "INVALID_INPUT"}
                     }
                     assert len(wire.calls) == calls
@@ -134,7 +135,7 @@ async def test_reference_backend_context_and_mark_read_guards_are_preflight_only
                         "get_recipient_choices",
                         {"account_alias": "account", "recipient_type": selection},
                     )
-                    assert result.is_error and result.structured_content == {
+                    assert result.is_error and closed(result.structured_content) == {
                         "error": {"code": "UNSUPPORTED_CAPABILITY"}
                     }
                     assert len(wire.calls) == calls
@@ -152,7 +153,7 @@ async def test_shared_host_budget_cannot_be_reset_by_another_tool_call():
                     await session.initialize()
                     for tool in ("get_student_information", "get_grades", "get_messages"):
                         result = await session.call_tool(tool, {"account_alias": "account"})
-                        assert result.is_error and result.structured_content == {
+                        assert result.is_error and closed(result.structured_content) == {
                             "error": {"code": "LIMIT"}
                         }
                     assert len(wire.calls) == 1
@@ -182,7 +183,7 @@ async def test_invalid_calendar_date_and_collection_inputs_never_authenticate():
                         result = await session.call_tool(
                             name, {"account_alias": "account"} | arguments
                         )
-                        assert result.is_error and result.structured_content == {
+                        assert result.is_error and closed(result.structured_content) == {
                             "error": {"code": "INVALID_INPUT"}
                         }
                     assert wire.calls == []
@@ -229,4 +230,4 @@ async def test_whole_grade_and_attendance_reads_are_paged_with_bound_cursors():
                     bad = await session.call_tool(
                         "get_attendance", {"account_alias": "first", "limit": 1, "cursor": cursor}
                     )
-                    assert bad.structured_content == {"error": {"code": "INVALID_INPUT"}}
+                    assert closed(bad.structured_content) == {"error": {"code": "INVALID_INPUT"}}

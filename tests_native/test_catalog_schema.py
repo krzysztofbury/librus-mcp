@@ -68,3 +68,33 @@ async def test_published_schemas_drop_generated_titles_but_keep_title_properties
     agenda = next(tool for tool in tools if tool.name == "get_agenda").output_schema
     assert "title" in agenda["$defs"]["AgendaEventOutput"]["properties"]
     assert "title" in agenda["$defs"]["AgendaEventOutput"]["required"]
+
+
+def _closed_objects(schema):
+    if isinstance(schema, dict):
+        return (schema.get("additionalProperties") is False) + sum(
+            _closed_objects(value) for value in schema.values()
+        )
+    if isinstance(schema, list):
+        return sum(_closed_objects(value) for value in schema)
+    return 0
+
+
+@pytest.mark.asyncio
+async def test_output_schemas_accept_fields_a_later_release_adds():
+    # Hosts validate results against the catalog they cached. A closed output
+    # object made 2.4's new grade field fail every host holding the 2.3 catalog.
+    data = config_data() | {"features": {"send_message": True}}
+    tools = await create_server(AppConfig.model_validate(data)).list_tools()
+    assert all(_closed_objects(tool.output_schema) == 0 for tool in tools)
+    # Inputs stay closed: an unknown argument is still rejected.
+    assert any(_closed_objects(tool.input_schema) for tool in tools)
+    grades = next(tool for tool in tools if tool.name == "get_final_grades").output_schema
+    result = {
+        "items": [],
+        "identity": {"owner": {"id": "1"}, "student": {"id": "2"}},
+        "observation": {},
+        "added_later": True,
+    }
+    errors = list(validator_for(grades)(grades).iter_errors(result))
+    assert not any("added_later" in error.message for error in errors)

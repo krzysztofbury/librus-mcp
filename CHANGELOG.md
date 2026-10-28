@@ -4,6 +4,35 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [2.5.0] - 2026-10-28
+
+Failures say where they happened, and output schemas tolerate fields added
+later. Inputs and successful results are unchanged.
+
+### Added
+
+- Error results add `where`, the failure's code locations (for example
+  `markup:tooltip_fields:113`, the original site last), and `versions`
+  (`{"mcp":...,"api":...}`); `INTERNAL_ERROR` adds the exception class name.
+  No alias, argument, message or school data is included.
+- Each failed call writes one line to standard error with the tool, code,
+  locations and versions. `LIBRUS_MCP_DIAGNOSE_FAILURES=1` also writes the
+  masked page structure around the failure.
+- `librus-mcp inspect-page {grades,final-grades} FILE` parses a saved page or
+  copied table offline, without configuration, and prints counts or the
+  failure report, with all page text and values masked.
+- README troubleshooting: the stale-catalog error and how to report a layout.
+
+### Changed
+
+- Output schemas no longer publish `additionalProperties: false`, so a host
+  that keeps an older catalog accepts results with fields added later. Hosts
+  that cached a 2.3 catalog still need one reload for 2.4's `point` grades
+  (Hermes: `/reload-mcp`). Input schemas are unchanged.
+- Pins librus-python-api 1.8.0 (failure diagnostics).
+- The catalog measures 123615 bytes for 31 default tools and 136927 bytes for
+  35 tools, within the 128 and 144 KiB budgets.
+
 ## [2.4.1] - 2026-10-27
 
 Grade fixes from API 1.7.1. Tools, inputs and results are unchanged.

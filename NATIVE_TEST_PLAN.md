@@ -1,5 +1,23 @@
 # Native migration verification ownership
 
+## 2.5.0 failure diagnostics
+
+- `test_failure_stdio.py` serves a grade tooltip the parser rejects, with a
+  marker in the subject and tooltip and an alias that looks like a name. The
+  error result's `where` ends at `markup:tooltip_fields`, and neither the
+  result nor the server's stderr contains the marker or the alias. With
+  `LIBRUS_MCP_DIAGNOSE_FAILURES=1` stderr also holds the masked tooltip
+  structure. `inspect-page` runs without configuration.
+- `tests_native/errors.py` checks the diagnostic fields of every asserted
+  error result: code locations only, a class name, both versions.
+- `test_output_schemas_accept_fields_a_later_release_adds`: no published
+  output schema has `additionalProperties: false`; input schemas keep it.
+- The 2.4 report reproduced: a 2.4.1 grade result fails validation against the
+  2.3.1 catalog (`point_results`, `record_type: "point"`) and passes against
+  2.4.x, matching the tester's `Invalid structured content` error.
+- The catalog measures 123615 bytes for 31 default tools and 136927 bytes for
+  35 tools.
+
 ## 2.4.1 grade fixes
 
 2.4.1 pins API 1.7.1 and changes no tool, input or result shape.

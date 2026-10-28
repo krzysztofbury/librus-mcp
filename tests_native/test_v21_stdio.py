@@ -7,6 +7,7 @@ import pytest
 from mcp.client import ClientSession
 from mcp.client.stdio import stdio_client
 
+from tests_native.errors import closed
 from tests_native.published_schema import assert_matches_published_schema
 from tests_native.test_native_stdio import server_process
 from tests_native.wire import Wire
@@ -47,7 +48,9 @@ async def test_formative_grades_share_paging_dates_and_source_binding():
                         assert last.structured_content["pagination"]["next_cursor"] is None
                         wire.formative_text += " changed"
                         stale = await session.call_tool(tool, query | {"cursor": cursor})
-                        assert stale.structured_content == {"error": {"code": "STALE_CURSOR"}}
+                        assert closed(stale.structured_content) == {
+                            "error": {"code": "STALE_CURSOR"}
+                        }
                     dated = await session.call_tool(
                         "get_grades_window",
                         {
@@ -149,7 +152,9 @@ async def test_new_school_and_directory_reads_page_without_losing_native_fields(
                         bad = await session.call_tool(
                             tool, query | {"account_alias": "second", "cursor": cursor}
                         )
-                        assert bad.structured_content == {"error": {"code": "INVALID_INPUT"}}
+                        assert closed(bad.structured_content) == {
+                            "error": {"code": "INVALID_INPUT"}
+                        }
                         assert len(wire.calls) == calls
                         last = await session.call_tool(tool, query | {"cursor": cursor})
                         assert not last.is_error, last
@@ -253,7 +258,9 @@ async def test_archive_filters_cursor_roundtrip_and_preflight_binding():
                             bad = await session.call_tool(
                                 "get_messages", query | {"cursor": cursor} | changes
                             )
-                            assert bad.structured_content == {"error": {"code": "INVALID_INPUT"}}
+                            assert closed(bad.structured_content) == {
+                                "error": {"code": "INVALID_INPUT"}
+                            }
                             assert len(wire.calls) == calls
                         archive_query = base | {"folder": folder, "archived": True}
                         archive = await session.call_tool("get_messages", archive_query)
@@ -280,7 +287,7 @@ async def test_archive_filters_cursor_roundtrip_and_preflight_binding():
                                 "allow_mark_read": True,
                             },
                         )
-                        assert opened.structured_content == {
+                        assert closed(opened.structured_content) == {
                             "error": {"code": "UNSUPPORTED_CAPABILITY"}
                         }
                         assert len(wire.calls) == calls
@@ -295,7 +302,7 @@ async def test_archive_filters_cursor_roundtrip_and_preflight_binding():
                         unsupported = await session.call_tool(
                             tool, {"account_alias": "legacy"} | arguments
                         )
-                        assert unsupported.structured_content == {
+                        assert closed(unsupported.structured_content) == {
                             "error": {"code": "UNSUPPORTED_CAPABILITY"}
                         }
                         assert len(wire.calls) == calls

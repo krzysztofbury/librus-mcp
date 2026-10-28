@@ -78,7 +78,23 @@ def main(argv: Sequence[str] | None = None) -> None:
     recovery_mode.add_argument("--export-file", type=Path)
     recovery_mode.add_argument("--resolve-uncertain-consume", action="store_true")
     recovery.add_argument("--accept-possible-loss", action="store_true")
+    inspection = commands.add_parser(
+        "inspect-page",
+        help="parse a saved Synergia page offline; prints counts or where it failed, "
+        "without page text or values",
+    )
+    inspection.add_argument("parser", choices=("grades", "final-grades"))
+    inspection.add_argument("file", type=Path)
     arguments = parser.parse_args(argv)
+    if arguments.command == "inspect-page":
+        # Offline and credential-free: no configuration, state or network.
+        if arguments.config or arguments.check_config or arguments.doctor:
+            parser.error("inspect-page takes only a parser name and a file")
+        from librus_python_api.inspect_page import main as inspect_page
+
+        print(f"librus-mcp {__version__}")
+        sys.stdout.flush()
+        raise SystemExit(inspect_page([arguments.parser, str(arguments.file)]))
     http_options = (
         arguments.host is not None or arguments.port is not None or arguments.allowed_host
     )
