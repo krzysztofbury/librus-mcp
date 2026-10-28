@@ -359,25 +359,32 @@ reference. Downloading does not open the message body.
 ## Troubleshooting
 
 - **`Invalid structured content returned by tool ...`** comes from your
-  assistant, not the server: it checks results against the tool list it saved
-  before you upgraded. Reload the tool list (Hermes: `/reload-mcp`; otherwise
-  restart the assistant or reconnect the server).
+  assistant, not the server: it checks each result against the tool list it
+  saved. After an upgrade, reload the tool list (Hermes: `/reload-mcp`;
+  otherwise restart the assistant or reconnect the server). If it persists,
+  run `uvx --python 3.14 librus-mcp==2.5.0 --config /path/to/config.json check-tools`.
+  It calls the read tools for every login (normal Librus reads, which change
+  the views Librus remembers as the tools do), checks each result the way
+  assistants do and prints the failing path and schema rule, never school
+  data.
 - **A tool returns `PARSE` or `UNSUPPORTED_CAPABILITY`**: the error lists
   `where` it failed and the `versions`. Your school's page has a layout the
   library does not read yet. To report it without sharing school data:
   1. In the browser, open the failing page (for grades,
-     `https://synergia.librus.pl/przegladaj_oceny/uczen`), right-click the
-     table, choose Inspect, then copy the table's outer HTML, or save the page
-     with Ctrl+S, into `page.html`.
+     `https://synergia.librus.pl/przegladaj_oceny/uczen`), press Ctrl+U to
+     view the source the server sent, and save it as `page.html` (UTF-8). A
+     copied table (Inspect, Copy outer HTML) also works, but shows the page
+     after its scripts ran.
   2. Run `uvx --python 3.14 librus-mcp==2.5.0 inspect-page grades page.html`
      (or `final-grades`). With Docker:
-     `docker run --rm -v "$PWD:/in:ro" ghcr.io/krzysztofbury/librus-mcp:2.5.0 inspect-page grades /in/page.html`.
+     `docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/in:ro" ghcr.io/krzysztofbury/librus-mcp:2.5.0 inspect-page grades /in/page.html`
+     (add `:z` after `ro` on SELinux hosts).
      It runs offline and prints counts, or the failure's code locations and
      the page structure with all text and values masked.
   3. Review the output and attach it to an
      [issue](https://github.com/krzysztofbury/librus-mcp/issues), together
      with the `where` and `versions` from the error.
-- Every failed call also writes one line to the server's standard error. Set
+- Every failed call also writes a line to the server's standard error. Set
   `LIBRUS_MCP_DIAGNOSE_FAILURES=1` to add the masked page structure there
   (see [PRIVACY.md](PRIVACY.md)).
 

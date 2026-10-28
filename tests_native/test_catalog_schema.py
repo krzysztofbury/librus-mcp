@@ -87,7 +87,7 @@ async def test_output_schemas_accept_fields_a_later_release_adds():
     data = config_data() | {"features": {"send_message": True}}
     tools = await create_server(AppConfig.model_validate(data)).list_tools()
     assert all(_closed_objects(tool.output_schema) == 0 for tool in tools)
-    # Inputs stay closed: an unknown argument is still rejected.
+    # Input schemas stay closed for hosts that validate arguments.
     assert any(_closed_objects(tool.input_schema) for tool in tools)
     grades = next(tool for tool in tools if tool.name == "get_final_grades").output_schema
     result = {

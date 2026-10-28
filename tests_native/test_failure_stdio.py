@@ -1,5 +1,6 @@
 """Failure reports over MCP stdio: code locations, never school data."""
 
+import json
 from html import escape
 
 import anyio
@@ -79,3 +80,97 @@ def test_inspect_page_needs_no_configuration(tmp_path, monkeypatch, capsys):
         main(["inspect-page", "grades", str(page)])
     assert parsed.value.code == 0
     assert "OK numeric=1" in capsys.readouterr().out
+
+
+@pytest.mark.asyncio
+async def test_an_unknown_tool_name_is_never_echoed_to_stderr(capsys):
+    from librus_mcp.config import AppConfig
+    from librus_mcp.server import create_server
+
+    config = AppConfig.model_validate(
+        {
+            "accounts": [
+                {
+                    "alias": ALIAS,
+                    "username": "login",
+                    "password": "fixture-only",  # pragma: allowlist secret - fixture only
+                }
+            ],
+            "context_key": "00" * 32,
+        }
+    )
+    result = await create_server(config).call_tool(f"get_grades_{ALIAS}\nlibrus-mcp: forged", {})
+    assert closed(result.structured_content) == {"error": {"code": "INVALID_INPUT"}}
+    stderr = capsys.readouterr().err
+    assert stderr.count("\n") == 1
+    assert ALIAS not in stderr and "forged" not in stderr
+    assert stderr.startswith("librus-mcp: unknown tool failed: INVALID_INPUT")
+
+
+def _wire_server(origin, tmp_path):
+    from librus_python_api import ConnectionSettings
+
+    from librus_mcp.config import AppConfig
+    from librus_mcp.server import create_server
+
+    config = AppConfig.model_validate(
+        {
+            "accounts": [
+                {
+                    "alias": ALIAS,
+                    "username": "71",
+                    "password": "not-a-real-password",  # pragma: allowlist secret - loopback only
+                }
+            ],
+            "context_key": "00" * 32,
+            "state_dir": str(tmp_path / "state"),
+            "download_dir": str(tmp_path / "downloads"),
+        }
+    )
+    connection = ConnectionSettings(
+        synergia_origin=origin,
+        api_origin=origin,
+        download_origin=origin,
+        messages_origin=origin,
+    )
+    return create_server(config, connection=connection)
+
+
+@pytest.mark.asyncio
+async def test_check_tools_reports_a_schema_mismatch_without_values(tmp_path, monkeypatch):
+    from librus_mcp import server as module
+    from librus_mcp.check_tools import check_tools
+
+    lines: list[str] = []
+    async with Wire().serve() as wire:
+        wire.points = True
+        tools = ("get_grades", "get_grades_window", "get_final_grades")
+        with anyio.fail_after(30):
+            assert await check_tools(
+                _wire_server(wire.origin, tmp_path), [ALIAS], tools, lines.append
+            )
+        assert [line.split(": ")[-1] for line in lines[1:]] == [
+            "OK, 4 items",
+            "OK, 4 items",
+            "OK, 2 items",
+        ]
+        # A host holding the 2.3 catalog: no point record type.
+        listed = module.NativeServer.list_tools
+
+        async def stale(self):
+            tools = await listed(self)
+            for tool in tools:
+                text = json.dumps(tool.output_schema).replace('"numeric", "point"', '"numeric"')
+                tool.output_schema = json.loads(text)
+            return tools
+
+        monkeypatch.setattr(module.NativeServer, "list_tools", stale)
+        lines.clear()
+        with anyio.fail_after(30):
+            assert not await check_tools(
+                _wire_server(wire.origin, tmp_path), [ALIAS], ("get_grades",), lines.append
+            )
+    (report,) = lines[1:]
+    assert report.startswith("login 1 get_grades: SCHEMA MISMATCH at items/")
+    assert '/record_type: enum ["numeric", "descriptive"], value type str' in report
+    assert ALIAS not in "\n".join(lines) and "Point Subject" not in "\n".join(lines)

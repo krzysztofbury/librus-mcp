@@ -85,10 +85,27 @@ def main(argv: Sequence[str] | None = None) -> None:
     )
     inspection.add_argument("parser", choices=("grades", "final-grades"))
     inspection.add_argument("file", type=Path)
+    checking = commands.add_parser(
+        "check-tools",
+        help="call read tools for every configured login (live Librus reads) and check "
+        "each result against the published schema; prints no school data",
+    )
+    checking.add_argument("--tool", action="append", default=[], help="a tool to check, repeatable")
     arguments = parser.parse_args(argv)
     if arguments.command == "inspect-page":
         # Offline and credential-free: no configuration, state or network.
-        if arguments.config or arguments.check_config or arguments.doctor:
+        if (
+            arguments.config
+            or arguments.check_config
+            or arguments.doctor
+            or arguments.doctor_storage
+            or arguments.generate_context_key
+            or arguments.generate_token
+            or arguments.transport != "stdio"
+            or arguments.host is not None
+            or arguments.port is not None
+            or arguments.allowed_host
+        ):
             parser.error("inspect-page takes only a parser name and a file")
         from librus_python_api.inspect_page import main as inspect_page
 
@@ -207,6 +224,23 @@ def main(argv: Sequence[str] | None = None) -> None:
     from librus_mcp.runtime import prepare_runtime
     from librus_mcp.server import create_server
 
+    if arguments.command == "check-tools":
+        from librus_mcp.check_tools import DEFAULT_TOOLS, check_tools
+
+        try:
+            config = asyncio.run(prepare_runtime(config))
+        except ConfigError, LibrusError:
+            print("librus-mcp: cannot prepare the configuration or state", file=sys.stderr)
+            raise SystemExit(1) from None
+        valid = asyncio.run(
+            check_tools(
+                create_server(config),
+                [account.alias for account in config.accounts],
+                arguments.tool or DEFAULT_TOOLS,
+                print,
+            )
+        )
+        raise SystemExit(0 if valid else 1)
     token = b""
     if arguments.transport == "http":
         from librus_mcp.http_transport import load_token

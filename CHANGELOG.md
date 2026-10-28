@@ -15,12 +15,18 @@ later. Inputs and successful results are unchanged.
   `markup:tooltip_fields:113`, the original site last), and `versions`
   (`{"mcp":...,"api":...}`); `INTERNAL_ERROR` adds the exception class name.
   No alias, argument, message or school data is included.
-- Each failed call writes one line to standard error with the tool, code,
-  locations and versions. `LIBRUS_MCP_DIAGNOSE_FAILURES=1` also writes the
+- Each failed call writes a line to standard error with the tool, code,
+  locations and versions; a tool name the client made up is shown as
+  "unknown tool". `LIBRUS_MCP_DIAGNOSE_FAILURES=1` also writes the
   masked page structure around the failure.
 - `librus-mcp inspect-page {grades,final-grades} FILE` parses a saved page or
   copied table offline, without configuration, and prints counts or the
   failure report, with all page text and values masked.
+- `librus-mcp check-tools` calls the read tools for every configured login
+  through a real MCP client session and checks each result against the
+  published schema as hosts do. A mismatch is reported as a result path, the
+  schema rule and the value type, never the value, so the cause of a host's
+  `Invalid structured content` error can be shared.
 - README troubleshooting: the stale-catalog error and how to report a layout.
 
 ### Changed

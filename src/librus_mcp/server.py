@@ -135,7 +135,9 @@ class NativeServer(MCPServer[Runtime]):
         try:
             result = await super().call_tool(name, arguments, context)
         except ToolError as error:
-            return _failure(name, error)
+            # A client-sent name is shown only when it is a registered tool.
+            known = self._tool_manager.get_tool(name) is not None
+            return _failure(name if known else "unknown tool", error)
         if (
             isinstance(result, CallToolResult)
             and result.structured_content is not None
@@ -159,6 +161,7 @@ class NativeServer(MCPServer[Runtime]):
                 }
             )
         if len(result.model_dump_json(by_alias=True).encode("utf-8")) > MAX_RESULT_BYTES:
+            _notice(f"{name} failed: LIMIT, the result is over {MAX_RESULT_BYTES} bytes")
             return _error("LIMIT")
         return result
 
@@ -189,12 +192,21 @@ def _failure(tool: str, error: ToolError) -> CallToolResult:
         code, where = "INVALID_INPUT", ()
     location = f" at {' < '.join(reversed(where))}" if where else ""
     versions = f"mcp {VERSIONS['mcp']}, api {VERSIONS['api']}"
-    notice(f"{tool} failed: {exception or code}{location} ({versions})")
+    kind = f"{code} ({exception})" if exception else code
+    _notice(f"{tool} failed: {kind}{location} ({versions})")
     if code in _STRUCTURE_KINDS and os.environ.get(DIAGNOSE_FAILURES) == "1":
         report = describe_failure(cause)
         if report is not None:
-            notice(f"{tool} failure structure (no page text or values):\n{report}")
+            _notice(f"{tool} failure structure (no page text or values):\n{report}")
     return _error(code, where=where, exception=exception)
+
+
+def _notice(message: str) -> None:
+    # A closed or full stderr must not turn an error result into a protocol error.
+    try:
+        notice(message)
+    except OSError, ValueError:
+        pass
 
 
 def _open_output(schema: Any) -> Any:
