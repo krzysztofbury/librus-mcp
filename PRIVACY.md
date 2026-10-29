@@ -34,6 +34,9 @@ own policy.
 - Installing the server downloads it and its dependencies from PyPI, or Python
   through uv, as with any Python package.
 - Sending messages to the school is off unless you enable it.
+- Opening a received message marks it read in Librus, as the app does, so its
+  sender can see it was read. Set the `mark_read_consent` feature to have the
+  assistant ask first.
 - When a tool call fails, the server writes a line to its standard error
   (which your assistant or Docker usually keeps in a log): the tool name (or
   "unknown tool"), the error code or exception class, code locations and the

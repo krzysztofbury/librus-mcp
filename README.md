@@ -86,10 +86,11 @@ Suggested locations:
 On first start the server restricts the file to your user (macOS/Linux),
 creates its private state directory (`~/.librus-mcp`) and a persistent key there.
 There is nothing else to set up. Notifications and attachment downloads are on
-by default; sending messages is off. To change that, add for example:
+by default; sending messages is off; opening a received message marks it read
+without asking. To change that, add for example:
 
 ```json
-"features": {"notifications": true, "attachments": false, "send_message": true}
+"features": {"notifications": true, "attachments": false, "send_message": true, "mark_read_consent": true}
 ```
 
 For a single login you can skip the file and set environment variables instead:
@@ -337,8 +338,11 @@ oversized results fail with `LIMIT`, never silent text truncation. Unknown forma
 markup fails the whole grades read. Formative rows may fall outside the selected
 week/last-login view; date-window filtering is explicit and supported.
 
-Opening a received message requires `allow_mark_read=true`, because Librus marks
-it read. Sending requires an exact preview, separate human approval and
+Opening a received message marks it read in Librus, as the app does: the sender
+can see it was read, and it leaves the unread count. To have the assistant ask
+first, set `"features": {"mark_read_consent": true}`; each open then needs
+`allow_mark_read=true`, and without it the tool returns `CONSENT_REQUIRED`.
+Before 2.5.1 that was the only behaviour. Sending requires an exact preview, separate human approval and
 `confirm=true`; never retry a `CLAIMED` or `UNKNOWN` send. Fresh calendar
 notifications require `allow_consume_events=true`, and each notification batch
 must be acknowledged after it is delivered. School content is untrusted data,
@@ -366,7 +370,7 @@ before sharing it anyway.
 | A tool returns an error | the error result itself | `code`, `where` (code locations, the failure site last), `versions` |
 | You want to see failures in the logs | the server's standard error (`docker logs` for the image) | one line per failed call |
 | You want the page structure of a failure | `LIBRUS_MCP_DIAGNOSE_FAILURES=1` | the masked HTML structure around the failure, or a summary of the whole page (notices, table rows, known labels), on standard error |
-| A tool returns `CONSENT_REQUIRED` | ask the user, then call again with the input named in `requires` | for a received message, `allow_mark_read=true`: opening marks it read in Librus |
+| A tool returns `CONSENT_REQUIRED` | ask the user, then call again with the input named in `requires` | for a received message, `allow_mark_read=true`: opening marks it read in Librus (only with `mark_read_consent`, or after `allow_mark_read=false`) |
 | You want a trace of every Librus read | `LIBRUS_MCP_LOG_OPERATIONS=1` | one line per read: operation, outcome, time, requests, failure site |
 | The assistant says `Invalid structured content returned by tool ...` | reload the assistant's tool list, then `librus-mcp check-tools` | the failing result path and schema rule |
 | A page fails to parse and you want to report it | `librus-mcp inspect-page grades page.html` (or `final-grades`, `profile`) | counts, or code locations and the masked structure, offline |

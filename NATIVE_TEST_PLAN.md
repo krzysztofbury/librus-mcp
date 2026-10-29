@@ -3,19 +3,23 @@
 ## 2.5.1 lucky number and page summaries
 
 2.5.1 pins API 1.8.1 and changes no successful result shape. `get_timetable`
-accepts any date in the week; a received open without consent returns
+accepts any date in the week; a received message opens without a separate
+consent unless `mark_read_consent` is on, and a refused open returns
 `CONSENT_REQUIRED`.
 
 - `test_inspect_page_needs_no_configuration` also runs `inspect-page profile`
   through the CLI.
 - `test_academic_stdio.py` reads a timetable by a Thursday and gets its week;
   an impossible calendar date stays `INVALID_INPUT` without a request.
-- `test_message_stdio.py` and `test_read_boundaries.py`: a received open
-  without consent returns `CONSENT_REQUIRED` with `requires`; a binding
-  failure stays `INVALID_INPUT` with or without consent; neither dispatches.
+- `test_message_stdio.py`: by default a received message opens without
+  `allow_mark_read`; `false` returns `CONSENT_REQUIRED` with `requires` and
+  dispatches nothing. With `mark_read_consent` the server instructions say so,
+  an open without `true` is refused before dispatch and `true` opens it.
+  `test_read_boundaries.py`: a binding failure stays `INVALID_INPUT` with or
+  without consent.
 - The catalog measures 123731 bytes for 31 default tools and 137062 bytes
   for 35 tools (116 more than 2.5.0: the `get_timetable` date and
-  `get_message_content` consent descriptions).
+  `get_message_content` descriptions and its nullable consent input).
 - Authorized live run on the four owner logins with API 1.8.1 from source:
   `student_information` returned an available lucky number on all four (1.8.0
   returned unavailable), and the API release live check passed.

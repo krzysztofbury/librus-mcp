@@ -7,8 +7,9 @@ All notable changes to this project will be documented in this file.
 ## [2.5.1] - 2026-10-29
 
 Lucky number and clearer reports from API 1.8.1, `get_timetable` takes any
-date in the week, and a missing mark-read consent has its own error code.
-Successful result shapes are unchanged.
+date in the week, and reading a received message no longer needs a separate
+consent unless the operator asks for it. Successful result shapes are
+unchanged.
 
 ### Fixed
 
@@ -23,11 +24,16 @@ Successful result shapes are unchanged.
 
 ### Changed
 
-- `get_message_content` on a received message without `allow_mark_read=true`
-  returns `CONSENT_REQUIRED` with `"requires": "allow_mark_read"` instead of
-  `INVALID_INPUT`, so an agent asks the user instead of reporting the message
-  as unreadable. Nothing is requested from Librus either way. A client that
-  matches error codes sees the new code.
+- `get_message_content` opens a received message, and Librus marks it read,
+  without `allow_mark_read`, as the Librus app does. Agents asked to read a
+  message reported it as unreadable when they left the consent out. The new
+  `mark_read_consent` feature restores the earlier behaviour: each open needs
+  `allow_mark_read=true`. `allow_mark_read=false` always leaves the message
+  unopened.
+- A refused received open returns `CONSENT_REQUIRED` with
+  `"requires": "allow_mark_read"` instead of `INVALID_INPUT`, so an agent asks
+  the user. Nothing is requested from Librus. A client that matches error codes
+  sees the new code.
 
 ### Added
 

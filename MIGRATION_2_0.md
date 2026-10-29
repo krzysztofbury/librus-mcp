@@ -102,8 +102,10 @@ Agenda/homework details require the bound references returned by their lists.
 
 Messaging uses the explicitly configured backend, never automatic fallback.
 `get_messages` returns summaries and backend/account/context-bound cursors and
-references. `limit`, `max_pages` and modern `page_size` bound each call. Received
-body reads require `allow_mark_read=true`; listing never grants that consent.
+references. `limit`, `max_pages` and modern `page_size` bound each call. Since
+2.5.1 a received body read marks the message read unless `allow_mark_read=false`
+or the `mark_read_consent` feature is on; with that feature it requires
+`allow_mark_read=true`, which listing never grants.
 Sent content can be opened without received-message consent. Body and directory
 text remain inert, untrusted data. `get_recipient_choices` is legacy-only and
 returns `UNSUPPORTED_CAPABILITY` on a modern account. Select a supported bound

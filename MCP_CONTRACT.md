@@ -158,7 +158,10 @@ states whether it is destructive: view selection, `preview_message` and
 and acknowledgements are. Catalog annotations are hints, not an authorization
 mechanism.
 
-- Received-body reads require `allow_mark_read=true`; sent-body reads do not.
+- A received-body read marks the message read in Librus. It proceeds unless
+  `allow_mark_read=false`; with the `mark_read_consent` feature it requires
+  `allow_mark_read=true` (the only behaviour before 2.5.1). Sent-body reads need
+  neither. The tool stays annotated destructive, so a host may confirm it.
 - Sending is opt-in. `preview_message` persists an exact payload binding without
   HTTP. Redemption additionally requires `confirm=true` and actual human approval.
   Tokens do not prove approval. Cancellation, lost responses and uncertain native
