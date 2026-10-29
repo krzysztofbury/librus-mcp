@@ -1,5 +1,20 @@
 # Native migration verification ownership
 
+## 2.5.1 lucky number and page summaries
+
+2.5.1 pins API 1.8.1 and changes no result shape. `get_timetable` accepts
+any date in the week.
+
+- `test_inspect_page_needs_no_configuration` also runs `inspect-page profile`
+  through the CLI.
+- `test_academic_stdio.py` reads a timetable by a Thursday and gets its week;
+  an impossible calendar date stays `INVALID_INPUT` without a request.
+- The catalog measures 123644 bytes for 31 default tools and 136956 bytes
+  for 35 tools (29 more, the `get_timetable` date description).
+- Authorized live run on the four owner logins with API 1.8.1 from source:
+  `student_information` returned an available lucky number on all four (1.8.0
+  returned unavailable), and the API release live check passed.
+
 ## 2.5.0 failure diagnostics
 
 - `test_failure_stdio.py` serves a grade tooltip the parser rejects, with a

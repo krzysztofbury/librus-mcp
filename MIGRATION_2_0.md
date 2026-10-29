@@ -16,7 +16,7 @@ library `1.0.2`. Use an explicit version pin when selecting a release.
 
 ## Moving from 2.0 to 2.1
 
-2.5.0 pins API 1.8.0. Reuse the existing configuration,
+2.5.1 pins API 1.8.1. Reuse the existing configuration,
 context key, sends and notification stores. Refresh the host's tool catalog.
 Custom consumers must accept the new `formative` grade item variant, the
 `point` variant (2.4) and the nullable `formative_id` on existing variants;
@@ -84,7 +84,7 @@ Enabling sending gives 35 tools; disabling notifications and attachments leaves
 
 Dates use ISO civil dates (`YYYY-MM-DD`), not Unix timestamps. Frequency results
 keep native ratios in `0..1` or `null`, with attended/total/excluded/unknown counts.
-Calendar months use integer `year`/`month`; timetable weeks require a Monday.
+Calendar months use integer `year`/`month`; timetable weeks take any date in the week (a Monday before 2.5.1).
 Homework defaults to today through today+14 in Warsaw; supplied dates must be
 paired. Native validation bounds the range. School wall times are not guessed UTC.
 

@@ -83,7 +83,7 @@ def main(argv: Sequence[str] | None = None) -> None:
         help="parse a saved Synergia page offline; prints counts or where it failed, "
         "without page text or values",
     )
-    inspection.add_argument("parser", choices=("grades", "final-grades"))
+    inspection.add_argument("parser", choices=("grades", "final-grades", "profile"))
     inspection.add_argument("file", type=Path)
     checking = commands.add_parser(
         "check-tools",

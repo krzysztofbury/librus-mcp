@@ -80,6 +80,23 @@ def test_inspect_page_needs_no_configuration(tmp_path, monkeypatch, capsys):
         main(["inspect-page", "grades", str(page)])
     assert parsed.value.code == 0
     assert "OK numeric=1" in capsys.readouterr().out
+    rows = (
+        ("Uczeń", "A"),
+        ("Klasa", "1"),
+        ("Nr w dzienniku", "2"),
+        ("Wychowawca", "B"),
+        ("Szkoła", "C"),
+    )
+    page.write_text(
+        "<html><body><table>"
+        + "".join(f"<tr><th>{label}</th><td>{value}</td></tr>" for label, value in rows)
+        + "</table></body></html>",
+        encoding="utf-8",
+    )
+    with pytest.raises(SystemExit) as profile:
+        main(["inspect-page", "profile", str(page)])
+    assert profile.value.code == 0
+    assert "OK lucky_number=0" in capsys.readouterr().out
 
 
 @pytest.mark.asyncio

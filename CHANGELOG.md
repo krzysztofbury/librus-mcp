@@ -4,6 +4,35 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [2.5.1] - 2026-10-29
+
+Lucky number and clearer reports from API 1.8.1, and `get_timetable` takes
+any date in the week. Result shapes are unchanged.
+
+### Fixed
+
+- `get_student_information` returns the lucky number. Every 2.x release
+  reported it as unavailable because the library looked for markup the page
+  does not use. A "?" shown by schools without lucky numbers stays
+  unavailable.
+
+- `get_timetable` accepts any date in the week and reads that week; its
+  result's `monday` names the week. Earlier releases rejected any day other
+  than a Monday with `INVALID_INPUT`, which agents asking for "today" hit.
+
+### Added
+
+- `librus-mcp inspect-page profile FILE` checks a saved information page
+  (`/informacja`, used by `get_student_information`). A page source saved as
+  a macOS TextEdit document is named as such instead of failing as a layout.
+- With `LIBRUS_MCP_DIAGNOSE_FAILURES=1`, a failure on a whole page (such as a
+  page without the expected table) is summarized as its notices and table
+  rows, with known labels by name and other text as lengths, instead of the
+  start of the page head.
+- README: which page to save for each tool, how to save a page source on
+  macOS, and what to send when a saved page passes `inspect-page` but the tool
+  still fails.
+
 ## [2.5.0] - 2026-10-28
 
 Failures say where they happened, output schemas tolerate fields added later,

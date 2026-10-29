@@ -171,7 +171,7 @@ async def test_invalid_calendar_date_and_collection_inputs_never_authenticate():
                     cases = [
                         ("get_homework", {"date_from": "2026-10-05"}),
                         ("get_grades_window", {"date_from": 0}),
-                        ("get_timetable", {"monday": "2026-10-06"}),
+                        ("get_timetable", {"monday": "2026-02-30"}),
                         ("get_agenda", {"year": 2026, "month": True}),
                         (
                             "get_completed_lessons",
