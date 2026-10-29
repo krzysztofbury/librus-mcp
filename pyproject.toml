@@ -20,7 +20,7 @@ classifiers = [
 # interchangeable here.
 dependencies = [
     "mcp>=2.2.0,<3",
-    "librus-python-api==1.8.0",
+    "librus-python-api==1.8.1",
     "pydantic>=2.12,<3",
     # Serves the self-hosted HTTP transport; mcp already depends on it.
     "uvicorn>=0.35,<1",
