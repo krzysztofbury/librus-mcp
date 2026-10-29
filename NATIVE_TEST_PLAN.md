@@ -20,9 +20,18 @@ consent unless `mark_read_consent` is on, and a refused open returns
 - The catalog measures 123731 bytes for 31 default tools and 137062 bytes
   for 35 tools (116 more than 2.5.0: the `get_timetable` date and
   `get_message_content` descriptions and its nullable consent input).
-- Authorized live run on the four owner logins with API 1.8.1 from source:
-  `student_information` returned an available lucky number on all four (1.8.0
-  returned unavailable), and the API release live check passed.
+- Authorized live runs on the four owner logins with the published API 1.8.1:
+  `qualify_native.py --live` academic 60 passed, 4 `VIEW_DISABLED`, 4 without
+  a reference (124 requests); communication 22 passed, 2 without a sent
+  reference, 4 expected unsupported; homework_history 10 passed, 2 without a
+  reference; v21 81 passed. Through an MCP client: `get_timetable` for
+  Thursday 2026-10-29 returned the week of Monday 2026-10-26; on an
+  already-read received message `allow_mark_read=false` returned
+  `CONSENT_REQUIRED` with `requires`, an omitted consent opened it, and with
+  `mark_read_consent` an omitted consent returned `CONSENT_REQUIRED`.
+  `check-tools` with `LIBRUS_MCP_LOG_OPERATIONS=1`: `get_student_information`
+  OK on all four, lines carry `status=200`. Session recovery, the lucky number
+  and the consent error were verified live in the API before its release.
 
 ## 2.5.0 failure diagnostics
 
