@@ -6,13 +6,19 @@ All notable changes to this project will be documented in this file.
 
 ## [2.5.1] - 2026-10-29
 
-Lucky number and clearer reports from API 1.8.1, `get_timetable` takes any
+Session recovery, lucky number and clearer reports from API 1.8.1, `get_timetable` takes any
 date in the week, and reading a received message no longer needs a separate
 consent unless the operator asks for it. Successful result shapes are
 unchanged.
 
 ### Fixed
 
+- After Librus forgot the server's session, every tool failed with `PARSE`
+  until the server was restarted: Librus answers such a session with a "Brak
+  dostępu" page, not a login redirect. API 1.8.1 recognizes that page, signs
+  in again and repeats the read once. This was the `PARSE at
+  parsers:parse_profile` a tester saw on `get_student_information` and
+  `get_new_notifications`.
 - `get_student_information` returns the lucky number. Every 2.x release
   reported it as unavailable because the library looked for markup the page
   does not use. A "?" shown by schools without lucky numbers stays
@@ -40,6 +46,8 @@ unchanged.
 - `librus-mcp inspect-page profile FILE` checks a saved information page
   (`/informacja`, used by `get_student_information`). A page source saved as
   a macOS TextEdit document is named as such instead of failing as a layout.
+- `LIBRUS_MCP_LOG_OPERATIONS=1` lines add `status=`, the HTTP status of the
+  operation's last checked Librus response.
 - With `LIBRUS_MCP_DIAGNOSE_FAILURES=1`, a failure on a whole page (such as a
   page without the expected table) is summarized as its notices and table
   rows, with known labels by name and other text as lengths, instead of the

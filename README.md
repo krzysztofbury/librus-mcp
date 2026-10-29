@@ -371,7 +371,7 @@ before sharing it anyway.
 | You want to see failures in the logs | the server's standard error (`docker logs` for the image) | one line per failed call |
 | You want the page structure of a failure | `LIBRUS_MCP_DIAGNOSE_FAILURES=1` | the masked HTML structure around the failure, or a summary of the whole page (notices, table rows, known labels), on standard error |
 | A tool returns `CONSENT_REQUIRED` | ask the user, then call again with the input named in `requires` | for a received message, `allow_mark_read=true`: opening marks it read in Librus (only with `mark_read_consent`, or after `allow_mark_read=false`) |
-| You want a trace of every Librus read | `LIBRUS_MCP_LOG_OPERATIONS=1` | one line per read: operation, outcome, time, requests, failure site |
+| You want a trace of every Librus read | `LIBRUS_MCP_LOG_OPERATIONS=1` | one line per read: operation, outcome, time, requests, HTTP status, failure site |
 | The assistant says `Invalid structured content returned by tool ...` | reload the assistant's tool list, then `librus-mcp check-tools` | the failing result path and schema rule |
 | A page fails to parse and you want to report it | `librus-mcp inspect-page grades page.html` (or `final-grades`, `profile`) | counts, or code locations and the masked structure, offline |
 

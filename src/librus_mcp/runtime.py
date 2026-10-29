@@ -29,13 +29,15 @@ LOG_OPERATIONS = "LIBRUS_MCP_LOG_OPERATIONS"
 
 
 def operation_log(event: DiagnosticEvent) -> None:
-    """Write an operation's name, outcome, time, traffic and failure site."""
+    """Write an operation's name, outcome, time, traffic, status and failure site."""
     outcome = event.outcome if isinstance(event.outcome, str) else event.outcome.value
     line = (
         f"operation {event.operation} {outcome.upper()} "
         f"{event.elapsed_seconds:.2f}s requests={event.budget_requests_dispatched} "
         f"bytes={event.budget_response_bytes}"
     )
+    if event.http_status is not None:
+        line += f" status={event.http_status}"
     if event.frames:
         line += f" at {' < '.join(reversed(event.frames))}"
     try:
