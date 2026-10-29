@@ -96,9 +96,14 @@ async def test_reference_backend_context_and_mark_read_guards_are_preflight_only
                     # Binding failures must not be hidden by missing consent.
                     # Independent account/context mutations are covered with
                     # actual message references in test_message_stdio.py.
-                    for ref, consent in (
-                        (message, False),
-                        (message | {"backend": "legacy"}, True),
+                    for ref, consent, error in (
+                        (
+                            message,
+                            False,
+                            {"code": "CONSENT_REQUIRED", "requires": "allow_mark_read"},
+                        ),
+                        (message | {"backend": "legacy"}, False, {"code": "INVALID_INPUT"}),
+                        (message | {"backend": "legacy"}, True, {"code": "INVALID_INPUT"}),
                     ):
                         result = await session.call_tool(
                             "get_message_content",
@@ -109,7 +114,7 @@ async def test_reference_backend_context_and_mark_read_guards_are_preflight_only
                             },
                         )
                         assert result.is_error and closed(result.structured_content) == {
-                            "error": {"code": "INVALID_INPUT"}
+                            "error": error
                         }
                         assert len(wire.calls) == calls
                     school = {

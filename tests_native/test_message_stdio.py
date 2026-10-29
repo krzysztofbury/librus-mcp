@@ -69,7 +69,7 @@ async def test_paging_content_consent_directory_and_context_binding(backend):
                         "get_message_content", base | {"message_ref": reference}
                     )
                     assert rejected.is_error and closed(rejected.structured_content) == {
-                        "error": {"code": "INVALID_INPUT"}
+                        "error": {"code": "CONSENT_REQUIRED", "requires": "allow_mark_read"}
                     }
                     assert len(wire.calls) == calls
                     opened = await session.call_tool(

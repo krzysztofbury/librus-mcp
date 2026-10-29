@@ -6,8 +6,9 @@ All notable changes to this project will be documented in this file.
 
 ## [2.5.1] - 2026-10-29
 
-Lucky number and clearer reports from API 1.8.1, and `get_timetable` takes
-any date in the week. Result shapes are unchanged.
+Lucky number and clearer reports from API 1.8.1, `get_timetable` takes any
+date in the week, and a missing mark-read consent has its own error code.
+Successful result shapes are unchanged.
 
 ### Fixed
 
@@ -19,6 +20,14 @@ any date in the week. Result shapes are unchanged.
 - `get_timetable` accepts any date in the week and reads that week; its
   result's `monday` names the week. Earlier releases rejected any day other
   than a Monday with `INVALID_INPUT`, which agents asking for "today" hit.
+
+### Changed
+
+- `get_message_content` on a received message without `allow_mark_read=true`
+  returns `CONSENT_REQUIRED` with `"requires": "allow_mark_read"` instead of
+  `INVALID_INPUT`, so an agent asks the user instead of reporting the message
+  as unreadable. Nothing is requested from Librus either way. A client that
+  matches error codes sees the new code.
 
 ### Added
 

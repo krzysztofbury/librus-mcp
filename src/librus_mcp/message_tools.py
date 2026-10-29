@@ -240,7 +240,7 @@ async def get_message_content(
         bool, Field(strict=True, description="Consent to mark a received message read.")
     ] = False,
 ) -> MessageContentResult:
-    """Get a message's full text and attachments. Librus marks a received message read when it is opened, so that needs allow_mark_read=true with the user's consent; sent messages do not. Archived messages cannot be opened."""
+    """Get a message's full text and attachments. Librus marks a received message read when it is opened, so that needs allow_mark_read=true with the user's consent; sent messages do not. Without it a received message returns CONSENT_REQUIRED: ask the user, then call again. Archived messages cannot be opened."""
     runtime = ctx.request_context.lifespan_context
     require_binding(
         runtime, account_alias, message_ref.account, message_ref.context, message_ref.backend.value
@@ -248,7 +248,7 @@ async def get_message_content(
     if message_ref.archived:
         raise LibrusError(ErrorKind.UNSUPPORTED_CAPABILITY)
     if message_ref.folder is MessageFolder.RECEIVED and not allow_mark_read:
-        raise LibrusError(ErrorKind.INVALID_INPUT)
+        raise LibrusError(ErrorKind.CONSENT_REQUIRED)
     reference = message_ref.native()
     client = runtime.account(account_alias)
     if isinstance(reference, ModernMessageReference):
