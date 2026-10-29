@@ -16,11 +16,13 @@ library `1.0.2`. Use an explicit version pin when selecting a release.
 
 ## Moving from 2.0 to 2.1
 
-2.5.0 pins API 1.8.0. Reuse the existing configuration,
+2.5.1 pins API 1.8.1. Reuse the existing configuration,
 context key, sends and notification stores. Refresh the host's tool catalog.
 Custom consumers must accept the new `formative` grade item variant, the
 `point` variant (2.4) and the nullable `formative_id` on existing variants;
-restart old grade cursors.
+restart old grade cursors. Error handling must accept `CONSENT_REQUIRED` with
+`requires` (2.5.1), returned where `INVALID_INPUT` was for a received message
+opened without consent.
 Message references/cursors without the new fields still select current,
 unfiltered mail. New archive/filter fields must be preserved on round trips.
 No migration command or state reset is required. The new history, class-free-day
@@ -84,7 +86,7 @@ Enabling sending gives 35 tools; disabling notifications and attachments leaves
 
 Dates use ISO civil dates (`YYYY-MM-DD`), not Unix timestamps. Frequency results
 keep native ratios in `0..1` or `null`, with attended/total/excluded/unknown counts.
-Calendar months use integer `year`/`month`; timetable weeks require a Monday.
+Calendar months use integer `year`/`month`; timetable weeks take any date in the week (a Monday before 2.5.1).
 Homework defaults to today through today+14 in Warsaw; supplied dates must be
 paired. Native validation bounds the range. School wall times are not guessed UTC.
 
@@ -100,8 +102,10 @@ Agenda/homework details require the bound references returned by their lists.
 
 Messaging uses the explicitly configured backend, never automatic fallback.
 `get_messages` returns summaries and backend/account/context-bound cursors and
-references. `limit`, `max_pages` and modern `page_size` bound each call. Received
-body reads require `allow_mark_read=true`; listing never grants that consent.
+references. `limit`, `max_pages` and modern `page_size` bound each call. Since
+2.5.1 a received body read marks the message read unless `allow_mark_read=false`
+or the `mark_read_consent` feature is on; with that feature it requires
+`allow_mark_read=true`, which listing never grants.
 Sent content can be opened without received-message consent. Body and directory
 text remain inert, untrusted data. `get_recipient_choices` is legacy-only and
 returns `UNSUPPORTED_CAPABILITY` on a modern account. Select a supported bound

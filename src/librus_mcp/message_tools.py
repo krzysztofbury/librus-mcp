@@ -237,29 +237,34 @@ async def get_message_content(
     ],
     ctx: Context[Runtime, Any],
     allow_mark_read: Annotated[
-        bool, Field(strict=True, description="Consent to mark a received message read.")
-    ] = False,
+        bool | None,
+        Field(strict=True, description="false leaves a received message unread and unopened."),
+    ] = None,
 ) -> MessageContentResult:
-    """Get a message's full text and attachments. Librus marks a received message read when it is opened, so that needs allow_mark_read=true with the user's consent; sent messages do not. Archived messages cannot be opened."""
+    """Get a message's full text and attachments. Opening a received message marks it read in Librus, as the app does. A server can require consent for that: on CONSENT_REQUIRED, ask the user, then call again with allow_mark_read=true. Archived messages cannot be opened."""
     runtime = ctx.request_context.lifespan_context
     require_binding(
         runtime, account_alias, message_ref.account, message_ref.context, message_ref.backend.value
     )
     if message_ref.archived:
         raise LibrusError(ErrorKind.UNSUPPORTED_CAPABILITY)
-    if message_ref.folder is MessageFolder.RECEIVED and not allow_mark_read:
-        raise LibrusError(ErrorKind.INVALID_INPUT)
+    mark_read = allow_mark_read is True
+    if message_ref.folder is MessageFolder.RECEIVED:
+        if allow_mark_read is None:
+            mark_read = not runtime.config.features.mark_read_consent
+        if not mark_read:
+            raise LibrusError(ErrorKind.CONSENT_REQUIRED)
     reference = message_ref.native()
     client = runtime.account(account_alias)
     if isinstance(reference, ModernMessageReference):
         content = await client.modern_message_content(
-            reference, allow_mark_read=allow_mark_read, budget=runtime.budget
+            reference, allow_mark_read=mark_read, budget=runtime.budget
         )
         return MessageContentResult(
             context=client.context.identifier, backend=message_ref.backend, data=content
         )
     content_legacy = await client.message_content(
-        reference, allow_mark_read=allow_mark_read, budget=runtime.budget
+        reference, allow_mark_read=mark_read, budget=runtime.budget
     )
     return MessageContentResult(
         context=client.context.identifier, backend=message_ref.backend, data=content_legacy

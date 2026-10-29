@@ -57,7 +57,9 @@ async def test_remaining_academic_families_preserve_native_values_and_bound_refe
                     "ratio": None,
                     "policy": "subject",
                 }
-                timetable = await call("get_timetable", {"monday": "2026-09-21"})
+                # A Thursday selects its week.
+                timetable = await call("get_timetable", {"monday": "2026-09-24"})
+                assert timetable["monday"] == "2026-09-21"
                 assert [item["day"] for item in timetable["items"]] == [
                     f"2026-09-{day}" for day in range(21, 28)
                 ]

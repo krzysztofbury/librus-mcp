@@ -80,6 +80,23 @@ def test_inspect_page_needs_no_configuration(tmp_path, monkeypatch, capsys):
         main(["inspect-page", "grades", str(page)])
     assert parsed.value.code == 0
     assert "OK numeric=1" in capsys.readouterr().out
+    rows = (
+        ("Uczeń", "A"),
+        ("Klasa", "1"),
+        ("Nr w dzienniku", "2"),
+        ("Wychowawca", "B"),
+        ("Szkoła", "C"),
+    )
+    page.write_text(
+        "<html><body><table>"
+        + "".join(f"<tr><th>{label}</th><td>{value}</td></tr>" for label, value in rows)
+        + "</table></body></html>",
+        encoding="utf-8",
+    )
+    with pytest.raises(SystemExit) as profile:
+        main(["inspect-page", "profile", str(page)])
+    assert profile.value.code == 0
+    assert "OK lucky_number=0" in capsys.readouterr().out
 
 
 @pytest.mark.asyncio
@@ -193,6 +210,7 @@ async def test_operation_log_lists_each_librus_read_without_logins(tmp_path):
                     await session.call_tool("get_grades", {"account_alias": ALIAS})
     stderr = stderr_path.read_text(encoding="utf-8")
     assert "librus-mcp: operation student_information OK " in stderr
+    assert " status=200" in stderr.split("operation student_information OK", 1)[1].split("\n")[0]
     assert "librus-mcp: operation grades PARSE " in stderr
     assert "at markup:tooltip_fields:" in stderr.split("operation grades PARSE", 1)[1]
     assert ALIAS not in stderr and SECRET not in stderr

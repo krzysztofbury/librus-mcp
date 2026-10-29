@@ -210,12 +210,16 @@ async def get_subject_frequency(
 
 async def get_timetable(
     account_alias: AccountAliasInput,
-    monday: Annotated[ISODate, Field(description="Monday of the week, YYYY-MM-DD.")],
+    monday: Annotated[
+        ISODate, Field(description="Any date in the week, YYYY-MM-DD; the week's Monday is used.")
+    ],
     ctx: Context[Runtime, Any],
 ) -> TimetableResult:
     """Get the lesson plan for one week, with substitutions and cancellations, in school local time. Selecting the week also changes the week this login's Librus session remembers."""
     runtime = ctx.request_context.lifespan_context
-    result = await runtime.account(account_alias).timetable(monday, budget=runtime.budget)
+    # Agents pass "today"; the week is what they mean. The result names its Monday.
+    week = monday - timedelta(days=monday.weekday())
+    result = await runtime.account(account_alias).timetable(week, budget=runtime.budget)
     return TimetableResult(
         items=result.days,
         monday=result.monday,

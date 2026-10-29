@@ -7,7 +7,7 @@ from librus_python_api import __version__ as api_version
 
 from librus_mcp import __version__
 
-_FIELDS = {"code", "where", "exception", "versions"}
+_FIELDS = {"code", "requires", "where", "exception", "versions"}
 _SITE = re.compile(r"[A-Za-z0-9_.]+:[A-Za-z0-9_.<>]+:[0-9]+")
 
 
@@ -15,7 +15,8 @@ def closed(content: Any) -> Any:
     """The `{"error": {"code": ...}}` part of an error result.
 
     `where` holds only code locations, `exception` only a class name and
-    `versions` the two package versions; nothing else may appear.
+    `versions` the two package versions; nothing else may appear. `requires`,
+    an input name, is kept for the caller to compare.
     """
     if not isinstance(content, dict) or set(content) != {"error"}:
         return content

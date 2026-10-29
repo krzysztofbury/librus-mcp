@@ -66,15 +66,16 @@ async def test_paging_content_consent_directory_and_context_binding(backend):
                         }
                         assert len(wire.calls) == calls
                     rejected = await session.call_tool(
-                        "get_message_content", base | {"message_ref": reference}
+                        "get_message_content",
+                        base | {"message_ref": reference, "allow_mark_read": False},
                     )
                     assert rejected.is_error and closed(rejected.structured_content) == {
-                        "error": {"code": "INVALID_INPUT"}
+                        "error": {"code": "CONSENT_REQUIRED", "requires": "allow_mark_read"}
                     }
                     assert len(wire.calls) == calls
+                    # By default a received message opens, and is marked read, as in the app.
                     opened = await session.call_tool(
-                        "get_message_content",
-                        base | {"message_ref": reference, "allow_mark_read": True},
+                        "get_message_content", base | {"message_ref": reference}
                     )
                     await assert_matches_published_schema(session, "get_message_content", opened)
                     body = opened.structured_content["data"]
@@ -154,3 +155,35 @@ async def test_paging_content_consent_directory_and_context_binding(backend):
                         != reference["context"]
                     )
                     assert wire.logins == {"71": 1, "72": 1}
+
+
+@pytest.mark.asyncio
+async def test_mark_read_consent_mode_requires_an_explicit_true():
+    async with Wire().serve() as wire:
+        with anyio.fail_after(30):
+            async with stdio_client(
+                server_process(
+                    wire.origin, [("first", "71", "legacy")], features={"mark_read_consent": True}
+                ),
+                errlog=sys.stderr,
+            ) as streams:
+                async with ClientSession(*streams) as session:
+                    started = await session.initialize()
+                    assert "require explicit mark-read consent" in (started.instructions or "")
+                    base = {"account_alias": "first"}
+                    listed = await session.call_tool("get_messages", base | {"limit": 1})
+                    reference = listed.structured_content["items"][0]["reference"]
+                    calls = len(wire.calls)
+                    rejected = await session.call_tool(
+                        "get_message_content", base | {"message_ref": reference}
+                    )
+                    assert rejected.is_error and closed(rejected.structured_content) == {
+                        "error": {"code": "CONSENT_REQUIRED", "requires": "allow_mark_read"}
+                    }
+                    assert len(wire.calls) == calls
+                    opened = await session.call_tool(
+                        "get_message_content",
+                        base | {"message_ref": reference, "allow_mark_read": True},
+                    )
+                    assert not opened.is_error
+                    assert opened.structured_content["data"]["content"]["text"] == "Fixture body"

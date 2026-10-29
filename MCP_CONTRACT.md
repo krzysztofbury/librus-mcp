@@ -41,7 +41,10 @@ Domain/protocol errors return `isError=true` and
 Since 2.5, `where` lists the failure's code locations in `librus_mcp` and
 `librus_python_api` (`module:function:line`, the original site last; omitted
 when there is none) and `versions` names both packages; unanticipated errors
-add `exception`, the exception class name. Code locations are opaque and
+add `exception`, the exception class name. Since 2.5.1, `CONSENT_REQUIRED`
+means a call with an effect the user must agree to was made without that
+consent, before any request, and adds `requires`, the name of the input that
+grants it (`allow_mark_read` for a received message). Code locations are opaque and
 change between releases: report them, do not parse them. No validation
 inputs, aliases, messages, credentials, tokens, HTML, causes or raw exception
 text are included. Unanticipated errors are
@@ -155,7 +158,10 @@ states whether it is destructive: view selection, `preview_message` and
 and acknowledgements are. Catalog annotations are hints, not an authorization
 mechanism.
 
-- Received-body reads require `allow_mark_read=true`; sent-body reads do not.
+- A received-body read marks the message read in Librus. It proceeds unless
+  `allow_mark_read=false`; with the `mark_read_consent` feature it requires
+  `allow_mark_read=true` (the only behaviour before 2.5.1). Sent-body reads need
+  neither. The tool stays annotated destructive, so a host may confirm it.
 - Sending is opt-in. `preview_message` persists an exact payload binding without
   HTTP. Redemption additionally requires `confirm=true` and actual human approval.
   Tokens do not prove approval. Cancellation, lost responses and uncertain native

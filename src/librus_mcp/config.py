@@ -61,6 +61,9 @@ class FeaturesConfig(BaseModel):
     attachments: bool = True
     send_message: bool = False
     behaviour_notes: bool = False
+    # Opening a received message marks it read in Librus, as the app does.
+    # When true, each open needs allow_mark_read=true given with consent.
+    mark_read_consent: bool = False
 
 
 class AppConfig(BaseModel):

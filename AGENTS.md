@@ -53,8 +53,11 @@ evidence available, in this order:
    `librus-mcp check-tools`, which reports the result path and schema rule.
    The host's full message quotes school data; do not ask for it in public.
 3. **A parse failure** is reproduced offline from the page:
-   `librus-mcp inspect-page grades page.html` (or
-   `python -m librus_python_api.inspect_page`). If the user sends raw HTML, keep
+   `librus-mcp inspect-page grades page.html` (`final-grades`, `profile`; or
+   `python -m librus_python_api.inspect_page`). A saved page that parses
+   cleanly means the server received a different document: ask for the
+   server's stderr with both variables from step 4, not another page. A
+   macOS TextEdit export (`Cocoa HTML Writer`) is not a page source. If the user sends raw HTML, keep
    it in job scratch outside the repository, never commit or quote it, delete
    it when done, and write original fixtures that follow its structure.
 4. **Runtime traces**: `LIBRUS_MCP_LOG_OPERATIONS=1` (one line per Librus read)
