@@ -99,6 +99,17 @@ and `docker exec CONTAINER librus-mcp check-tools` in a container started
 with `LIBRUS_USERNAME`/`LIBRUS_PASSWORD` from an env file and the data
 volume. SELinux (`:z`) and macOS/Windows Docker were not run.
 
+After the 2.5.1 publication on 2026-10-30, on Linux: `verify_image.py` on the
+pulled `ghcr.io/krzysztofbury/librus-mcp:2.5.1` (stdio and HTTP) and
+`verify_mcpb.py` on the downloaded `librus-mcp-2.5.1.mcpb` (31 tools) passed;
+the MCP Registry lists 2.5.1. `uvx --python 3.14 librus-mcp==2.5.1
+inspect-page profile page.html` and `--config FILE check-tools` (four logins,
+20 calls OK) ran as written; `uvx` needed `--refresh` once minutes after
+publication. The README Docker Compose service was started as written (with
+both diagnostic variables), and `docker exec CONTAINER librus-mcp check-tools
+--tool get_student_information --tool get_grades` returned OK for all four
+logins with `status=200` operation lines.
+
 Not verified yet, needing a manual check:
 
 - installing the bundle in Claude Desktop on macOS and Windows, including
