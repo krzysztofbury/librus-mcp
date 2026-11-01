@@ -126,6 +126,14 @@ both diagnostic variables), and `docker exec CONTAINER librus-mcp check-tools
 --tool get_student_information --tool get_grades` returned OK for all four
 logins with `status=200` operation lines.
 
+After the 2.5.2 publication on 2026-11-01, on Linux: `verify_image.py` on the
+pulled `ghcr.io/krzysztofbury/librus-mcp:2.5.2` (stdio and HTTP) and
+`verify_mcpb.py` on the downloaded `librus-mcp-2.5.2.mcpb` (31 tools) passed;
+the MCP Registry lists 2.5.2 with its PyPI, image and bundle packages. `uvx
+--refresh --python 3.14 librus-mcp==2.5.2 --config FILE check-tools` (four
+logins, 20 calls OK, `status=200`) ran as written. The README Docker Compose
+service was not started for this release.
+
 Not verified yet, needing a manual check:
 
 - installing the bundle in Claude Desktop on macOS and Windows, including
