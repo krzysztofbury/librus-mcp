@@ -15,6 +15,22 @@ HTTP on the user's own Docker host is supported; see README.md.
 | MCP Bundle `librus-mcp-X.mcpb` | one-click install in apps that support bundles | the app's settings form (login and password marked sensitive) |
 | MCP Registry `io.github.krzysztofbury/librus-mcp` | discovery and install in registry clients and aggregators | the client asks for the environment variables |
 
+## Before a release
+
+Nothing is published until the candidate has passed against live Librus. The
+checks are read-only and run locally, never in CI.
+
+1. Publish the pinned API first. Its own live check is step 4 of `RELEASE.md`
+   in `librus-python-api`.
+2. With the candidate checked out and its lock on that published API, run
+   `uv run python scripts/qualify_native.py --live --phase PHASE --config FILE`
+   for each phase: `academic`, `communication`, `homework_history` and `v21`.
+3. A failure blocks the release; fix it in the candidate and run it again.
+   Completed lessons reporting `VIEW_DISABLED` are expected on the owner's
+   logins and make the script exit 1, so read each status in its report, not
+   only the exit code.
+4. Record the counts in `NATIVE_TEST_PLAN.md` in the release commit.
+
 ## How a release publishes them
 
 `publish.yml` runs on a published GitHub Release:
