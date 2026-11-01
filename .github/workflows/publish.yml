@@ -79,7 +79,8 @@ jobs:
       - name: Record distribution checksums
         id: checksums
         run: |
-          sha256sum dist/*.whl dist/*.tar.gz > dist/SHA256SUMS
+          # Bare names, so the attached file checks in a flat download.
+          (cd dist && sha256sum -- *.whl *.tar.gz > SHA256SUMS)
           echo "manifest-sha256=$(sha256sum dist/SHA256SUMS | cut -d ' ' -f 1)" >> "$GITHUB_OUTPUT"
 
       # The bundle carries the wheel verified above, never a rebuild.
@@ -134,10 +135,10 @@ jobs:
         run: |
           test -n "$EXPECTED_MANIFEST_SHA256"
           echo "$EXPECTED_MANIFEST_SHA256  dist/SHA256SUMS" | sha256sum --check --strict
-          sha256sum --check --strict dist/SHA256SUMS
+          (cd dist && sha256sum --check --strict SHA256SUMS)
           mkdir verified-dist
           while read -r _ distribution; do
-            cp -- "$distribution" verified-dist/
+            cp -- "dist/$distribution" verified-dist/
           done < dist/SHA256SUMS
 
       - name: Publish to PyPI
@@ -176,7 +177,7 @@ jobs:
           EXPECTED_MANIFEST_SHA256: ${{ needs.verify.outputs.checksum-manifest-sha256 }}
         run: |
           echo "$EXPECTED_MANIFEST_SHA256  dist/SHA256SUMS" | sha256sum --check --strict
-          sha256sum --check --strict dist/SHA256SUMS
+          (cd dist && sha256sum --check --strict SHA256SUMS)
           mkdir verified-dist
           cp -- dist/*.whl verified-dist/
 
@@ -242,7 +243,7 @@ jobs:
     timeout-minutes: 20
     permissions:
       actions: read
-      contents: write # attach the bundle to the release
+      contents: write # attach the verified files to the release
       id-token: write # MCP Registry login for the io.github.krzysztofbury namespace
     env:
       MCP_PUBLISHER_VERSION: v1.8.5
@@ -275,15 +276,29 @@ jobs:
           artifact-ids: ${{ needs.verify.outputs.bundle-artifact-id }}
           path: mcpb-dist/
 
-      - name: Attach the bundle to the release
+      - name: Download verified distributions
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          artifact-ids: ${{ needs.verify.outputs.artifact-id }}
+          path: dist/
+          merge-multiple: true
+
+      - name: Attach the wheel, sdist, checksums and bundle to the release
         env:
+          EXPECTED_MANIFEST_SHA256: ${{ needs.verify.outputs.checksum-manifest-sha256 }}
           EXPECTED_SHA256: ${{ needs.verify.outputs.bundle-sha256 }}
           GH_TOKEN: ${{ github.token }}
         run: |
           bundle="mcpb-dist/librus-mcp-${RELEASE_TAG#v}.mcpb"
           echo "$EXPECTED_SHA256  $bundle" | sha256sum --check --strict
+          echo "$EXPECTED_MANIFEST_SHA256  dist/SHA256SUMS" | sha256sum --check --strict
+          (cd dist && sha256sum --check --strict SHA256SUMS)
+          files=("$bundle" dist/SHA256SUMS)
+          while read -r _ distribution; do
+            files+=("dist/$distribution")
+          done < dist/SHA256SUMS
           # --clobber keeps a re-run idempotent; the bytes were checked above.
-          gh release upload "$RELEASE_TAG" "$bundle" --repo "$GITHUB_REPOSITORY" --clobber
+          gh release upload "$RELEASE_TAG" "${files[@]}" --repo "$GITHUB_REPOSITORY" --clobber
 
       # The registry checks PyPI ownership against the published README, and
       # the PyPI JSON API can lag the upload by a few minutes.
