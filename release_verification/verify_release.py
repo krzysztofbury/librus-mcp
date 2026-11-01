@@ -63,6 +63,32 @@ def resolve_commit(repository: Path, revision: str) -> str:
     return commit
 
 
+def on_main(repository: Path, commit: str) -> bool:
+    """Re-read main from the remote rather than trusting the checkout's refs."""
+    subprocess.run(
+        [
+            "git",
+            "-C",
+            str(repository),
+            "fetch",
+            "origin",
+            "+refs/heads/main:refs/remotes/origin/main",
+        ],
+        check=True,
+        capture_output=True,
+    )
+    ancestor = [
+        "git",
+        "-C",
+        str(repository),
+        "merge-base",
+        "--is-ancestor",
+        commit,
+        "refs/remotes/origin/main",
+    ]
+    return subprocess.run(ancestor, check=False).returncode == 0
+
+
 def verify_release(repository: Path, tag: str, event_sha: str) -> str:
     version = read_project_version(repository / "pyproject.toml")
     verify_registry_metadata(repository, version)
@@ -83,6 +109,8 @@ def verify_release(repository: Path, tag: str, event_sha: str) -> str:
         raise VerificationError(
             f"checkout HEAD {head_commit} does not match release event SHA {event_commit}"
         )
+    if not on_main(repository, head_commit):
+        raise VerificationError(f"release commit {head_commit} is not on main")
     return version
 
 

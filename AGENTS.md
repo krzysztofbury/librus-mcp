@@ -28,8 +28,9 @@ project rules. [CONTRIBUTING.md](CONTRIBUTING.md) lists the checks CI runs.
 - A README or DISTRIBUTION.md setup is a contract. Run it literally before
   saying it works, including from the client's side (real Host header through
   a proxy, default ports), and name in DISTRIBUTION.md what was run.
-- Releases follow [DISTRIBUTION.md](DISTRIBUTION.md), which requires a passing
-  live qualification before anything is published. Bump every pinned version
+- Releases follow the steps in [DISTRIBUTION.md](DISTRIBUTION.md), the same ones
+  as `RELEASE.md` in `librus-python-api`: a passing live qualification comes
+  before the GitHub Release, which starts publication. Bump every pinned version
   in README.md, `server.json` and the docs that name it, date the CHANGELOG
   entry, and record catalog sizes in NATIVE_TEST_PLAN.md.
 - Wait on CI by run ID for the pushed commit (`gh run watch ID --exit-status`).

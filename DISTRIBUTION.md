@@ -15,21 +15,34 @@ HTTP on the user's own Docker host is supported; see README.md.
 | MCP Bundle `librus-mcp-X.mcpb` | one-click install in apps that support bundles | the app's settings form (login and password marked sensitive) |
 | MCP Registry `io.github.krzysztofbury/librus-mcp` | discovery and install in registry clients and aggregators | the client asks for the environment variables |
 
-## Before a release
+## Release steps
 
-Nothing is published until the candidate has passed against live Librus. The
-checks are read-only and run locally, never in CI.
+`librus-python-api` follows the same steps in its `RELEASE.md`, with one more:
+it qualifies the tag in a manual run before the live check. When a release of both
+is needed, publish that library first, then pin it here.
 
-1. Publish the pinned API first. Its own live check is step 4 of `RELEASE.md`
-   in `librus-python-api`.
-2. With the candidate checked out and its lock on that published API, run
+1. Merge the release preparation PR after CI passes on its exact head and on
+   `main`.
+2. Create an annotated immutable tag at the intended merged commit. Push it and
+   confirm the remote tag points to that commit. Never replace an uploaded tag.
+3. Run the read-only live check, which a release request from the owner covers.
+   Nothing is published until it passes. With the tag checked out and its lock on
+   the published API, run
    `uv run python scripts/qualify_native.py --live --phase PHASE --config FILE`
-   for each phase: `academic`, `communication`, `homework_history` and `v21`.
-3. A failure blocks the release; fix it in the candidate and run it again.
-   Completed lessons reporting `VIEW_DISABLED` are expected on the owner's
-   logins and make the script exit 1, so read each status in its report, not
-   only the exit code.
-4. Record the counts in `NATIVE_TEST_PLAN.md` in the release commit.
+   for each phase: `academic`, `communication`, `homework_history` and `v21`. It
+   runs locally, never in CI. A failure blocks the release; fix it in a new
+   version. Completed lessons reporting `VIEW_DISABLED` are expected on the
+   owner's logins and make the script exit 1, so read each status in its report,
+   not only the exit code.
+4. Publish the GitHub Release, which starts publication:
+   `gh release create vX.Y.Z --verify-tag --title "X.Y.Z - Summary" --notes-file FILE`.
+   The summary is a few words from the changelog entry; the notes are that entry
+   and the live check summary. Add `--prerelease` for a release candidate.
+5. Inspect that run's tag, commit and results, then approve the publish job.
+   `publish.yml` then runs as described below and attaches the wheel, sdist,
+   `SHA256SUMS` and bundle to the release.
+6. Check what users get, as in "Verified and not verified" below, and record
+   those checks and the live counts in this file and `NATIVE_TEST_PLAN.md`.
 
 ## How a release publishes them
 
@@ -51,7 +64,8 @@ checks are read-only and run locally, never in CI.
    it). It then pushes amd64 and arm64 images tagged with the version, and
    `latest` when this is the newest release, pulls the pushed image and runs
    the same verification on it, and starts the arm64 image under QEMU.
-4. `registry` attaches the bundle to the GitHub Release, waits until PyPI serves
+4. `registry` attaches the wheel, sdist, `SHA256SUMS` and bundle to the GitHub
+   Release, waits until PyPI serves
    the version, adds the bundle with its SHA-256 to `server.json`, and publishes
    it with a Sigstore-verified `mcp-publisher` using GitHub OIDC. No secret is
    needed: the `io.github.krzysztofbury` namespace is proven by the workflow's
@@ -67,7 +81,20 @@ repository's public visibility, linked through the image's
 If the package is ever private, the `registry` job stops before attaching the
 bundle or listing anything, with an error that points here. Set the package
 public at `https://github.com/users/krzysztofbury/packages/container/librus-mcp/settings`
-and re-run the job; attaching the bundle is idempotent.
+and re-run the job; attaching the files is idempotent.
+
+## Failures and recovery
+
+A job that failed on a flake reruns with `gh run rerun ID --failed`, which keeps
+that run's verified files for 7 days. Before upload, fix a real failure and do not
+waive a gate. To stop a release, reject the waiting approval first, since a later
+approval would publish with no release to attach to, then `gh release delete` it;
+the tag stays. A fault in the tag's own source or workflow needs a new version,
+because a release run uses the files at the tag.
+
+Once anything reached PyPI, never delete and republish the release: a new run
+builds again and cannot upload over an existing version. Rerun the failed job
+instead. A broken published release needs a yank and a corrected version.
 
 ## The image
 
