@@ -77,7 +77,15 @@ def on_main(repository: Path, commit: str) -> bool:
         check=True,
         capture_output=True,
     )
-    ancestor = ["git", "-C", str(repository), "merge-base", "--is-ancestor", commit, "origin/main"]
+    ancestor = [
+        "git",
+        "-C",
+        str(repository),
+        "merge-base",
+        "--is-ancestor",
+        commit,
+        "refs/remotes/origin/main",
+    ]
     return subprocess.run(ancestor, check=False).returncode == 0
 
 

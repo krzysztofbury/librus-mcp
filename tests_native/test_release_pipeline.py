@@ -89,6 +89,8 @@ def test_a_release_must_be_on_main(tmp_path, monkeypatch, merged):
     if not merged:
         git(checkout, "switch", "-c", "unmerged")
         git(checkout, "commit", "--allow-empty", "-m", "Unmerged")
+        # Resolves before the remote branch if the check uses the short name.
+        git(checkout, "tag", "origin/main")
     version = read_project_version(checkout / "pyproject.toml")
     git(checkout, "tag", f"v{version}")
     head = resolve_commit(checkout, "HEAD^{commit}")
