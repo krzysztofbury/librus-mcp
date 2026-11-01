@@ -346,6 +346,7 @@ async def poll_legacy_agenda(wire, state):
 
 
 @pytest.mark.asyncio
+@pytest.mark.skipif(os.name != "posix", reason="1.x pending events are read on POSIX only")
 async def test_valid_1x_state_is_adopted_on_first_poll_without_operator_steps(tmp_path):
     state = tmp_path / "state"
     baseline, pending = await legacy_state(state)
@@ -363,6 +364,7 @@ async def test_valid_1x_state_is_adopted_on_first_poll_without_operator_steps(tm
 
 
 @pytest.mark.asyncio
+@pytest.mark.skipif(os.name != "posix", reason="1.x pending events are read on POSIX only")
 async def test_adoption_stops_rather_than_replace_a_preserved_original(tmp_path):
     state = tmp_path / "state"
     baseline, pending = await legacy_state(state)
