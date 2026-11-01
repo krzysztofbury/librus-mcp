@@ -1,5 +1,22 @@
 # Native migration verification ownership
 
+## 2.5.2 audit fixes
+
+2.5.2 pins API 1.8.2 and changes no successful result shape.
+
+- `test_notification_stdio.py`: with every archive name taken, adoption returns
+  `STORAGE`, keeps the source and each preserved file, and resumes once a name
+  is free (POSIX; 1.x pending events are not read on Windows).
+- `test_config.py`: configuration ownership follows the effective user.
+- `test_catalog_schema.py`: `get_agenda` publishes the years the API accepts.
+- The catalog measures 123731 bytes for 31 default tools and 137062 bytes for
+  35 tools, unchanged from 2.5.1.
+- Authorized live runs on the four owner logins with the published API 1.8.2,
+  before publication: `qualify_native.py --live` academic 58 passed, 4
+  `VIEW_DISABLED`, 6 without a reference (122 requests); communication 22
+  passed, 2 without a sent reference, 4 expected unsupported; homework_history
+  10 passed, 2 without a reference; v21 81 passed.
+
 ## 2.5.1 lucky number and page summaries
 
 2.5.1 pins API 1.8.1 and changes no successful result shape. `get_timetable`

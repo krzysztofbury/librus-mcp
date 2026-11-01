@@ -4,8 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [2.5.2] - 2026-11-01
+
+Fixes from the 2026-11-01 audit on API 1.8.2. Successful result shapes are
+unchanged.
+
 ### Fixed
 
+- A cancelled mailbox read or a reached limit keeps the mailbox session (API
+  1.8.2), so the next mailbox call needs no new launch.
 - Adopting 1.x notification files with all 1000 archive names taken returns
   `STORAGE` and leaves the source in place; it used to replace the file kept at
   `.999`.
@@ -17,6 +24,7 @@ All notable changes to this project will be documented in this file.
 - `get_agenda` publishes `year` as 2001-2100, the range the API accepts; other
   years already failed with `INVALID_INPUT`. Refresh the host's tool catalog to
   see the new bounds.
+- Pins API 1.8.2, whose `User-Agent` carries the package version.
 
 ## [2.5.1] - 2026-10-29
 
