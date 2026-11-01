@@ -129,5 +129,3 @@ explicit_package_bases = true
 
 [tool.bandit]
 exclude_dirs = [".venv", "venv", "__pycache__"]
-# B101: assert used intentionally for input validation.
-skips = ["B101"]

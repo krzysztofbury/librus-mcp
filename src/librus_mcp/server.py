@@ -114,7 +114,8 @@ def compact_schema(schema: Any) -> Any:
         if key == "title" and isinstance(value, str):
             continue
         if key == "format" and value in ("date-time", "time"):
-            assert "pattern" not in schema
+            if "pattern" in schema:
+                raise ValueError("a schema sets both format and pattern")
             result["pattern"] = _ISO_DATE_TIME if value == "date-time" else _ISO_TIME
             continue
         if key in _SCHEMA_VALUE:

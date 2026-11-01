@@ -68,6 +68,9 @@ def _archive(directory: Path, paths: tuple[Path, ...]) -> None:
             if not os.path.lexists(target):
                 break
             target = archive / f"{path.name}.{index}"
+        if os.path.lexists(target):
+            # Renaming now would replace a preserved original.
+            raise FileExistsError
         try:
             path.rename(target)
         except FileNotFoundError:

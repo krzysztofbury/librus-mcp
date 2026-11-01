@@ -9,7 +9,7 @@ import pytest
 from librus_python_api.files import prepare_attachment_directory
 
 from librus_mcp.cli import main
-from librus_mcp.config import ConfigError, load_config
+from librus_mcp.config import ConfigError, load_config, read_private_file
 
 
 @pytest.fixture(autouse=True)
@@ -426,3 +426,21 @@ def test_unusable_directory_fails_startup_with_one_line(tmp_path, capsys):
     assert output.err.count("\n") == 1 and "(STORAGE)" in output.err
     assert "fixture" not in output.err
     assert downloads.read_bytes() == b"not a directory"
+
+
+@pytest.mark.skipif(os.name != "posix", reason="POSIX file ownership")
+@pytest.mark.parametrize(("differs", "accepted"), [("getuid", True), ("geteuid", False)])
+def test_configuration_ownership_follows_the_effective_user(
+    tmp_path, monkeypatch, differs, accepted
+):
+    # Opening and restricting the file act as the effective user.
+    path = tmp_path / "config.json"
+    path.write_bytes(b"{}")
+    path.chmod(0o600)
+    other = path.stat().st_uid + 1
+    monkeypatch.setattr(os, differs, lambda: other)
+    if accepted:
+        assert read_private_file(path) == b"{}"
+    else:
+        with pytest.raises(ConfigError, match="owned by the current user"):
+            read_private_file(path)

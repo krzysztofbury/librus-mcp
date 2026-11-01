@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Adopting 1.x notification files with all 1000 archive names taken returns
+  `STORAGE` and leaves the source in place; it used to replace the file kept at
+  `.999`.
+- The configuration ownership check uses the effective uid, like every other
+  private-file check.
+
+### Changed
+
+- `get_agenda` publishes `year` as 2001-2100, the range the API accepts; other
+  years already failed with `INVALID_INPUT`. Refresh the host's tool catalog to
+  see the new bounds.
+
 ## [2.5.1] - 2026-10-29
 
 Session recovery, lucky number and clearer reports from API 1.8.1, `get_timetable` takes any

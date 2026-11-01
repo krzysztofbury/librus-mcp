@@ -14,6 +14,7 @@ from mcp.client.stdio import stdio_client
 
 from librus_mcp.config import ConfigError, load_config
 from librus_mcp.migration import notification_state
+from librus_mcp.notification_tools import LEGACY_ARCHIVE
 from tests_native.errors import closed
 from tests_native.published_schema import assert_matches_published_schema
 from tests_native.test_config import config_data, write_config
@@ -313,10 +314,7 @@ async def test_consumed_checkpoint_replays_or_stays_quarantined_without_second_c
                 assert len(wire.calls) == calls
 
 
-@pytest.mark.asyncio
-@pytest.mark.skipif(os.name != "posix", reason="1.x pending events are read on POSIX only")
-async def test_valid_1x_state_is_adopted_on_first_poll_without_operator_steps(tmp_path):
-    state = tmp_path / "state"
+async def legacy_state(state):
     await prepare_attachment_directory(state)
     baseline = state / "account.notifications.json"
     categories = ("grades", "attendance", "messages", "announcements", "schedule", "homework")
@@ -329,25 +327,59 @@ async def test_valid_1x_state_is_adopted_on_first_poll_without_operator_steps(tm
     pending.write_text(body)
     for path in (baseline, pending):
         path.chmod(0o600)
+    return baseline, pending
+
+
+async def poll_legacy_agenda(wire, state):
+    process = server_process(
+        wire.origin,
+        [("account", "71")],
+        features={"notifications": True},
+        state_dir=state,
+    )
+    with anyio.fail_after(20):
+        async with stdio_client(process) as streams, ClientSession(*streams) as session:
+            await session.initialize()
+            return await session.call_tool(
+                "get_new_notifications", {"account_alias": "account", "categories": ["agenda"]}
+            )
+
+
+@pytest.mark.asyncio
+async def test_valid_1x_state_is_adopted_on_first_poll_without_operator_steps(tmp_path):
+    state = tmp_path / "state"
+    baseline, pending = await legacy_state(state)
     async with Wire().serve() as wire:
-        process = server_process(
-            wire.origin,
-            [("account", "71")],
-            features={"notifications": True},
-            state_dir=state,
+        first = await poll_legacy_agenda(wire, state)
+        assert not first.is_error
+        assert "Kept" in json.dumps(first.structured_content["data"]["items"])
+        # Already consumed upstream by 1.x: delivered without a second consume.
+        assert not any(
+            path == "/terminarz/dodane_od_ostatniego_logowania" for _, path, _ in wire.calls
         )
-        with anyio.fail_after(20):
-            async with stdio_client(process) as streams, ClientSession(*streams) as session:
-                await session.initialize()
-                first = await session.call_tool(
-                    "get_new_notifications", {"account_alias": "account", "categories": ["agenda"]}
-                )
-                assert not first.is_error
-                assert "Kept" in json.dumps(first.structured_content["data"]["items"])
-                # Already consumed upstream by 1.x: delivered without a second consume.
-                assert not any(
-                    path == "/terminarz/dodane_od_ostatniego_logowania" for _, path, _ in wire.calls
-                )
-    archived = state / "legacy-1x"
+    archived = state / LEGACY_ARCHIVE
     assert sorted(path.name for path in archived.iterdir()) == sorted([baseline.name, pending.name])
     assert not baseline.exists() and not pending.exists()
+
+
+@pytest.mark.asyncio
+async def test_adoption_stops_rather_than_replace_a_preserved_original(tmp_path):
+    state = tmp_path / "state"
+    baseline, pending = await legacy_state(state)
+    archived = state / LEGACY_ARCHIVE
+    archived.mkdir(mode=0o700)
+    names = [baseline.name, *(f"{baseline.name}.{index}" for index in range(1, 1000))]
+    for name in names:
+        (archived / name).write_bytes(b"kept")
+    async with Wire().serve() as wire:
+        blocked = await poll_legacy_agenda(wire, state)
+        assert closed(blocked.structured_content) == {"error": {"code": "STORAGE"}}
+        assert baseline.exists()
+        assert {(archived / name).read_bytes() for name in names} == {b"kept"}
+        # One free name is enough: the imported event is still delivered.
+        (archived / names[-1]).unlink()
+        resumed = await poll_legacy_agenda(wire, state)
+        assert not resumed.is_error
+        assert "Kept" in json.dumps(resumed.structured_content["data"]["items"])
+    assert not baseline.exists() and not pending.exists()
+    assert (archived / names[-1]).read_bytes() != b"kept"
