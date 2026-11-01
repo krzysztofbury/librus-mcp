@@ -84,9 +84,8 @@ async def get_grades_window(
     """List grades and formative assessments dated within date_from..date_to, without averages (see get_grades). A point grade's raw is a score on the scale its category names. scope also changes the view this login's Librus session remembers and may not apply to formative rows. A grade whose formative_id equals a formative row's assessment.detail_id is one assessment."""
     runtime = ctx.request_context.lifespan_context
     client = runtime.account(account_alias)
-    validate_window_cursor(
-        cursor, client.context.identifier, ("grades", scope.value, str(date_from), str(date_to))
-    )
+    query = ("grades", scope.value, str(date_from), str(date_to))
+    validate_window_cursor(cursor, client.context.identifier, query)
     result = await client.grades_window(
         start=date_from, end=date_to, view=scope, budget=runtime.budget
     )
@@ -98,7 +97,7 @@ async def get_grades_window(
     selected, pagination = window_page(
         items,
         context=client.context.identifier,
-        query=("grades", scope.value, str(date_from), str(date_to)),
+        query=query,
         cursor=cursor,
         limit=limit,
     )
@@ -125,16 +124,15 @@ async def get_attendance_window(
     """List attendance records dated within date_from..date_to. Use this instead of get_attendance for a date range. scope also changes the view this login's Librus session remembers."""
     runtime = ctx.request_context.lifespan_context
     client = runtime.account(account_alias)
-    validate_window_cursor(
-        cursor, client.context.identifier, ("attendance", scope.value, str(date_from), str(date_to))
-    )
+    query = ("attendance", scope.value, str(date_from), str(date_to))
+    validate_window_cursor(cursor, client.context.identifier, query)
     result = await client.attendance_window(
         start=date_from, end=date_to, view=scope, budget=runtime.budget
     )
     items, pagination = window_page(
         result.items,
         context=client.context.identifier,
-        query=("attendance", scope.value, str(date_from), str(date_to)),
+        query=query,
         cursor=cursor,
         limit=limit,
     )
@@ -242,7 +240,7 @@ async def get_announcements(
 
 async def get_agenda(
     account_alias: AccountAliasInput,
-    year: Annotated[int, Field(strict=True, ge=1900, le=9999, description="Calendar year.")],
+    year: Annotated[int, Field(strict=True, ge=2001, le=2100, description="Calendar year.")],
     month: Annotated[int, Field(strict=True, ge=1, le=12, description="Month, 1 to 12.")],
     ctx: Context[Runtime, Any],
 ) -> AgendaResult:

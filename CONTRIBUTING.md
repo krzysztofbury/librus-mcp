@@ -22,9 +22,7 @@ Thank you for your interest in contributing! This document provides guidelines t
 
 The key rules:
 
-- **Safety first:** Validate inputs and outputs with assertions (~2 per function)
-- **Split assertions:** `assert a; assert b` - never `assert a and b`
-- **Functions <= 70 lines**
+- **Typed errors:** Validate with pydantic and raise `LibrusError`, not assertions
 - **No abbreviations** in variable names
 - **Comments explain "why"**, not "what"
 - **Lines <= 100 columns**

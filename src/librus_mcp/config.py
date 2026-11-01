@@ -157,7 +157,7 @@ def read_private_file(
             status = os.fstat(file.fileno())
             if not stat.S_ISREG(status.st_mode):
                 raise ConfigError(f"{label} must be a regular file")
-            if os.name == "posix" and status.st_uid != os.getuid():
+            if os.name == "posix" and status.st_uid != os.geteuid():
                 raise ConfigError(f"{label} must be owned by the current user")
             if os.name == "posix" and stat.S_IMODE(status.st_mode) & 0o077:
                 # Restrict the user's own file in place, through the opened

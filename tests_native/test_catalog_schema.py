@@ -2,6 +2,8 @@
 
 import pytest
 from jsonschema.validators import validator_for
+from librus_python_api.config import agenda_form
+from librus_python_api.exceptions import LibrusError
 
 from librus_mcp.config import AppConfig
 from librus_mcp.server import create_server
@@ -98,3 +100,15 @@ async def test_output_schemas_accept_fields_a_later_release_adds():
     }
     errors = list(validator_for(grades)(grades).iter_errors(result))
     assert not any("added_later" in error.message for error in errors)
+
+
+@pytest.mark.asyncio
+async def test_agenda_publishes_the_years_the_api_accepts():
+    server = create_server(AppConfig.model_validate(config_data()))
+    tools = {tool.name: tool for tool in await server.list_tools()}
+    year = tools["get_agenda"].input_schema["properties"]["year"]
+    for accepted in (year["minimum"], year["maximum"]):
+        assert agenda_form(accepted, 1)["rok"] == str(accepted)
+    for refused in (year["minimum"] - 1, year["maximum"] + 1):
+        with pytest.raises(LibrusError):
+            agenda_form(refused, 1)
