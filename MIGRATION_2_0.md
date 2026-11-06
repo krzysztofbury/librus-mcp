@@ -292,6 +292,18 @@ consumption, acknowledgement and sends require a deliberate export/reconciliatio
 before rollback; an old backup is insufficient after native writes. See
 [verification ownership](NATIVE_TEST_PLAN.md).
 
+## Going back to 1.x
+
+Downgrading from 2.x to 1.x is not supported: there is no reverse migration, and
+1.x cannot read native state. Before the first 2.x start, stop 1.x and copy the
+whole state directory. To go back, stop 2.x, move its state directory aside and
+restore that copy. 1.x then resumes from where it stopped: notifications 2.x
+reported or acknowledged in between are unknown to it and can be reported again,
+while agenda events 2.x consumed are no longer new in Librus, so 1.x misses them. Without a copy,
+`state_dir/legacy-1x` holds the 1.x notification files exactly as 2.x found
+them, moved and never changed, so restoring them to the state directory is the
+same rollback with the same limits.
+
 ## Licensing
 
 The native 2.0 package and its new tests/documentation now use MIT after the

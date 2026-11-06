@@ -4,6 +4,32 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+Reports from the community on API 1.8.3; thank you, @wiktorw and @Witoso.
+Successful result shapes are unchanged.
+
+### Fixed
+
+- `get_announcements` and the announcements notification category return an
+  empty list for the "Aktualnie brak ogłoszeń" page instead of `PARSE`, which
+  also stopped notification polls (API #120, reported by @Witoso).
+- Grade reads no longer fail at two layouts, both reported by @wiktorw: a
+  behaviour row holding grade symbols such as `wz` (API #114), which broke
+  every grade tool and the grades notification category, and a new descriptive
+  table the page already filled in (API #115), which broke `get_grades` and
+  `get_grades_window` in the all scope. Behaviour symbols are `numeric` items
+  whose `category` is the tooltip's first line, such as `wzorowe`; filled
+  descriptive cells are `descriptive_summaries`.
+
+### Changed
+
+- `get_recipient_types` and `get_recipient_choices` are annotated as not
+  read-only and not destructive, like `get_recipients`: on legacy accounts they
+  select a Librus messaging view (#66). Refresh the host's tool catalog.
+- MIGRATION_2_0.md and the README state that going back to 1.x is supported
+  only by restoring a copy of the state directory made before upgrading (#54).
+- AGENTS.md lists what does not count as evidence and when to ask for a
+  pair-programmer review (#71).
+
 ## [2.5.2] - 2026-11-01
 
 Fixes from the 2026-11-01 audit on API 1.8.2. Successful result shapes are

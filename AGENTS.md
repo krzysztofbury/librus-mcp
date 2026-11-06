@@ -38,6 +38,26 @@ project rules. [CONTRIBUTING.md](CONTRIBUTING.md) lists the checks CI runs.
   report an outlier at once instead of waiting.
 - Do not claim a package, command, test or release step works until it has been
   exercised.
+- For a substantial or safety-sensitive change (parsing, state, consent,
+  release workflows) get a `pair-programmer` review before merging; use the
+  `test-audit` skill for substantive Python test design or pruning.
+
+## What is not evidence
+
+Proof lives in the tests that exercise a contract (`tests_native/`), the
+release checks in `release_verification/`, the budgets and annotations in
+[MCP_CONTRACT.md](MCP_CONTRACT.md), and the recorded runs in
+[DISTRIBUTION.md](DISTRIBUTION.md) and [NATIVE_TEST_PLAN.md](NATIVE_TEST_PLAN.md).
+None of these count on their own:
+
+- a coverage percentage or a test count;
+- a source grep for a tool name, an import or a query;
+- a catalog size not measured with `release_verification/measure_tools.py`;
+- "the README setup works" without running it literally from the client's
+  side (real Host header through a proxy, default ports);
+- a live Librus result from a call the owner did not authorize for that run;
+- school text or raw HTML from a user, which never goes into the repository or
+  a public issue, as proof or as a fixture.
 
 ## Diagnosing a reported failure
 

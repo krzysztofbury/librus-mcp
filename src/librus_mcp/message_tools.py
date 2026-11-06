@@ -52,8 +52,9 @@ def register_message_tools(server: MCPServer[Runtime]) -> None:
             read_only_hint=False, destructive_hint=True, open_world_hint=True
         ),
     )(get_message_content)
-    server.tool(title="Recipient types", annotations=ordinary)(get_recipient_types)
-    server.tool(title="Recipient choices", annotations=ordinary)(get_recipient_choices)
+    # Legacy accounts select a Librus messaging view for these lookups (#66).
+    server.tool(title="Recipient types", annotations=selection)(get_recipient_types)
+    server.tool(title="Recipient choices", annotations=selection)(get_recipient_choices)
     server.tool(title="Recipients", annotations=selection)(get_recipients)
     server.tool(title="Message correspondents", annotations=ordinary)(get_message_correspondents)
     server.tool(title="Teacher subjects", annotations=ordinary)(get_teacher_subjects)
@@ -354,7 +355,7 @@ async def get_recipient_types(
     account_alias: AccountAliasInput,
     ctx: Context[Runtime, Any],
 ) -> RecipientTypesResult:
-    """List the recipient groups this login can message and whether each can be looked up. Pass a group's reference to get_recipients, or on legacy accounts to get_recipient_choices. Sends nothing."""
+    """List the recipient groups this login can message and whether each can be looked up. Pass a group's reference to get_recipients, or on legacy accounts to get_recipient_choices. On legacy accounts the lookup changes this login's Librus form state. Sends nothing."""
     runtime = ctx.request_context.lifespan_context
     client = runtime.account(account_alias)
     backend = runtime.messaging_backend(account_alias)
@@ -406,7 +407,7 @@ async def get_recipient_choices(
     ],
     ctx: Context[Runtime, Any],
 ) -> RecipientChoicesResult:
-    """Legacy accounts only: list the sub-choices of a hierarchical recipient group, such as classes. Put the chosen item's reference.selection_id into recipient_type for get_recipients. Modern accounts return UNSUPPORTED_CAPABILITY."""
+    """Legacy accounts only: list the sub-choices of a hierarchical recipient group, such as classes. Put the chosen item's reference.selection_id into recipient_type for get_recipients. Changes this login's Librus form state. Modern accounts return UNSUPPORTED_CAPABILITY."""
     runtime = ctx.request_context.lifespan_context
     require_binding(
         runtime,

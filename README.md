@@ -270,7 +270,9 @@ Change the version in your assistant's configuration to `librus-mcp==2.5.2`, add
 2.0 adapts the old setup automatically: it creates the key, restricts shared
 1.x folders to your user, ignores the removed behaviour-notes setting and adopts
 1.x notification history on the first check. Stop 1.x server processes that use
-the same folders before switching.
+the same folders before switching, and copy the state folder first: going back
+to 1.x is not supported other than by restoring that copy (see the
+[migration guide](MIGRATION_2_0.md#going-back-to-1x)).
 
 Notifications and attachments stay on by default, as in 1.x. Tool names and
 results changed on purpose (for example `list_students` is now `list_accounts`
