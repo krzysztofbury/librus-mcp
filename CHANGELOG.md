@@ -19,6 +19,15 @@ Successful result shapes are unchanged.
   `get_grades_window` in the all scope. Behaviour symbols are `numeric` items
   whose `category` is the tooltip's first line, such as `wzorowe`; filled
   descriptive cells are `descriptive_summaries`.
+- `get_attendance`, `get_attendance_window` and the attendance notification
+  category no longer fail with `PARSE` on an absence excused through the
+  e-Usprawiedliwienia module (API 1.8.3). Its tooltip notice is a `metadata`
+  pair `["Usprawiedliwienie", "dodane za pomocą modułu e-Usprawiedliwienia"]`.
+  Found in the live check for this release on two of the owner's logins.
+- Grade continuation cursors no longer always return `STALE_CURSOR` when
+  Librus lists one cell's grades in a different order on each read, seen live
+  on 2026-11-06. `get_grades` and `get_grades_window` order items within a
+  subject by semester, day and content instead of page order.
 
 ### Changed
 
