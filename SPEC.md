@@ -20,7 +20,7 @@ unshipped 1.x references retain their scoped GPL license. See
 
 ## Safety boundaries
 
-2.5.2 uses API 1.8.2. Native history, class-free-day and directory collections are
+2.5.3 uses API 1.8.3. Native history, class-free-day and directory collections are
 paged in MCP without duplicating upstream traversal. Grade presentation includes
 formative records and their mirror IDs, and point records with their period
 results. Modern message query/reference/cursor

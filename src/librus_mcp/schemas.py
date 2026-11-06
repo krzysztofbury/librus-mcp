@@ -1,5 +1,6 @@
 """Explicit MCP projections over native types, never apix response aliases."""
 
+from collections.abc import Sequence
 from datetime import date
 from typing import Annotated, Literal
 
@@ -155,3 +156,42 @@ def numeric_item(record: NumericGrade) -> GradeItem:
         category=record.category,
         formative_id=record.formative_id,
     )
+
+
+_SEMESTER_ORDER = {1: 0, 2: 1, 0: 2, None: 3}
+
+
+def grade_items(
+    numeric: Sequence[NumericGrade],
+    descriptive: Sequence[DescriptiveGrade],
+    formative: Sequence[FormativeGrade],
+) -> tuple[GradeRecord, ...]:
+    """Numeric, descriptive, then formative items in an order stable across reads.
+
+    Librus may list the grades of one cell in a different order on each read
+    (observed 2026-11-06), which made every continuation cursor stale. Each
+    group keeps the page's subject order; within a subject, items follow
+    semester, day and then their full content.
+    """
+    result: list[GradeRecord] = []
+    groups: tuple[list[GradeRecord], ...] = (
+        [numeric_item(record) for record in numeric],
+        [descriptive_item(record) for record in descriptive],
+        [FormativeItem(assessment=record) for record in formative],
+    )
+    for group in groups:
+        rank: dict[str, int] = {}
+        keys = []
+        for item in group:
+            record = item.assessment if isinstance(item, FormativeItem) else item
+            rank.setdefault(record.subject, len(rank))
+            keys.append(
+                (
+                    rank[record.subject],
+                    _SEMESTER_ORDER[record.semester],
+                    record.day,
+                    item.model_dump_json(),
+                )
+            )
+        result.extend(item for _, item in sorted(zip(keys, group), key=lambda pair: pair[0]))
+    return tuple(result)

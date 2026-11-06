@@ -35,6 +35,9 @@ class Wire:
         self.history_empty = False
         self.formative = False
         self.points = False
+        # Librus may list one cell's grades in a different order on each read.
+        self.shuffle_grades = False
+        self.grade_reads = 0
         self.formative_text = "Fixture formative assessment"
         self.sent_payloads = []
         self.send_unknown = False
@@ -323,6 +326,15 @@ class Wire:
                 ).replace("</body>", formative_table(escape(self.formative_text)) + "</body>")
             if self.points:
                 body = body.replace("</body>", point_table() + "</body>")
+            self.grade_reads += 1
+            if self.shuffle_grades and self.grade_reads % 2 == 0:
+                first = '<span class="grade-box"><a title="Data: 2026-09-24">4+</a></span>'
+                second = (
+                    '<span class="grade-box"><a title="Data: 2026-09-25">'
+                    f"{escape(self.grade_suffix)}</a></span>"
+                )
+                assert body.count(first + second) == 1
+                body = body.replace(first + second, second + first)
             return web.Response(text=body, content_type="text/html")
         if request.path == "/przegladaj_nb/uczen":
             assert request.method == "POST"

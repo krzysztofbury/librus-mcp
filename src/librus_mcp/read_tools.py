@@ -46,11 +46,9 @@ from librus_mcp.read_schemas import (
 )
 from librus_mcp.runtime import Runtime
 from librus_mcp.schemas import (
-    FormativeItem,
     GradeRecord,
     PresentationCursor,
-    descriptive_item,
-    numeric_item,
+    grade_items,
 )
 
 
@@ -89,13 +87,8 @@ async def get_grades_window(
     result = await client.grades_window(
         start=date_from, end=date_to, view=scope, budget=runtime.budget
     )
-    items = (
-        tuple(numeric_item(item) for item in result.numeric)
-        + tuple(descriptive_item(item) for item in result.descriptive)
-        + tuple(FormativeItem(assessment=item) for item in result.formative)
-    )
     selected, pagination = window_page(
-        items,
+        grade_items(result.numeric, result.descriptive, result.formative),
         context=client.context.identifier,
         query=query,
         cursor=cursor,

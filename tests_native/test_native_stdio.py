@@ -193,6 +193,10 @@ async def test_native_grade_attendance_contracts_and_effect_annotations():
                         properties = tools[name].input_schema["properties"]
                         assert "account_alias" in properties and "scope" in properties
                         assert "student_alias" not in properties and "sort_by" not in properties
+                    # Legacy recipient lookups select a Librus view (#66).
+                    for name in ("get_recipient_types", "get_recipient_choices", "get_recipients"):
+                        assert tools[name].annotations.read_only_hint is False
+                        assert tools[name].annotations.destructive_hint is False
                     grades = await session.call_tool(
                         "get_grades", {"account_alias": "account", "scope": "week"}
                     )

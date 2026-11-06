@@ -4,6 +4,43 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [2.5.3] - 2026-11-06
+
+Pins `librus-python-api==1.8.3`. Reports from the community; thank you,
+@wiktorw and @Witoso. Successful result shapes are unchanged.
+
+### Fixed
+
+- `get_announcements` and the announcements notification category return an
+  empty list for the "Aktualnie brak ogłoszeń" page instead of `PARSE`, which
+  also stopped notification polls (API #120, reported by @Witoso).
+- Grade reads no longer fail at two layouts, both reported by @wiktorw: a
+  behaviour row holding grade symbols such as `wz` (API #114), which broke
+  every grade tool and the grades notification category, and a new descriptive
+  table the page already filled in (API #115), which broke `get_grades` and
+  `get_grades_window` in the all scope. Behaviour symbols are `numeric` items
+  whose `category` is the tooltip's first line, such as `wzorowe`; filled
+  descriptive cells are `descriptive_summaries`.
+- `get_attendance`, `get_attendance_window` and the attendance notification
+  category no longer fail with `PARSE` on an absence excused through the
+  e-Usprawiedliwienia module (API 1.8.3). Its tooltip notice is a `metadata`
+  pair `["Usprawiedliwienie", "dodane za pomocą modułu e-Usprawiedliwienia"]`.
+  Found in the live check for this release on two of the owner's logins.
+- Grade continuation cursors no longer always return `STALE_CURSOR` when
+  Librus lists one cell's grades in a different order on each read, seen live
+  on 2026-11-06. `get_grades` and `get_grades_window` order items within a
+  subject by semester, day and content instead of page order.
+
+### Changed
+
+- `get_recipient_types` and `get_recipient_choices` are annotated as not
+  read-only and not destructive, like `get_recipients`: on legacy accounts they
+  select a Librus messaging view (#66). Refresh the host's tool catalog.
+- MIGRATION_2_0.md and the README state that going back to 1.x is supported
+  only by restoring a copy of the state directory made before upgrading (#54).
+- AGENTS.md lists what does not count as evidence and when to ask for a
+  pair-programmer review (#71).
+
 ## [2.5.2] - 2026-11-01
 
 Fixes from the 2026-11-01 audit on API 1.8.2. Successful result shapes are

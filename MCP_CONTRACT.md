@@ -91,7 +91,10 @@ host's own error, `Invalid structured content returned by tool <name>`.
   nullable `formative_id`. Match this against `assessment.detail_id` to recognize
   mirrors, not two independent grades. Observation cards are formative subjects;
   they are not the unsupported behaviour-notes feature. The page order is numeric,
-  descriptive, then formative, under one limit and source-bound cursor. Date
+  descriptive, then formative, under one limit and source-bound cursor. Within
+  each group subjects keep the page's order, and a subject's items follow
+  semester (1, 2, then annual), day and content (2.5.3): Librus may list one
+  cell's grades in a different order on each read. Date
   windows filter every variant. Native formative scope semantics are not proven;
   week/last-login scope must not be interpreted as a guarantee for formative rows.
   There are no new grade-detail fetches or formative notification payloads.

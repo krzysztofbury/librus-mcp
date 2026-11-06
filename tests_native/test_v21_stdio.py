@@ -67,6 +67,32 @@ async def test_formative_grades_share_paging_dates_and_source_binding():
 
 
 @pytest.mark.asyncio
+async def test_grade_cursors_survive_librus_reordering_a_cell():
+    # Observed live on 2026-11-06: one cell's grades came back in a different
+    # order on each read, so every continuation was STALE_CURSOR.
+    async with Wire().serve() as wire:
+        wire.shuffle_grades = True
+        with anyio.fail_after(30):
+            async with stdio_client(server_process(wire.origin, [("first", "71")])) as streams:
+                async with ClientSession(*streams) as session:
+                    await session.initialize()
+                    for tool in ("get_grades", "get_grades_window"):
+                        query = {"account_alias": "first", "limit": 1}
+                        first = await session.call_tool(tool, query)
+                        assert not first.is_error, first
+                        cursor = first.structured_content["pagination"]["next_cursor"]
+                        last = await session.call_tool(tool, query | {"cursor": cursor})
+                        assert not last.is_error, last
+                        raws = [
+                            item["raw"]
+                            for page in (first, last)
+                            for item in page.structured_content["items"]
+                        ]
+                        assert raws == ["4+", "3"]
+                    assert wire.grade_reads >= 4
+
+
+@pytest.mark.asyncio
 async def test_point_grades_are_scores_with_their_period_result(tmp_path):
     async with Wire().serve() as wire:
         wire.points = True
@@ -86,9 +112,11 @@ async def test_point_grades_are_scores_with_their_period_result(tmp_path):
                         await assert_matches_published_schema(session, tool, grades)
                         items = grades.structured_content["items"]
                         points = [item for item in items if item["record_type"] == "point"]
+                        # Same-day items follow their content, not the page order,
+                        # which Librus does not keep stable.
                         assert [(item["subject"], item["raw"]) for item in points] == [
-                            ("Point Subject", "90"),
                             ("Point Subject", "44"),
+                            ("Point Subject", "90"),
                         ]
                         assert points[0]["category"] == "Fixture test (0-100)"
                         assert points[0]["counts_toward_average"] is None
