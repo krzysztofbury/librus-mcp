@@ -16,7 +16,7 @@ library `1.0.2`. Use an explicit version pin when selecting a release.
 
 ## Moving from 2.0 to 2.1
 
-2.5.2 pins API 1.8.2. Reuse the existing configuration,
+2.5.3 pins API 1.8.3. Reuse the existing configuration,
 context key, sends and notification stores. Refresh the host's tool catalog.
 Custom consumers must accept the new `formative` grade item variant, the
 `point` variant (2.4) and the nullable `formative_id` on existing variants;

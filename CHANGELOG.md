@@ -4,8 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
-Reports from the community on API 1.8.3; thank you, @wiktorw and @Witoso.
-Successful result shapes are unchanged.
+## [2.5.3] - 2026-11-06
+
+Pins `librus-python-api==1.8.3`. Reports from the community; thank you,
+@wiktorw and @Witoso. Successful result shapes are unchanged.
 
 ### Fixed
 

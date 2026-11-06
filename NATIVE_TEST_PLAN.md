@@ -1,5 +1,26 @@
 # Native migration verification ownership
 
+## 2.5.3 community reports, stable grade paging
+
+2.5.3 pins API 1.8.3. Successful result shapes are unchanged; grade items
+within a subject follow semester, day and content instead of page order.
+
+- `test_v21_stdio.py`: grade continuations survive a cell whose grades come
+  back in a different order on alternate reads (fails without the change);
+  same-day point items follow their content.
+- `test_native_stdio.py`: `get_recipient_types`, `get_recipient_choices` and
+  `get_recipients` are not read-only and not destructive (#66).
+- The catalog measures 123891 bytes for 31 default tools and 137222 bytes for
+  35 tools.
+- Authorized live runs on the four owner logins with the published API 1.8.3,
+  before publication: `qualify_native.py --live` academic 60 passed, 4
+  `VIEW_DISABLED`, 4 without a reference (124 requests); communication 22
+  passed, 2 without a sent reference, 4 expected unsupported (66 requests);
+  homework_history 10 passed, 2 without a reference (42 requests); v21 83
+  passed (147 requests). With API 1.8.2 the same day, attendance failed with
+  `PARSE` on two logins (the e-Usprawiedliwienia notice) and v21 grade
+  continuations returned `STALE_CURSOR` on two logins.
+
 ## 2.5.2 audit fixes
 
 2.5.2 pins API 1.8.2 and changes no successful result shape.
