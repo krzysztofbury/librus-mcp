@@ -311,6 +311,13 @@ notes remain unavailable. Observation cards are supported as formative grades.
 Point and percentage grades ("Oceny punktowe") are `point` records whose raw
 value is a score on the scale named by their category.
 
+Each grade has `grade_id`, its own Librus ID, stable across reads (2.7).
+With `scope` `all`, a corrected grade and its correction are linked:
+`corrects` on the correction and `corrected_by` on the original list the other
+grade's `grade_id`, as Librus shows them in one bracket (`[1 5]`). Other
+scopes show no brackets, so both fields are null there. See
+[grade IDs and corrections](MCP_CONTRACT.md#additive-27-grade-ids-and-corrections-88).
+
 ### What's new in 2.1
 
 Keep your existing 2.0 configuration, context key and durable state; reconnect

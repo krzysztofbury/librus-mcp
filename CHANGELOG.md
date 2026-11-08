@@ -4,6 +4,42 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+Requires `librus-python-api==1.9.0` (pinned at release). Thank you, @nawa,
+for raising #88 with the markup and the use case. Grade items gain optional
+fields; a host that keeps an old catalog still validates results (see
+MCP_CONTRACT.md, output schema evolution). Restart grade cursors from 2.6.0.
+
+### Added
+
+- Grade items from `get_grades` and `get_grades_window` carry `grade_id`,
+  the grade's own Librus ID from its detail link (API `grade_id`). It is the
+  same across reads and scopes, so a client can key a grade by it instead of
+  a hash of its fields, and two identical grades stay apart. It is null for
+  formative mirrors (they keep `formative_id`), point entries and grades
+  without a link. It is a different ID from a formative row's
+  `assessment.detail_id` (#88).
+- In the `all` scope, `corrects` lists the `grade_id`s a correction
+  replaces and `corrected_by` the later corrections of a grade, read from
+  the brackets Librus draws around a corrected grade and its corrections
+  (`[1 5]`). Both are empty lists for a grade with a `grade_id` and no
+  bracket. They are null, meaning unknown rather than "not corrected", for a
+  grade without a `grade_id` and in the `week` and `last_login` scopes,
+  which show no brackets. A correction's `Poprawa oceny` line in `metadata`
+  never creates a link. In `get_grades_window` the link stays whole when
+  only one of the grades is in the range, so `corrects` or `corrected_by`
+  can name a grade outside `items` (#88).
+
+### Changed
+
+- A correction bracket in a layout not seen live makes the grade tools fail
+  with `PARSE` instead of returning the grades without the link (API 1.9.0).
+
+### Fixed
+
+- Docs: 2.6.0 described a week-scope grade whose `Poprawa oceny` line
+  repeats as correcting two grades. Both lines name the same original; the
+  repeat is not a list of corrected grades. Parsing is unchanged.
+
 ## [2.6.0] - 2026-11-08
 
 Pins `librus-python-api==1.8.4`. Refresh the host's tool catalog:

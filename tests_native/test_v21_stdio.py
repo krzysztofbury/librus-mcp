@@ -1,12 +1,15 @@
 """2.1 contracts over MCP stdio, the installed API and original loopback inputs."""
 
 from contextlib import AsyncExitStack
+from datetime import date
 
 import anyio
 import pytest
+from librus_python_api import DescriptiveGrade, GradeCorrection, GradeView, NumericGrade
 from mcp.client import ClientSession
 from mcp.client.stdio import stdio_client
 
+from librus_mcp.schemas import grade_items
 from tests_native.errors import closed
 from tests_native.published_schema import assert_matches_published_schema
 from tests_native.test_native_stdio import server_process
@@ -90,6 +93,77 @@ async def test_grade_cursors_survive_librus_reordering_a_cell():
                         ]
                         assert raws == ["4+", "3"]
                     assert wire.grade_reads >= 4
+
+
+@pytest.mark.asyncio
+async def test_grade_ids_and_the_all_views_correction_links():
+    # #88: the all view brackets a corrected grade with its correction; the
+    # week view shows both unbracketed, so links there are unknown, not none.
+    async with Wire().serve() as wire:
+        wire.corrections = True
+        with anyio.fail_after(30):
+            async with stdio_client(server_process(wire.origin, [("first", "71")])) as streams:
+                async with ClientSession(*streams) as session:
+                    await session.initialize()
+
+                    async def links(tool, **query):
+                        result = await session.call_tool(tool, {"account_alias": "first"} | query)
+                        assert not result.is_error, result
+                        await assert_matches_published_schema(session, tool, result)
+                        return [
+                            (item["grade_id"], item["corrects"], item["corrected_by"])
+                            for item in result.structured_content["items"]
+                        ]
+
+                    for tool in ("get_grades", "get_grades_window"):
+                        assert await links(tool) == [("301", [], ["302"]), ("302", ["301"], [])]
+                        for scope in ("week", "last_login"):
+                            assert await links(tool, scope=scope) == [
+                                ("301", None, None),
+                                ("302", None, None),
+                            ]
+                    # A window keeps each link whole, in both directions.
+                    assert await links("get_grades_window", date_from="2026-09-25") == [
+                        ("302", ["301"], [])
+                    ]
+                    assert await links("get_grades_window", date_to="2026-09-24") == [
+                        ("301", [], ["302"])
+                    ]
+                    assert not any("/szczegoly/" in path for _, path, _ in wire.calls)
+
+
+def _grade(raw, grade_id, day="2026-09-24"):
+    href = None if grade_id is None else f"/przegladaj_oceny/szczegoly/{grade_id}"
+    return NumericGrade(
+        "Fixture", raw, date.fromisoformat(day), 1, None, None, None, None, None, href, ()
+    )
+
+
+def test_each_grade_of_a_chain_links_to_the_grades_before_and_after_it():
+    chain = GradeCorrection("Fixture", 1, ("1", "2", "3"))
+    items = grade_items(
+        (_grade("1", "1"), _grade("2", "2"), _grade("4", "3"), _grade("5", "9")),
+        (),
+        (),
+        (chain,),
+    )
+    assert [(i.grade_id, i.corrects, i.corrected_by) for i in items] == [
+        ("1", (), ("2", "3")),
+        ("2", ("1",), ("3",)),
+        ("3", ("1", "2"), ()),
+        ("9", (), ()),
+    ]
+    week = grade_items((_grade("4", "3"),), (), (), (chain,), GradeView.WEEK)
+    assert [(i.corrects, i.corrected_by) for i in week] == [(None, None)]
+
+
+def test_a_grade_without_an_id_has_unknown_correction_links():
+    # A gateway descriptive grade has no detail link, so no bracket names it.
+    unlinked = DescriptiveGrade(
+        "Fixture Subject", "Fixture text", date(2026, 9, 24), 1, None, None, ()
+    )
+    (item,) = grade_items((), (unlinked,), (), corrections=())
+    assert (item.grade_id, item.corrects, item.corrected_by) == (None, None, None)
 
 
 @pytest.mark.asyncio
