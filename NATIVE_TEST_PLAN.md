@@ -35,6 +35,14 @@ within the 128 and 144 KiB budgets.
   - Two logins first failed every all-view grade tool with `PARSE`, with API
     1.8.3 too, on multi-line formative tooltips and repeated `Poprawa oceny`
     lines. API 1.8.4 fixes both.
+- Release live check at the tagged commit 2533448 with the published API 1.8.4
+  (`qualify_native.py --live`, four owner logins, 2026-11-08):
+  - academic: 58 passed, 4 `VIEW_DISABLED` (completed lessons, expected), 6
+    without a reference (122 requests);
+  - communication: 22 passed, 2 without a sent reference, 4 expected
+    unsupported (66 requests);
+  - homework_history: 10 passed, 2 without a reference (42 requests);
+  - v21: 83 passed (147 requests).
 
 ## 2.5.3 community reports, stable grade paging
 
