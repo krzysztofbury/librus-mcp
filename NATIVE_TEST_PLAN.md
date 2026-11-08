@@ -1,5 +1,21 @@
 # Native migration verification ownership
 
+## 2.7.0 grade IDs and correction links
+
+2.7.0 pins API 1.9.0. `release_verification/measure_tools.py`: the catalog
+measures 126132 bytes for 31 default tools and 139463 bytes for 35 tools,
+within the 128 and 144 KiB budgets.
+
+- `test_v21_stdio.py`: over stdio, `get_grades` and `get_grades_window`
+  return `grade_id`, and in the `all` scope `corrects` and `corrected_by`
+  from a correction bracket; the `week` and `last_login` scopes leave both
+  null; a date window keeps a link whole from either side; every result
+  matches the published schema; no detail page is requested. Directly: a
+  chain of three links each grade to the ones before and after it, and a
+  grade without an ID keeps null links.
+- The bracket parsing itself is covered by the API's
+  `tests/test_grade_corrections.py` (1.9.0).
+
 ## 2.6.0 check-tools coverage, announcement pages, calendar consent
 
 2.6.0 pins API 1.8.4. `release_verification/measure_tools.py`: the catalog

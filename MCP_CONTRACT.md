@@ -73,6 +73,31 @@ removed field still needs the host to reload the catalog; the CHANGELOG says
 so for each release that has one. The symptom of a stale catalog is the
 host's own error, `Invalid structured content returned by tool <name>`.
 
+## Additive 2.7 grade IDs and corrections (#88)
+
+- Numeric, point and descriptive grade items gain nullable `grade_id`: the
+  grade's own Librus ID from its `/przegladaj_oceny/szczegoly/<digits>` link
+  (API `grade_id`). It is stable across reads and scopes and is null for
+  formative mirrors (`formative_id`), point entries and grades without a link.
+  It is not a formative row's `assessment.detail_id`, which is another ID
+  space. The detail page is never fetched.
+- They also gain `corrects` and `corrected_by`, lists of `grade_id`s. In the
+  `all` scope Librus draws a bracket around a corrected grade and its
+  corrections, original first (API `GradeRecords.corrections`). A grade's
+  `corrects` lists the bracket's grades before it and `corrected_by` those
+  after it; a grade with a `grade_id` outside any bracket has two empty
+  lists. Both are null, meaning unknown, for a grade without a `grade_id`
+  (no bracket can name it) and in the `week` and `last_login` scopes, which
+  show no brackets. A correction's `Poprawa oceny` metadata line holds the
+  original's value and category, not its ID, and never creates a link.
+- `get_grades_window` keeps a link whole when only one of its grades is in
+  the range, so `corrects` or `corrected_by` can name a grade that is not in
+  `items`. Links can also cross page boundaries.
+- A bracket in a layout not seen live fails with `PARSE` rather than
+  returning the grades without the link. Grade notifications are unchanged:
+  their payloads are library records, whose `grade_id` is computed, so
+  stored notification identities do not change.
+
 ## Additive 2.4 point grades
 
 - Grade `items` can have `record_type="point"`: an entry from the school's

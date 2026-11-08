@@ -40,6 +40,9 @@ class Wire:
         # Librus may list one cell's grades in a different order on each read.
         self.shuffle_grades = False
         self.grade_reads = 0
+        # Link both grades and, in the all view only, bracket them as a
+        # correction (#88); the week view showed no brackets.
+        self.corrections = False
         self.formative_text = "Fixture formative assessment"
         self.sent_payloads = []
         self.send_unknown = False
@@ -310,6 +313,7 @@ class Wire:
             )
             return web.Response(text=body, content_type="text/html")
         if request.path == "/przegladaj_oceny/uczen":
+            view = None
             if request.method == "POST":
                 form = await request.post()
                 assert len(form) == 1 and next(iter(form)) in {
@@ -317,6 +321,7 @@ class Wire:
                     "zmiany_logowanie_tydzien",
                     "zmiany_logowanie",
                 }
+                view = next(iter(form))
             body = """<html><body><table class="stretch decorated"><thead><tr>
                 <th>Oceny bieżące</th><th title="Ocena śródroczna z pierwszego okresu">Midterm</th>
                 <th>Oceny bieżące</th><th title="Ocena roczna">Annual</th>
@@ -335,6 +340,26 @@ class Wire:
                 ).replace("</body>", formative_table(escape(self.formative_text)) + "</body>")
             if self.points:
                 body = body.replace("</body>", point_table() + "</body>")
+            if self.corrections:
+                # Other flags rewrite the same anchors; keep this one alone.
+                assert not (self.formative or self.shuffle_grades)
+                first = '<span class="grade-box"><a title="Data: 2026-09-24">4+</a></span>'
+                second = (
+                    '<span class="grade-box"><a title="Data: 2026-09-25">'
+                    f"{escape(self.grade_suffix)}</a></span>"
+                )
+                assert body.count(first + second) == 1
+                original = first.replace("<a ", '<a href="/przegladaj_oceny/szczegoly/301" ')
+                # Tooltips carry escaped markup, as on the live page.
+                correction = second.replace(
+                    '<a title="Data: 2026-09-25">',
+                    '<a href="/przegladaj_oceny/szczegoly/302" title="Data: 2026-09-25'
+                    '&lt;br/&gt;Poprawa oceny: 4+ (Fixture quiz)">',
+                )
+                pair = original + correction
+                if view == "zmiany_logowanie_wszystkie":
+                    pair = f"<span>\n[\n{original}\n{correction}\n]\n</span>"
+                body = body.replace(first + second, pair)
             self.grade_reads += 1
             if self.shuffle_grades and self.grade_reads % 2 == 0:
                 first = '<span class="grade-box"><a title="Data: 2026-09-24">4+</a></span>'
