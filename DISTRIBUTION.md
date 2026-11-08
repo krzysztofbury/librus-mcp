@@ -174,6 +174,20 @@ written on four logins: 81 results OK, completed lessons `VIEW_DISABLED`
 runtime was available, so the image was not run locally; CI ran it over
 stdio and HTTP.
 
+After the 2.7.0 publication on 2026-11-08, on macOS: the wheel and sdist match
+`SHA256SUMS`, and the downloaded `librus-mcp-2.7.0.mcpb` has the SHA-256 the
+MCP Registry lists for it; `verify_mcpb.py` on it passed (31 tools, host login
+loaded) with uv 0.13.7. ghcr serves `ghcr.io/krzysztofbury/librus-mcp:2.7.0`
+for amd64 and arm64, and the MCP Registry lists 2.7.0 with its PyPI, image and
+bundle packages. `uvx --refresh --python 3.14 librus-mcp==2.7.0 --config FILE
+check-tools` ran as written on four logins: 81 results OK, completed lessons
+`VIEW_DISABLED` (reported as unavailable). For a few minutes after upload, uv
+reported that `librus-mcp==2.7.0` (and earlier `librus-python-api==1.9.0`)
+did not exist although PyPI's JSON API listed it; it resolved once the simple
+index caught up, as it did for one CI job of the release PR on its rerun. No
+Docker runtime was available, so the image was not run locally; CI ran it over
+stdio and HTTP.
+
 Not verified yet, needing a manual check:
 
 - installing the bundle in Claude Desktop on macOS and Windows, including

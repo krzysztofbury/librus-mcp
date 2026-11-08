@@ -15,6 +15,16 @@ within the 128 and 144 KiB budgets.
   grade without an ID keeps null links.
 - The bracket parsing itself is covered by the API's
   `tests/test_grade_corrections.py` (1.9.0).
+- Release live check at the tagged commit acd25e8 with the published API 1.9.0
+  (`qualify_native.py --live`, four owner logins, 2026-11-08):
+  - academic: 58 passed, 4 `VIEW_DISABLED` (completed lessons, expected), 6
+    without a reference (122 requests);
+  - communication: 22 passed, 2 without a sent reference, 4 expected
+    unsupported (66 requests);
+  - homework_history: 10 passed, 2 without a reference (42 requests);
+  - v21: 83 passed (147 requests).
+  - `librus-mcp check-tools` from the tag: 81 results OK and schema-valid,
+    completed lessons reported as unavailable.
 
 ## 2.6.0 check-tools coverage, announcement pages, calendar consent
 
