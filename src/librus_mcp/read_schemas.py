@@ -23,6 +23,7 @@ from librus_mcp.config import ALIAS_PATTERN
 from librus_mcp.schemas import (
     HexDigest,
     Pagination,
+    SizedWindowPagination,
     WindowPagination,
     WireModel,
 )
@@ -127,6 +128,13 @@ class PagedResult(WireModel, Generic[T]):
     identity: Identity
     observation: Observation
     pagination: WindowPagination
+
+
+class SizedPagedResult(WireModel, Generic[T]):
+    items: tuple[T, ...]
+    identity: Identity
+    observation: Observation
+    pagination: SizedWindowPagination
 
 
 class TimetableResult(CollectionResult[TimetableDay]):

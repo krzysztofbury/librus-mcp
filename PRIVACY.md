@@ -51,8 +51,9 @@ own policy.
   counts and, on failure, code locations. No login, alias or school data.
 - `librus-mcp inspect-page` reads only the file you give it and makes no
   request. `librus-mcp check-tools` performs ordinary reads for every
-  configured login and prints only positions, tool names, counts, schema paths
-  and rules.
+  configured login (every read tool that needs no reference) and prints only
+  positions, tool names, counts, schema paths and rules. It never opens a
+  message, consumes calendar events, stages notifications or sends.
 
 ## What it stores on your computer
 

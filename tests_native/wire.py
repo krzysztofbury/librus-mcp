@@ -14,7 +14,7 @@ from html import escape
 
 from aiohttp import web
 
-from tests_native.academic_wire import academic_response
+from tests_native.academic_wire import academic_response, announcement_table
 from tests_native.history_wire import formative_table, history_response, point_table
 from tests_native.legacy_wire import legacy_response
 
@@ -33,6 +33,8 @@ class Wire:
         self.message_count = 3
         self.message_queries = []
         self.history_empty = False
+        # (title, content) pairs served as the announcements page, when set.
+        self.announcements = None
         self.formative = False
         self.points = False
         # Librus may list one cell's grades in a different order on each read.
@@ -123,6 +125,13 @@ class Wire:
         legacy = await legacy_response(request, self)
         if legacy is not None:
             return legacy
+        if request.path.rstrip("/") == "/ogloszenia" and self.announcements is not None:
+            return web.Response(
+                text="<html>"
+                + "".join(announcement_table(*notice) for notice in self.announcements)
+                + "</html>",
+                content_type="text/html",
+            )
         academic = await academic_response(request)
         if academic is not None:
             return academic

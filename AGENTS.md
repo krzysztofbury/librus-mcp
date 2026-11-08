@@ -73,6 +73,10 @@ evidence available, in this order:
    catalog cached at `list_tools`). First rule out a stale catalog (reload,
    new session, same server version), then have the user run
    `librus-mcp check-tools`, which reports the result path and schema rule.
+   It calls every tool that needs no reference and has no effect beyond
+   selecting a view (`check_tools.CHECKS`, including the local
+   `get_notification_status` and `get_send_history`); the rest are refused
+   with a reason (`check_tools.REFUSED`).
    The host's full message quotes school data; do not ask for it in public.
 3. **A parse failure** is reproduced offline from the page:
    `librus-mcp inspect-page grades page.html` (`final-grades`, `profile`; or

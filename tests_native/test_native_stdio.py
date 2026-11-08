@@ -280,7 +280,7 @@ async def test_rejected_account_and_parse_failure_are_classified_not_empty():
 
 @pytest.mark.asyncio
 async def test_full_mcp_result_size_limit_returns_explicit_error(monkeypatch):
-    import librus_mcp.server as module
+    from librus_mcp import presentation
     from librus_mcp.config import AppConfig
     from librus_mcp.server import create_server
 
@@ -302,7 +302,7 @@ async def test_full_mcp_result_size_limit_returns_explicit_error(monkeypatch):
     async def fixture_large_output() -> dict[str, str]:
         return {"value": "\u017c" * 200}
 
-    monkeypatch.setattr(module, "MAX_RESULT_BYTES", 400)
+    monkeypatch.setattr(presentation, "MAX_RESULT_BYTES", 400)
     result = await server.call_tool("fixture_large_output", {})
     assert result.is_error and closed(result.structured_content) == {"error": {"code": "LIMIT"}}
     assert "\u017c" not in result.model_dump_json()

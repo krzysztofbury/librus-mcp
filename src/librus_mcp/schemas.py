@@ -44,6 +44,14 @@ class WindowPagination(WireModel):
     consistency: Literal["best_effort"] = "best_effort"
 
 
+class SizedWindowPagination(WireModel):
+    # Only tools whose single items can be large also end a page by size.
+    next_cursor: PresentationCursor | None
+    truncated: bool
+    reason: Literal["item_limit", "size_limit"] | None
+    consistency: Literal["best_effort"] = "best_effort"
+
+
 class Pagination(WireModel):
     next_cursor: None = None
     truncated: Literal[False] = False

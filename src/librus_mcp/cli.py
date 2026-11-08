@@ -87,10 +87,17 @@ def main(argv: Sequence[str] | None = None) -> None:
     inspection.add_argument("file", type=Path)
     checking = commands.add_parser(
         "check-tools",
-        help="call read tools for every configured login (live Librus reads) and check "
-        "each result against the published schema; prints no school data",
+        help="call every read tool that needs no reference for every configured login "
+        "(live Librus reads) and check each result against the published schema; "
+        "prints no school data",
     )
-    checking.add_argument("--tool", action="append", default=[], help="a tool to check, repeatable")
+    checking.add_argument(
+        "--tool",
+        action="append",
+        default=[],
+        help="check only this tool, repeatable; tools that need a reference or have an "
+        "effect are refused",
+    )
     arguments = parser.parse_args(argv)
     if arguments.command == "inspect-page":
         # Offline and credential-free: no configuration, state or network.
@@ -225,7 +232,7 @@ def main(argv: Sequence[str] | None = None) -> None:
     from librus_mcp.server import create_server
 
     if arguments.command == "check-tools":
-        from librus_mcp.check_tools import DEFAULT_TOOLS, check_tools
+        from librus_mcp.check_tools import check_tools
 
         try:
             config = asyncio.run(prepare_runtime(config))
@@ -235,8 +242,8 @@ def main(argv: Sequence[str] | None = None) -> None:
         valid = asyncio.run(
             check_tools(
                 create_server(config),
-                [account.alias for account in config.accounts],
-                arguments.tool or DEFAULT_TOOLS,
+                [(account.alias, account.messaging_backend) for account in config.accounts],
+                arguments.tool or None,
                 print,
             )
         )

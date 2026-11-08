@@ -34,7 +34,14 @@ Responses preserve native typed arrays, observations and explicit availability.
 Attendance ratios use `0..1` or null, never inferred percentages. Collection
 continuation is best effort, account/context/query-bound, and returns explicit
 cursor/truncation information. Whole grade/attendance reads page by `limit`
-(default 100) like the date-window tools, so results stay bounded by design. References are inert identifiers, not upstream URLs.
+(default 100) like the date-window tools, so results stay bounded by design.
+Since 2.6.0 `get_announcements` pages too (`limit`, default 256, the API's
+maximum, and a source-bound `cursor`). A page also ends before its items would
+push the result over 512 KiB, with `pagination.reason` `size_limit` instead of
+`item_limit`; its first item is always returned. A single announcement whose
+own JSON is over the cap, which takes tens of thousands of control
+characters, is still `LIMIT`, and the announcements after it are then out of
+reach. References are inert identifiers, not upstream URLs.
 
 Domain/protocol errors return `isError=true` and
 `{"error":{"code":"CLOSED_CODE","where":[...],"versions":{"mcp":"X","api":"Y"}}}`.
@@ -44,7 +51,10 @@ when there is none) and `versions` names both packages; unanticipated errors
 add `exception`, the exception class name. Since 2.5.1, `CONSENT_REQUIRED`
 means a call with an effect the user must agree to was made without that
 consent, before any request, and adds `requires`, the name of the input that
-grants it (`allow_mark_read` for a received message). Code locations are opaque and
+grants it (`allow_mark_read` for a received message; since 2.6.0
+`allow_consume_events` for `get_new_notifications` asking for new calendar
+events with no stored batch to replay). Other invalid inputs stay
+`INVALID_INPUT` without `requires`. Code locations are opaque and
 change between releases: report them, do not parse them. No validation
 inputs, aliases, messages, credentials, tokens, HTML, causes or raw exception
 text are included. Unanticipated errors are

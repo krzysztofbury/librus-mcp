@@ -4,6 +4,49 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [2.6.0] - 2026-11-08
+
+Pins `librus-python-api==1.8.4`. Refresh the host's tool catalog:
+`get_announcements` gains inputs and a `pagination` that can be truncated.
+
+### Fixed
+
+- `get_announcements` pages with `limit` (default 256, so a collection that
+  fitted before still arrives whole) and a source-bound `cursor`, like the
+  archive tools (#90). A collection the API accepts could exceed the 512 KiB
+  result cap once its text was sent twice (compact text and
+  `structuredContent`), and failed as `LIMIT` with no smaller request
+  possible. A page now ends before it outgrows the cap, with
+  `pagination.reason` `size_limit`; its first item is always returned. Only
+  a single announcement over the cap on its own, which takes tens of
+  thousands of control characters, is still `LIMIT`.
+- `get_new_notifications` asking for new calendar events without
+  `allow_consume_events=true`, with no stored batch to replay, returns
+  `CONSENT_REQUIRED` with `requires: allow_consume_events` instead of
+  `INVALID_INPUT` (#91, API 1.8.4). Nothing is read from Librus. Repeated
+  categories and other bad input stay `INVALID_INPUT`.
+- `librus-mcp check-tools` checks what its documentation says (#89): every
+  tool callable without a reference, with dates derived from today in
+  Europe/Warsaw for `get_timetable`, `get_agenda` and `get_completed_lessons`,
+  and `list_accounts` once. It used to call five grade and attendance tools.
+  Modern-only tools are skipped on legacy logins and `VIEW_DISABLED` or
+  `MODULE_UNAVAILABLE` is reported as unavailable, not as a failure. The
+  local `get_notification_status` and `get_send_history` are checked too.
+  Tools that need a reference or have an effect are never called: the detail
+  tools, `get_message_content`, `get_recipient_choices`, `get_recipients`,
+  `download_attachment`, `get_new_notifications`,
+  `acknowledge_notifications`, `preview_message`, `send_message` and
+  `get_send_outcome`. Naming one with `--tool` is refused before any read.
+- Grade notifications and `get_grades`/`get_grades_window` in the week and
+  last-login scopes fail on a new-schema descriptive table layout that the all
+  scope already rejected, instead of returning summaries or nothing (API #123).
+- Grade tools no longer fail with `PARSE` on two layouts found by this
+  release's live check on two of the owner's logins (API 1.8.4; 2.5.3 fails
+  the same way): a formative grade whose tooltip has a multi-line assessment
+  text, which broke every scope, and a grade correcting two grades, whose
+  `Poprawa oceny` line repeats in the week scope. The text continues `Ocena`
+  in `metadata`; repeated corrections are one pair joined by a newline.
+
 ## [2.5.3] - 2026-11-06
 
 Pins `librus-python-api==1.8.3`. Reports from the community; thank you,

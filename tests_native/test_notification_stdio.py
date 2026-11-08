@@ -42,14 +42,22 @@ async def test_notification_consent_restart_exact_replay_ack_and_account_isolati
                 )
                 assert not status.is_error and not status.structured_content["has_pending_work"]
                 assert wire.calls == []
-                for categories in (["grades", "agenda"], ["messages", "messages"]):
+                # New calendar events need consent (#91); repeated categories
+                # are bad input. Neither reads Librus.
+                for categories, error in (
+                    (
+                        ["grades", "agenda"],
+                        {"code": "CONSENT_REQUIRED", "requires": "allow_consume_events"},
+                    ),
+                    (["agenda"], {"code": "CONSENT_REQUIRED", "requires": "allow_consume_events"}),
+                    (["messages", "messages"], {"code": "INVALID_INPUT"}),
+                ):
                     rejected = await session.call_tool(
                         "get_new_notifications",
                         {"account_alias": "first", "categories": categories},
                     )
-                    assert rejected.is_error and closed(rejected.structured_content) == {
-                        "error": {"code": "INVALID_INPUT"}
-                    }
+                    assert rejected.is_error
+                    assert closed(rejected.structured_content) == {"error": error}
                     assert wire.calls == []
                 query = {"account_alias": "first", "categories": ["messages", "grades"]}
                 batch = await session.call_tool("get_new_notifications", query)
