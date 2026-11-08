@@ -4,7 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
-Requires `librus-python-api==1.9.0` (pinned at release). Thank you, @nawa,
+## [2.7.0] - 2026-11-08
+
+Pins `librus-python-api==1.9.0`. Thank you, @nawa,
 for raising #88 with the markup and the use case. Grade items gain optional
 fields; a host that keeps an old catalog still validates results (see
 MCP_CONTRACT.md, output schema evolution). Restart grade cursors from 2.6.0.
