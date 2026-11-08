@@ -22,7 +22,13 @@ it qualifies the tag in a manual run before the live check. When a release of bo
 is needed, publish that library first, then pin it here.
 
 1. Merge the release preparation PR after CI passes on its exact head and on
-   `main`.
+   `main`. `main` requires signed commits: commit with GPG (`commit.gpgsign`)
+   and check the PR head before replacing anything,
+   `gh api repos/OWNER/REPO/commits/SHA --jq .commit.verification.verified`.
+   Only if it is `false`, recreate the same tree as one signed commit with the
+   GraphQL `createCommitOnBranch` mutation (GitHub signs it; a REST
+   `git/commits` call is not signed), confirm the trees match and close the
+   unsigned PR in its favour.
 2. Create an annotated immutable tag at the intended merged commit. Push it and
    confirm the remote tag points to that commit. Never replace an uploaded tag.
 3. Run the read-only live check, which a release request from the owner covers.
@@ -91,6 +97,12 @@ waive a gate. To stop a release, reject the waiting approval first, since a late
 approval would publish with no release to attach to, then `gh release delete` it;
 the tag stays. A fault in the tag's own source or workflow needs a new version,
 because a release run uses the files at the tag.
+
+For a few minutes after the library or this package is uploaded, uv may
+report that the new version does not exist although PyPI's JSON API lists it:
+the simple index is still catching up. A CI job pinning the just-published
+API, or a `uvx` check, failing that way is not a packaging fault; rerun it a
+few minutes later (seen for API 1.9.0 and 2.7.0).
 
 Once anything reached PyPI, never delete and republish the release: a new run
 builds again and cannot upload over an existing version. Rerun the failed job
