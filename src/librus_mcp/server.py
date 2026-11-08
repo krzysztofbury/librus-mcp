@@ -347,14 +347,20 @@ async def get_grades(
     cursor: Cursor[PresentationCursor] = None,
     limit: PageLimit = 100,
 ) -> GradesResult:
-    """List grades with averages: numeric, point, descriptive and formative assessments, including observation cards. A point grade's raw is a score on the scale its category names, such as (0-100); point_results are period results on that scale, never averages. For a date range use get_grades_window. scope also changes the view this login's Librus session remembers and may not apply to formative rows. A grade whose formative_id equals a formative row's assessment.detail_id is one assessment, not two."""
+    """List grades with averages: numeric, point, descriptive and formative assessments, including observation cards. A point grade's raw is a score on the scale its category names, such as (0-100); point_results are period results on that scale, never averages. For a date range use get_grades_window. scope also changes the view this login's Librus session remembers and may not apply to formative rows. A grade whose formative_id equals a formative row's assessment.detail_id is one assessment, not two. grade_id is the grade's own Librus ID, not a formative detail_id. With scope all, corrects lists the grade_ids a correction replaces and corrected_by the later corrections of a grade; other scopes show no correction brackets and leave both null."""
     runtime = ctx.request_context.lifespan_context
     client = runtime.account(account_alias)
     query = ("grades-all", scope.value)
     validate_window_cursor(cursor, client.context.identifier, query)
     result = await client.grades(view=scope, budget=runtime.budget)
     selected, pagination = window_page(
-        grade_items(result.records.numeric, result.records.descriptive, result.records.formative),
+        grade_items(
+            result.records.numeric,
+            result.records.descriptive,
+            result.records.formative,
+            result.records.corrections,
+            result.view,
+        ),
         context=client.context.identifier,
         query=query,
         cursor=cursor,

@@ -16,11 +16,12 @@ library `1.0.2`. Use an explicit version pin when selecting a release.
 
 ## Moving from 2.0 to 2.1
 
-2.6.0 pins API 1.8.4. Reuse the existing configuration,
+2.7.0 pins API 1.9.0. Reuse the existing configuration,
 context key, sends and notification stores. Refresh the host's tool catalog.
 Custom consumers must accept the new `formative` grade item variant, the
-`point` variant (2.4) and the nullable `formative_id` on existing variants;
-restart old grade cursors. Error handling must accept `CONSENT_REQUIRED` with
+`point` variant (2.4), the nullable `formative_id` on existing variants and,
+from 2.7, the nullable `grade_id`, `corrects` and `corrected_by`; restart old
+grade cursors. Error handling must accept `CONSENT_REQUIRED` with
 `requires` (2.5.1), returned where `INVALID_INPUT` was for a received message
 opened without consent.
 Message references/cursors without the new fields still select current,

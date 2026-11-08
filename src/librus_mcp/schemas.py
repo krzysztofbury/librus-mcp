@@ -10,6 +10,7 @@ from librus_python_api import (
     DescriptiveGrade,
     DescriptiveGradeSummary,
     FormativeGrade,
+    GradeCorrection,
     GradeKind,
     GradeView,
     Identity,
@@ -103,6 +104,9 @@ class GradeItem(WireModel):
     weight: int | None = None
     category: str | None = None
     formative_id: str | None = None
+    grade_id: str | None = None
+    corrects: tuple[str, ...] | None = None
+    corrected_by: tuple[str, ...] | None = None
 
 
 class FormativeItem(WireModel):
@@ -145,6 +149,7 @@ def descriptive_item(record: DescriptiveGrade) -> GradeItem:
         comment=record.comment,
         metadata=record.metadata,
         formative_id=record.formative_id,
+        grade_id=record.grade_id,
     )
 
 
@@ -163,6 +168,7 @@ def numeric_item(record: NumericGrade) -> GradeItem:
         weight=record.weight,
         category=record.category,
         formative_id=record.formative_id,
+        grade_id=record.grade_id,
     )
 
 
@@ -173,6 +179,8 @@ def grade_items(
     numeric: Sequence[NumericGrade],
     descriptive: Sequence[DescriptiveGrade],
     formative: Sequence[FormativeGrade],
+    corrections: Sequence[GradeCorrection] = (),
+    scope: GradeView = GradeView.ALL,
 ) -> tuple[GradeRecord, ...]:
     """Numeric, descriptive, then formative items in an order stable across reads.
 
@@ -180,11 +188,27 @@ def grade_items(
     (observed 2026-11-06), which made every continuation cursor stale. Each
     group keeps the page's subject order; within a subject, items follow
     semester, day and then their full content.
+
+    `corrections` are the page's correction brackets (#88). Links are known
+    only in the all scope, the one seen to show brackets, and only for items
+    with a `grade_id`; elsewhere `corrects` and `corrected_by` stay null.
     """
+    links: dict[str, tuple[tuple[str, ...], tuple[str, ...]]] = {}
+    for bracket in corrections:
+        ids = bracket.grade_ids
+        for position, grade_id in enumerate(ids):
+            links[grade_id] = ids[:position], ids[position + 1 :]
+
+    def linked(item: GradeItem) -> GradeItem:
+        if scope is not GradeView.ALL or item.grade_id is None:
+            return item
+        earlier, later = links.get(item.grade_id, ((), ()))
+        return item.model_copy(update={"corrects": earlier, "corrected_by": later})
+
     result: list[GradeRecord] = []
     groups: tuple[list[GradeRecord], ...] = (
-        [numeric_item(record) for record in numeric],
-        [descriptive_item(record) for record in descriptive],
+        [linked(numeric_item(record)) for record in numeric],
+        [linked(descriptive_item(record)) for record in descriptive],
         [FormativeItem(assessment=record) for record in formative],
     )
     for group in groups:

@@ -1,7 +1,7 @@
 # Native 2.0 license and provenance review
 
 First reviewed on 2026-10-05; the notes below date each later pin. Scope: the
-`2.6.0` native wheel and sdist, not a retroactive license change to any published
+`2.7.0` native wheel and sdist, not a retroactive license change to any published
 artifact. The owner requested MIT for their new 2.0 work. This is an engineering
 inventory, not legal advice or a claim that every dependency is itself MIT.
 
@@ -52,7 +52,7 @@ the MCP wheel or sdist.
 | idna | 3.19 | BSD-3-Clause |
 | jsonschema | 4.26.0 | MIT |
 | jsonschema-specifications | 2025.9.1 | MIT |
-| librus-python-api | 1.8.4 | MIT |
+| librus-python-api | 1.9.0 | MIT |
 | lxml | 6.1.2 | BSD-3-Clause with additional terms below |
 | mcp | 2.3.0 | MIT |
 | mcp-types | 2.3.0 | MIT |
@@ -100,7 +100,8 @@ license expression (MIT) and runtime requirements, read from PyPI after
 publication, are unchanged from 1.6.4. The 1.7.1 fix release keeps the same
 license expression and runtime requirements on PyPI, and so do 1.8.0,
 1.8.1 (read from PyPI after publication on 2026-10-29), 1.8.2 (read on
-2026-11-01), 1.8.3 (read on 2026-11-06) and 1.8.4 (read on 2026-11-08). The
+2026-11-01), 1.8.3 (read on 2026-11-06), 1.8.4 (read on 2026-11-08) and 1.9.0 (read on
+2026-11-08). The
 2.5.0 `check-tools` command imports jsonschema, already in the runtime
 closure through mcp.
 2.3.0 declares uvicorn (BSD-3-Clause, already in the runtime closure through
