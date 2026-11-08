@@ -161,6 +161,19 @@ the MCP Registry lists 2.5.2 with its PyPI, image and bundle packages. `uvx
 logins, 20 calls OK, `status=200`) ran as written. The README Docker Compose
 service was not started for this release.
 
+After the 2.6.0 publication on 2026-11-08, on macOS: the release files match
+`SHA256SUMS`; `verify_mcpb.py` on the downloaded `librus-mcp-2.6.0.mcpb`
+passed (31 tools, host login loaded) once uv 0.13.5 was first on `PATH`.
+With uv 0.5.21 the bundle's own `uv run --locked` stopped at the unknown
+`exclude-newer-package` setting, as 2.5.3's bundle would. ghcr serves
+`ghcr.io/krzysztofbury/librus-mcp:2.6.0` for amd64 and arm64, and the MCP
+Registry lists 2.6.0 with its PyPI, image and bundle packages. `uvx
+--refresh --python 3.14 librus-mcp==2.6.0 --config FILE check-tools` ran as
+written on four logins: 81 results OK, completed lessons `VIEW_DISABLED`
+(reported as unavailable), 80 operation lines with `status=200`. No Docker
+runtime was available, so the image was not run locally; CI ran it over
+stdio and HTTP.
+
 Not verified yet, needing a manual check:
 
 - installing the bundle in Claude Desktop on macOS and Windows, including
