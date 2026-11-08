@@ -8,6 +8,7 @@ from mcp.client import ClientSession
 from mcp.client.stdio import stdio_client
 
 from tests_native.errors import closed
+from tests_native.published_schema import assert_matches_published_schema
 from tests_native.test_native_stdio import server_process
 from tests_native.wire import Wire
 
@@ -236,3 +237,114 @@ async def test_whole_grade_and_attendance_reads_are_paged_with_bound_cursors():
                         "get_attendance", {"account_alias": "first", "limit": 1, "cursor": cursor}
                     )
                     assert closed(bad.structured_content) == {"error": {"code": "INVALID_INPUT"}}
+
+
+@pytest.mark.asyncio
+async def test_announcements_at_the_api_text_maximum_are_returned_page_by_page():
+    # #90: the API accepts a 256 KiB page with up to 262144 characters of text.
+    # A quote costs 2 bytes in structuredContent and 4 in the escaped text copy,
+    # so these four notices (about 960 KiB returned at once) were a LIMIT.
+    text = 'a"' * 30000
+    notices = [(f"Ogłoszenie {index}", f"{index}{text}") for index in range(4)]
+    wire = Wire()
+    wire.announcements = notices
+    async with wire.serve():
+        with anyio.fail_after(60):
+            async with stdio_client(
+                server_process(wire.origin, [("first", "login"), ("second", "other")]),
+                errlog=sys.stderr,
+            ) as streams:
+                async with ClientSession(*streams) as session:
+                    await session.initialize()
+                    query = {"account_alias": "first"}
+                    contents, reasons, cursor = [], [], None
+                    while True:
+                        result = await session.call_tool(
+                            "get_announcements", query | ({"cursor": cursor} if cursor else {})
+                        )
+                        assert not result.is_error, result.structured_content
+                        await assert_matches_published_schema(session, "get_announcements", result)
+                        assert len(result.model_dump_json(by_alias=True).encode()) <= 512 * 1024
+                        page = result.structured_content
+                        contents += [item["content"] for item in page["items"]]
+                        reasons.append(page["pagination"]["reason"])
+                        cursor = page["pagination"]["next_cursor"]
+                        if cursor is None:
+                            break
+                        assert page["pagination"]["truncated"] is True
+                        calls = len(wire.calls)
+                        other = await session.call_tool(
+                            "get_announcements", {"account_alias": "second", "cursor": cursor}
+                        )
+                        assert other.is_error and closed(other.structured_content) == {
+                            "error": {"code": "INVALID_INPUT"}
+                        }
+                        assert len(wire.calls) == calls
+                    assert contents == [content for _, content in notices]
+                    assert reasons == ["size_limit", None]
+                    # Short texts page by limit; a changed collection is stale.
+                    wire.announcements = [(f"Short {i}", f"Short text {i}") for i in range(3)]
+                    first = await session.call_tool("get_announcements", query | {"limit": 2})
+                    page = first.structured_content
+                    assert [item["title"] for item in page["items"]] == ["Short 0", "Short 1"]
+                    assert page["pagination"]["reason"] == "item_limit"
+                    cursor = page["pagination"]["next_cursor"]
+                    rest = await session.call_tool(
+                        "get_announcements", query | {"limit": 2, "cursor": cursor}
+                    )
+                    assert [item["title"] for item in rest.structured_content["items"]] == [
+                        "Short 2"
+                    ]
+                    assert rest.structured_content["pagination"] == {
+                        "next_cursor": None,
+                        "truncated": False,
+                        "reason": None,
+                        "consistency": "best_effort",
+                    }
+                    wire.announcements = wire.announcements[1:]
+                    stale = await session.call_tool(
+                        "get_announcements", query | {"limit": 2, "cursor": cursor}
+                    )
+                    assert stale.is_error and closed(stale.structured_content) == {
+                        "error": {"code": "STALE_CURSOR"}
+                    }
+
+
+def test_sized_page_edges_an_empty_collection_and_an_oversized_first_item():
+    from librus_python_api.exceptions import LibrusError
+
+    from librus_mcp import presentation
+    from librus_mcp.presentation import sized_page, window_page
+
+    context = "a" * 64
+    selected, pagination = sized_page((), context=context, query=("q",), cursor=None, limit=5)
+    assert selected == () and pagination.next_cursor is None and pagination.reason is None
+    items = ("x" * 300, "y", "z")
+    # An item over the whole budget still comes alone, so its cursor moves on.
+    selected, pagination = sized_page(
+        items, context=context, query=("q",), cursor=None, limit=5, max_bytes=100
+    )
+    assert selected == ("x" * 300,) and pagination.reason == "size_limit"
+    assert pagination.next_cursor is not None and pagination.next_cursor.offset == 1
+    rest, last = sized_page(
+        items, context=context, query=("q",), cursor=pagination.next_cursor, limit=5
+    )
+    assert rest == ("y", "z") and last.next_cursor is None
+    # The same source digest as window_page, so the one-pass encoding is exact.
+    _, window = window_page(items, context=context, query=("q",), cursor=None, limit=1)
+    assert window.next_cursor is not None
+    assert window.next_cursor.source == pagination.next_cursor.source
+    # The cap is read when a page is built, as the server reads it.
+    original = presentation.MAX_RESULT_BYTES
+    try:
+        presentation.MAX_RESULT_BYTES = presentation._ENVELOPE_RESERVE + 10
+        small, capped = sized_page(items, context=context, query=("q",), cursor=None, limit=5)
+        assert small == ("x" * 300,) and capped.reason == "size_limit"
+    finally:
+        presentation.MAX_RESULT_BYTES = original
+    try:
+        sized_page(items[1:], context=context, query=("q",), cursor=pagination.next_cursor, limit=5)
+    except LibrusError as error:
+        assert error.kind.value == "stale_cursor"
+    else:
+        raise AssertionError("a cursor for another source was accepted")

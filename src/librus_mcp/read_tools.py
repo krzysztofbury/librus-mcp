@@ -16,12 +16,11 @@ from mcp.server.mcpserver import Context, MCPServer
 from mcp.types import ToolAnnotations
 from pydantic import Field
 
-from librus_mcp.presentation import validate_window_cursor, window_page
+from librus_mcp.presentation import sized_page, validate_window_cursor, window_page
 from librus_mcp.read_schemas import (
     AccountAliasInput,
     AgendaEventOutput,
     AgendaResult,
-    CollectionResult,
     Cursor,
     DetailData,
     DetailResult,
@@ -40,6 +39,7 @@ from librus_mcp.read_schemas import (
     PageLimit,
     SchoolReferenceInput,
     Scope,
+    SizedPagedResult,
     SubjectFrequencyResult,
     TimetableResult,
     WindowResult,
@@ -222,12 +222,23 @@ async def get_timetable(
 async def get_announcements(
     account_alias: AccountAliasInput,
     ctx: Context[Runtime, Any],
-) -> CollectionResult[Announcement]:
-    """Get all school announcements with their full text. Does not mark them read in Librus."""
+    cursor: Cursor[PresentationCursor] = None,
+    limit: PageLimit = 256,
+) -> SizedPagedResult[Announcement]:
+    """List school announcements with their full text, in the order Librus shows them. A page ends at limit or earlier when the texts are long; pass pagination.next_cursor for the rest. Each page rereads the announcements. Does not mark them read in Librus."""
     runtime = ctx.request_context.lifespan_context
-    result = await runtime.account(account_alias).announcements(budget=runtime.budget)
-    return CollectionResult[Announcement](
-        items=result.items, identity=result.identity, observation=result.observation
+    client = runtime.account(account_alias)
+    query = ("announcements",)
+    validate_window_cursor(cursor, client.context.identifier, query)
+    result = await client.announcements(budget=runtime.budget)
+    selected, pagination = sized_page(
+        result.items, context=client.context.identifier, query=query, cursor=cursor, limit=limit
+    )
+    return SizedPagedResult[Announcement](
+        items=selected,
+        identity=result.identity,
+        observation=result.observation,
+        pagination=pagination,
     )
 
 

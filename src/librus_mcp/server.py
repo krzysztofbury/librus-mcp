@@ -15,7 +15,7 @@ from mcp.server.mcpserver.exceptions import ToolError, UnexpectedToolError
 from mcp.types import CallToolResult, InputRequiredResult, TextContent, ToolAnnotations
 from mcp.types import Tool as MCPTool
 
-from librus_mcp import __version__
+from librus_mcp import __version__, presentation
 from librus_mcp.attachment_tools import register_attachment_tools
 from librus_mcp.config import AppConfig, notice
 from librus_mcp.message_tools import register_message_tools
@@ -38,7 +38,6 @@ from librus_mcp.schemas import (
 from librus_mcp.school_history_tools import register_school_history_tools
 from librus_mcp.send_tools import register_send_tools
 
-MAX_RESULT_BYTES = 512 * 1024
 VERSIONS = {"mcp": __version__, "api": api_version}
 _OWN_PACKAGES = ("librus_python_api", "librus_mcp")
 # Opt-in: also print the redacted page structure of a failure to stderr.
@@ -47,7 +46,10 @@ _STRUCTURE_KINDS = frozenset({"PARSE", "UNSUPPORTED_CAPABILITY", "INTERNAL_ERROR
 
 
 # The input that grants the consent a CONSENT_REQUIRED tool is missing.
-_CONSENT_INPUTS = {"get_message_content": "allow_mark_read"}
+_CONSENT_INPUTS = {
+    "get_message_content": "allow_mark_read",
+    "get_new_notifications": "allow_consume_events",
+}
 
 
 def _error(
@@ -170,8 +172,9 @@ class NativeServer(MCPServer[Runtime]):
                     ]
                 }
             )
-        if len(result.model_dump_json(by_alias=True).encode("utf-8")) > MAX_RESULT_BYTES:
-            _notice(f"{name} failed: LIMIT, the result is over {MAX_RESULT_BYTES} bytes")
+        cap = presentation.MAX_RESULT_BYTES
+        if len(result.model_dump_json(by_alias=True).encode("utf-8")) > cap:
+            _notice(f"{name} failed: LIMIT, the result is over {cap} bytes")
             return _error("LIMIT")
         return result
 

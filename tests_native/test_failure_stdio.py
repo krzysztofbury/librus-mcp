@@ -6,6 +6,7 @@ from html import escape
 import anyio
 import pytest
 from aiohttp import web
+from librus_python_api import MessagingBackend
 from mcp.client import ClientSession
 from mcp.client.stdio import stdio_client
 
@@ -124,7 +125,10 @@ async def test_an_unknown_tool_name_is_never_echoed_to_stderr(capsys):
     assert stderr.startswith("librus-mcp: unknown tool failed: INVALID_INPUT")
 
 
-def _wire_server(origin, tmp_path):
+MODERN = MessagingBackend.MODERN
+
+
+def _wire_server(origin, tmp_path, *, backend="modern", features=None):
     from librus_python_api import ConnectionSettings
 
     from librus_mcp.config import AppConfig
@@ -137,12 +141,14 @@ def _wire_server(origin, tmp_path):
                     "alias": ALIAS,
                     "username": "71",
                     "password": "not-a-real-password",  # pragma: allowlist secret - loopback only
+                    "messaging_backend": backend,
                 }
             ],
             "context_key": "00" * 32,
             "state_dir": str(tmp_path / "state"),
             "download_dir": str(tmp_path / "downloads"),
         }
+        | ({"features": features} if features is not None else {})
     )
     connection = ConnectionSettings(
         synergia_origin=origin,
@@ -164,7 +170,7 @@ async def test_check_tools_reports_a_schema_mismatch_without_values(tmp_path, mo
         tools = ("get_grades", "get_grades_window", "get_final_grades")
         with anyio.fail_after(30):
             assert await check_tools(
-                _wire_server(wire.origin, tmp_path), [ALIAS], tools, lines.append
+                _wire_server(wire.origin, tmp_path), [(ALIAS, MODERN)], tools, lines.append
             )
         assert [line.split(": ")[-1] for line in lines[1:]] == [
             "OK, 4 items",
@@ -185,7 +191,10 @@ async def test_check_tools_reports_a_schema_mismatch_without_values(tmp_path, mo
         lines.clear()
         with anyio.fail_after(30):
             assert not await check_tools(
-                _wire_server(wire.origin, tmp_path), [ALIAS], ("get_grades",), lines.append
+                _wire_server(wire.origin, tmp_path),
+                [(ALIAS, MODERN)],
+                ("get_grades",),
+                lines.append,
             )
     (report,) = lines[1:]
     assert report.startswith("login 1 get_grades: SCHEMA MISMATCH at items/")

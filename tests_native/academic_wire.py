@@ -6,6 +6,16 @@ from datetime import date, timedelta
 from aiohttp import web
 
 
+def announcement_table(title, content):
+    return (
+        '<table class="decorated big center printable margin-top"><thead><tr>'
+        f'<td colspan="2">{title}</td></tr></thead><tbody><tr class="line0"><th>Autor:</th>'
+        '<td>Fixture Author</td></tr><tr class="line1"><th>Data publikacji:</th>'
+        f'<td>2026-09-24</td></tr><tr class="line0"><th>Treść:</th><td>{content}</td></tr>'
+        "</tbody></table>"
+    )
+
+
 async def academic_response(request):
     path = request.path.rstrip("/")
     if path == "/gateway/api/2.0/Attendances":
@@ -28,7 +38,7 @@ async def academic_response(request):
     if path == "/gateway/api/2.0/Subjects/71":
         return web.json_response({"Subject": {"Id": "71", "Name": "Fixture Subject"}})
     if path == "/ogloszenia":
-        body = '<table class="decorated big center printable margin-top"><thead><tr><td colspan="2">Fixture notice</td></tr></thead><tbody><tr class="line0"><th>Autor:</th><td>Fixture Author</td></tr><tr class="line1"><th>Data publikacji:</th><td>2026-09-24</td></tr><tr class="line0"><th>Treść:</th><td>Inert notice text</td></tr></tbody></table>'
+        body = announcement_table("Fixture notice", "Inert notice text")
     elif path == "/terminarz":
         form = await request.post()
         year, month = int(form["rok"]), int(form["miesiac"])

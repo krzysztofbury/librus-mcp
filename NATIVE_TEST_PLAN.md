@@ -1,5 +1,41 @@
 # Native migration verification ownership
 
+## 2.6.0 check-tools coverage, announcement pages, calendar consent
+
+2.6.0 pins API 1.8.4. `release_verification/measure_tools.py`: the catalog
+measures 125293 bytes for 31 default tools and 138624 bytes for 35 tools,
+within the 128 and 144 KiB budgets.
+
+- `test_check_tools.py`: every tool in the three catalog profiles is either
+  checked or refused with a reason; derived arguments validate against the
+  published input schemas on a Sunday, 31 December, 1 January and a leap day;
+  a refused `--tool` makes no request; a default run on the loopback wire
+  touches no route the API marks as consuming, mark-read or send (modern and
+  legacy, modern-only tools not applicable on legacy).
+- `test_read_boundaries.py`: four announcements of about 60000 characters of
+  quotes (about 960 KiB returned at once, `LIMIT` on 2.5.3) come back in two
+  pages ending with `size_limit`, each under 512 KiB, in order; a cursor is
+  bound to its login and source; short items page by `limit`.
+- `test_notification_stdio.py`: agenda without consent is `CONSENT_REQUIRED`
+  with `requires: allow_consume_events` and no Librus request; repeated
+  categories stay `INVALID_INPUT`.
+- Authorized live run on the four owner logins (2026-11-08, branch build with
+  the 1.8.4 wheel):
+  - `check-tools` with `LIBRUS_MCP_LOG_OPERATIONS=1`: 21 tools per login plus
+    `list_accounts`. Every result matched its schema, with 80 operation
+    lines.
+  - `get_completed_lessons` is `VIEW_DISABLED` on all four logins and is
+    reported as unavailable.
+  - One `get_student_information` returned a 17 KiB document instead of the
+    usual 50 KiB profile and failed as `PARSE`. A rerun passed on all four.
+  - `get_new_notifications` in a throwaway state directory gave
+    `CONSENT_REQUIRED` with `requires` for `["agenda"]` and
+    `["grades", "agenda"]` with no operation line, and `INVALID_INPUT` for
+    repeated categories. Nothing was staged.
+  - Two logins first failed every all-view grade tool with `PARSE`, with API
+    1.8.3 too, on multi-line formative tooltips and repeated `Poprawa oceny`
+    lines. API 1.8.4 fixes both.
+
 ## 2.5.3 community reports, stable grade paging
 
 2.5.3 pins API 1.8.3. Successful result shapes are unchanged; grade items
