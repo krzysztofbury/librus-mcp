@@ -62,10 +62,11 @@ mutation = [
 ]
 
 [tool.uv]
-# Fixed supply-chain quarantine cutoff, pinned at the project level so local
-# resolution (with a global rolling "30 days" exclude-newer) and CI (with no
-# global config) produce byte-identical lockfiles. Bump when updating deps.
-exclude-newer = "2026-10-15T00:00:00Z"
+# Supply-chain window: resolution ignores files uploaded in the last 7 days,
+# so a freshly published (possibly compromised) release never reaches the lock.
+# Set at the project level, it overrides any user-level setting, and the lock
+# stores only the window, so local and CI locks stay byte-identical.
+exclude-newer = "7 days"
 # Admit the reviewed stable native release without relaxing the quarantine for
 # unrelated dependencies.
 exclude-newer-package = { librus-python-api = "2026-11-09T00:00:00Z" }

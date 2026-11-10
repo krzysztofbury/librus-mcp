@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- Dependencies resolve only from releases at least 7 days old: a rolling
+  `exclude-newer = "7 days"` replaces the fixed 2026-10-15 cutoff, so the lock
+  no longer goes stale between manual bumps. Dependabot now proposes Python
+  updates with a 7-day cooldown (`librus-python-api` stays pinned by hand),
+  and the dependency-drift check stays inside the same window. The MCP bundle
+  records its build time as a fixed cutoff, so hosts need no newer uv.
+
 ## [2.7.0] - 2026-11-08
 
 Pins `librus-python-api==1.9.0`. Thank you, @nawa,

@@ -39,17 +39,15 @@ jobs:
       - name: Set up Python
         run: uv python install 3.14
 
-      # `--exclude-newer` overrides the project-level supply-chain cutoff, which
-      # would otherwise cap this resolution at the date of the last dependency
-      # bump and hide every release published since.
+      # The project's 7-day supply-chain window applies: newest releases at
+      # least 7 days old, the same set Dependabot proposes.
       - name: Resolve newest permitted dependencies
-        run: uv lock --upgrade --exclude-newer "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+        run: uv lock --upgrade
 
       - name: Report drift from the committed lockfile
         run: git --no-pager diff --stat -- uv.lock
 
-      # `--frozen` consumes the lockfile written above as-is. `--locked` would
-      # re-resolve against the project cutoff and fail on the override.
+      # `--frozen` consumes the lockfile written above as-is.
       - name: Install resolved dependencies
         run: uv sync --frozen --python 3.14
 

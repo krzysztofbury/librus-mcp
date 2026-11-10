@@ -1,9 +1,24 @@
 version: 2
 updates:
-  # Python dependencies are intentionally not listed. The fixed `exclude-newer`
-  # quarantine cutoff in pyproject.toml rejects any version published after it,
-  # so pinned-version bumps cannot lock. They are updated by moving the cutoff,
-  # and the scheduled dependency-drift workflow reports breaking releases.
+  # Cooldowns match the 7-day `exclude-newer` window in pyproject.toml.
+  - package-ecosystem: uv
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Europe/Warsaw
+    cooldown:
+      default-days: 7
+    # Pinned by hand in a coordinated release, with its own
+    # `exclude-newer-package` date.
+    ignore:
+      - dependency-name: librus-python-api
+    open-pull-requests-limit: 5
+    groups:
+      python-dependencies:
+        patterns: ["*"]
+
   - package-ecosystem: github-actions
     directory: /
     schedule:
