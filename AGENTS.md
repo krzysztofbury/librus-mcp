@@ -42,6 +42,13 @@ project rules. [CONTRIBUTING.md](CONTRIBUTING.md) lists the checks CI runs.
   release workflows) get a `pair-programmer` review before merging; use the
   `test-audit` skill for substantive Python test design or pruning.
 
+## Agent workflow
+
+Queued work runs through the role skills on the project board named in
+`.agents/cos.json`, which covers this repository and `librus-python-api`. The
+approver escalates by `.agents/escalation.md`; retro appends to
+`.agents/retro.jsonl` and proposes rule changes as pull requests.
+
 ## What is not evidence
 
 Proof lives in the tests that exercise a contract (`tests_native/`), the
