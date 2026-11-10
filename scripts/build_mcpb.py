@@ -13,6 +13,7 @@ import subprocess
 import tempfile
 import tomllib
 import zipfile
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -27,6 +28,20 @@ class BundleError(RuntimeError):
 
 def _toml_string(value: str) -> str:
     return json.dumps(value)
+
+
+def bundle_cutoff(window: str) -> str:
+    """A fixed cutoff for the bundle's own lock.
+
+    A rolling project window such as "7 days" becomes the build time, so the
+    host's uv needs no duration support and `uv run --locked` always sees the
+    same options. The constraints pin the qualified closure either way.
+    """
+    try:
+        datetime.fromisoformat(window)
+    except ValueError:
+        return datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+    return window
 
 
 def qualified_pins() -> list[str]:
@@ -57,7 +72,7 @@ requires-python = "==3.14.*"
 dependencies = ["librus-mcp=={version}"]
 
 [tool.uv]
-exclude-newer = {_toml_string(quarantine["exclude-newer"])}
+exclude-newer = {_toml_string(bundle_cutoff(quarantine["exclude-newer"]))}
 exclude-newer-package = {{ {packages} }}
 constraint-dependencies = [{constraints}
 ]
