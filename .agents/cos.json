@@ -1,0 +1,6 @@
+{
+  "board": {"owner": "krzysztofbury", "number": 3},
+  "repos": ["krzysztofbury/librus-mcp", "krzysztofbury/librus-python-api"],
+  "runner": "~/.local/bin/agent-run",
+  "max_parallel": 2
+}

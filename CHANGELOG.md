@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Agent workflow files: `.agents/cos.json` points the chief-of-staff role at
+  the Librus project board for this repository and `librus-python-api`,
+  `.agents/escalation.md` lists what the approver role must hand to the owner,
+  and `.agents/retro.jsonl` keeps the retro history in the repository (union
+  merge in `.gitattributes`).
+
 ### Changed
 
 - Dependencies resolve only from releases at least 7 days old: a rolling
