@@ -39,8 +39,9 @@ project rules. [CONTRIBUTING.md](CONTRIBUTING.md) lists the checks CI runs.
 - Do not claim a package, command, test or release step works until it has been
   exercised.
 - For a substantial or safety-sensitive change (parsing, state, consent,
-  release workflows) get a `pair-programmer` review before merging; use the
-  `test-audit` skill for substantive Python test design or pruning.
+  release workflows) get a `reviewer` review before merging; follow the test
+  audit in the `developer` skill (`references/test-audit.md`) for substantive
+  Python test design or pruning.
 
 ## Agent workflow
 

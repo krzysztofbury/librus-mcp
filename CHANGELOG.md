@@ -14,6 +14,8 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
+- `AGENTS.md` points reviews and test work at the `reviewer` and `developer`
+  role skills, which replaced the `pair-programmer` and `test-audit` skills.
 - Dependencies resolve only from releases at least 7 days old: a rolling
   `exclude-newer = "7 days"` replaces the fixed 2026-10-15 cutoff, so the lock
   no longer goes stale between manual bumps. Dependabot now proposes Python
