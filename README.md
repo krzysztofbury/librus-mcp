@@ -319,6 +319,12 @@ grade's `grade_id`, as Librus shows them in one bracket (`[1 5]`). Other
 scopes show no brackets, so both fields are null there. See
 [grade IDs and corrections](MCP_CONTRACT.md#additive-27-grade-ids-and-corrections-88).
 
+At schools that grade behaviour with points, `get_grades` and
+`get_grades_window` list them in `behaviour_points`, apart from the grades:
+per semester, the number the `Zachowanie` row shows (`tally`, not
+interpreted) and its point entries. See
+[behaviour points](MCP_CONTRACT.md#additive-behaviour-points-103).
+
 On a parent login, `get_justifications` lists the absence justifications sent
 through e-usprawiedliwienia with their status (sent, justified or rejected) and
 who decided it. It covers only the window Librus shows by default, about the

@@ -16,6 +16,17 @@ Pins `librus-python-api==1.10.0`.
   tools (36 with sending, 28 minimal); refresh the host's tool catalog.
   `check-tools` and the live qualifier's `v21` phase include it.
 
+- `get_grades` and `get_grades_window` gain `behaviour_points`: the
+  `Zachowanie` row's points per semester, apart from grade `items` (#103,
+  API 1.10.0 `behaviour_points`). Each item has its `tally`, the number the
+  cell shows, which is not interpreted, summed or compared with the entries,
+  and its `entries`, each with `points`, `detail_id`, `category`, `day` and
+  the tooltip's labelled lines in `metadata`. The list is empty on a page
+  without points, and every page of a result carries it. In a window an item
+  keeps only its entries dated in the range, and an item without one is left
+  out. Grade items and cursors do not change; the field is
+  optional, so a host with an older catalog still validates results.
+
 - Agent workflow files: `.agents/cos.json` points the chief-of-staff role at
   the Librus project board for this repository and `librus-python-api`,
   `.agents/escalation.md` lists what the approver role must hand to the owner,

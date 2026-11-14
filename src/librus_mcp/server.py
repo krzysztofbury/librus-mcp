@@ -33,6 +33,7 @@ from librus_mcp.schemas import (
     PresentationCursor,
     ProfileData,
     ProfileResult,
+    behaviour_points_items,
     grade_items,
 )
 from librus_mcp.school_history_tools import register_school_history_tools
@@ -358,7 +359,7 @@ async def get_grades(
     cursor: Cursor[PresentationCursor] = None,
     limit: PageLimit = 100,
 ) -> GradesResult:
-    """List grades with averages: numeric, point, descriptive and formative assessments, including observation cards. A point grade's raw is a score on the scale its category names, such as (0-100); point_results are period results on that scale, never averages. For a date range use get_grades_window. scope also changes the view this login's Librus session remembers and may not apply to formative rows. A grade whose formative_id equals a formative row's assessment.detail_id is one assessment, not two. grade_id is the grade's own Librus ID, not a formative detail_id. With scope all, corrects lists the grade_ids a correction replaces and corrected_by the later corrections of a grade; other scopes show no correction brackets and leave both null."""
+    """List grades with averages: numeric, point, descriptive and formative assessments, including observation cards. A point grade's raw is a score on the scale its category names, such as (0-100); point_results are period results on that scale, never averages. For a date range use get_grades_window. scope also changes the view this login's Librus session remembers and may not apply to formative rows. A grade whose formative_id equals a formative row's assessment.detail_id is one assessment, not two. grade_id is the grade's own Librus ID, not a formative detail_id. With scope all, corrects lists the grade_ids a correction replaces and corrected_by the later corrections of a grade; other scopes show no correction brackets and leave both null. behaviour_points are the Zachowanie row's points per semester, not grades."""
     runtime = ctx.request_context.lifespan_context
     client = runtime.account(account_alias)
     query = ("grades-all", scope.value)
@@ -382,6 +383,7 @@ async def get_grades(
         averages=result.records.averages,
         point_results=result.records.point_results,
         descriptive_summaries=result.records.descriptive_summaries,
+        behaviour_points=behaviour_points_items(result.records.behaviour_points),
         scope=result.view,
         identity=result.identity,
         observation=result.observation,

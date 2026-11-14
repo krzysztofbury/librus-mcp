@@ -1,5 +1,6 @@
 """Every published tool schema must compile in real JSON Schema validators."""
 
+import json
 import re
 
 import pytest
@@ -102,6 +103,27 @@ async def test_output_schemas_accept_fields_a_later_release_adds():
     }
     errors = list(validator_for(grades)(grades).iter_errors(result))
     assert not any("added_later" in error.message for error in errors)
+
+
+@pytest.mark.asyncio
+async def test_behaviour_points_tally_is_the_number_shown_and_nothing_more():
+    # #103: whether the tally is starting points or a running total is not
+    # established (librus-python-api#138), so the catalog must not say either.
+    tools = {
+        tool.name: tool
+        for tool in await create_server(AppConfig.model_validate(config_data())).list_tools()
+    }
+    # The rule is stated once, on the tally field both grade tools publish.
+    for name in ("get_grades", "get_grades_window"):
+        tool = tools[name]
+        item = tool.output_schema["$defs"]["BehaviourPointsItem"]
+        tally = item["properties"]["tally"]["description"]
+        assert "number shown" in tally
+        assert "never summed with or checked against the entries" in tally
+        assert "tally" not in tool.description
+        published = (tool.description + json.dumps(tool.output_schema)).lower()
+        for claim in ("starting", "running total", "punkty startowe"):
+            assert claim not in published, (name, claim)
 
 
 @pytest.mark.asyncio
