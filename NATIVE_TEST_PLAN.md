@@ -3,7 +3,7 @@
 ## Unreleased: e-Justifications (#102)
 
 Pins API 1.10.0. `release_verification/measure_tools.py`: the catalog
-measures 130514 bytes for 32 default tools and 143845 bytes for 36 tools,
+measures 130615 bytes for 32 default tools and 143946 bytes for 36 tools,
 within the 128 and 144 KiB budgets (131072 and 147456 bytes).
 
 - `test_v21_stdio.py`: over stdio on a parent login, `get_justifications`

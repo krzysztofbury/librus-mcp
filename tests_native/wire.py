@@ -33,8 +33,8 @@ class Wire:
         self.message_count = 3
         self.message_queries = []
         self.history_empty = False
-        # `Me.Account.GroupId`: 5 is a parent login, None leaves it out as a
-        # student-like login the API refuses justifications for.
+        # `Me.Account.GroupId`: 5 is a parent login, 8 a student login; None
+        # leaves it out. The API reads justifications for group 5 only.
         self.account_group: int | None = 5
         self.justifications_empty = False
         # (title, content) pairs served as the announcements page, when set.

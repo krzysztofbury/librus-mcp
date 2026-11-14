@@ -124,7 +124,7 @@ async def test_the_default_run_reads_every_safe_tool_without_effects(tmp_path, b
 async def test_a_student_login_reports_parent_only_justifications_as_unavailable(tmp_path):
     lines: list[str] = []
     async with Wire().serve() as wire:
-        wire.account_group = None
+        wire.account_group = 8  # a student login's group
         with anyio.fail_after(30):
             assert await check_tools(
                 _wire_server(wire.origin, tmp_path),

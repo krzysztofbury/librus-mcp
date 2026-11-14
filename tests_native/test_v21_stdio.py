@@ -485,7 +485,7 @@ async def test_justifications_page_in_librus_order_with_the_default_window():
 @pytest.mark.asyncio
 async def test_a_student_login_gets_unsupported_justifications_without_a_request():
     async with Wire().serve() as wire:
-        wire.account_group = None
+        wire.account_group = 8  # a student login's group
         with anyio.fail_after(30):
             async with stdio_client(server_process(wire.origin, [("first", "71")])) as streams:
                 async with ClientSession(*streams) as session:
@@ -516,6 +516,7 @@ def _qualifier():
     [
         (5, False, {"status": "passed", "coverage": "populated", "item_count": 2}),
         (5, True, {"status": "passed", "coverage": "empty", "item_count": 0}),
+        (8, False, {"status": "expected_unsupported"}),
         (None, False, {"status": "expected_unsupported"}),
     ],
 )
