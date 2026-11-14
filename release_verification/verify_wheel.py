@@ -152,7 +152,7 @@ async def run_tool_checks(
                     await session.initialize()
                     catalog = await session.list_tools()
                     tools = {tool.name: tool for tool in catalog.tools}
-                    if len(tools) != (35 if all_features else 31):
+                    if len(tools) != (36 if all_features else 32):
                         raise VerificationError(
                             "installed catalog has an unexpected feature profile"
                         )

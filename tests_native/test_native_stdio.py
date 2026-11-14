@@ -115,6 +115,7 @@ async def test_four_logins_share_traffic_but_not_sessions_and_catalog_does_not_l
                         "get_completed_lessons",
                         "get_school_year_archive",
                         "get_class_free_days",
+                        "get_justifications",
                         "get_message_correspondents",
                         "get_teacher_subjects",
                         "get_message_unread_counts",

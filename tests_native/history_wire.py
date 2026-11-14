@@ -29,6 +29,10 @@ def history_response(request, wire):
                 ]
             }
         )
+    if request.path == "/eusprawiedliwienia":
+        return web.Response(
+            text=justifications_page(wire.justifications_empty), content_type="text/html"
+        )
     if request.path != "/archiwum":
         return None
     if wire.history_empty:
@@ -76,3 +80,37 @@ def formative_table(text):
     <tr><th>KARTA SPOSTRZEŻEŃ</th><td><a href="/przegladaj_oceny/szczegoly/ksztaltujace/401"><span class="grade-box"></span>{text}</a></td>
     <td>Fixture development</td><td>1</td><td>2026-09-25</td><td>Fixture assessment</td></tr>
     </tbody><tfoot><tr><td colspan="6"></td></tr></tfoot></table>"""
+
+
+JUSTIFICATION_HEADERS = (
+    "Załącznik",
+    "Okres usprawiedliwienia",
+    "Liczba usprawiedliwionych nieobecności",
+    "Treść",
+    "Powiadomieni nauczyciele",
+    "Data wysłania",
+    "Status",
+)
+
+
+def justifications_page(empty=False):
+    """An original e-Justifications list: a range entry, then a one-day entry."""
+    rows = (
+        '<tr><td colspan="7">Fixture empty list</td></tr>'
+        if empty
+        else """<tr class="line0"><td></td><td><b>od 2026-10-01 do 2026-10-03</b></td>
+        <td>4</td><td>Fixture reason<br>second line</td>
+        <td>A. Fixture, B. Fixture<br>C. Fixture</td><td>2026-10-04 08:15:00</td>
+        <td>usprawiedliwione (D. Fixture)</td></tr>
+        <tr class="line1"><td></td><td><b>2026-10-07, lekcje: 2, 3</b></td>
+        <td>2</td><td>Fixture appointment</td><td>A. Fixture</td>
+        <td>2026-10-07 19:30:05</td><td>wysłane</td></tr>"""
+    )
+    header = "".join(f"<td>{label}</td>" for label in JUSTIFICATION_HEADERS)
+    return f"""<html><form method="post"><table class="decorated filters small center">
+    <tr><td><input type="text" name="data_od" value="2026-09-24"></td>
+    <td><input type="text" name="data_do" value="2026-10-24"></td>
+    <td><select name="status"><option value="0">wszystkie</option>
+    <option value="1">wysłane</option></select></td></tr></table></form>
+    <table class="decorated stretch center"><thead><tr>{header}</tr></thead>
+    <tbody>{rows}</tbody><tfoot><tr><td colspan="7"></td></tr></tfoot></table></html>"""
