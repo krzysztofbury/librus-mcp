@@ -32,6 +32,13 @@ Pins `librus-python-api==1.10.0`.
   updates with a 7-day cooldown (`librus-python-api` stays pinned by hand),
   and the dependency-drift check stays inside the same window. The MCP bundle
   records its build time as a fixed cutoff, so hosts need no newer uv.
+- `librus-python-api` is exempt from that window (`exclude-newer-package`
+  `false`), so a new API release resolves as soon as it is on PyPI; its
+  version stays pinned exactly and its dependencies stay windowed.
+- A smaller tool catalog (126132 to 124930 bytes by default): the date-time
+  and time patterns use plain groups, and the `FormativeGrade` and
+  `GradeSummaryValue` docstrings, which repeated the grade tool descriptions,
+  are no longer published.
 
 ## [2.7.0] - 2026-11-08
 
