@@ -20,10 +20,10 @@ unshipped 1.x references retain their scoped GPL license. See
 
 ## Safety boundaries
 
-2.7.0 uses API 1.9.0. Native history, class-free-day, e-Justifications and directory collections are
+2.8.0 uses API 1.10.0. Native history, class-free-day, e-Justifications and directory collections are
 paged in MCP without duplicating upstream traversal. Grade presentation includes
 formative records and their mirror IDs, point records with their period
-results, and grade IDs with the all view's correction links (2.7). Modern message query/reference/cursor
+results, grade IDs with the all view's correction links (2.7), and behaviour points beside grades (2.8). Modern message query/reference/cursor
 projections preserve archive and filter selection. See [MCP_CONTRACT.md](MCP_CONTRACT.md)
 for exact wire shapes and capability limits. Default/all-feature catalog budgets
 are 128/144 KiB for 32/36 tools; the minimal profile has 28 tools.

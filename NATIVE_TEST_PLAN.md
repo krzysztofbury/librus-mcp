@@ -1,8 +1,8 @@
 # Native migration verification ownership
 
-## Unreleased: behaviour points (#103)
+## 2.8.0 behaviour points (#103)
 
-The branch pins API 1.10.0. `release_verification/measure_tools.py`: the
+2.8.0 pins API 1.10.0. `release_verification/measure_tools.py`: the
 catalog measures 130875 bytes for 32 default tools and 144190 bytes for 36
 tools, within the 128 and 144 KiB budgets (131072 and 147456 bytes), 1734
 bytes more than main at 7c67e3f (with #109 and #110) in each profile.
@@ -26,7 +26,7 @@ bytes more than main at 7c67e3f (with #109 and #110) in each profile.
   `behaviour_points`; the API's 1.10.0 live check found none on these logins,
   so a populated row is still unproven live.
 
-## Unreleased: e-Justifications (#102)
+## 2.8.0 e-Justifications (#102)
 
 Pins API 1.10.0. `release_verification/measure_tools.py`: the catalog
 measures 129141 bytes for 32 default tools and 142456 bytes for 36 tools,
