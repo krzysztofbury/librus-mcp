@@ -1,6 +1,7 @@
 """Every published tool schema must compile in real JSON Schema validators."""
 
 import json
+import re
 
 import pytest
 from jsonschema.validators import validator_for
@@ -131,3 +132,25 @@ async def test_agenda_publishes_the_years_the_api_accepts():
     for refused in (year["minimum"] - 1, year["maximum"] + 1):
         with pytest.raises(LibrusError):
             agenda_form(refused, 1)
+
+
+@pytest.mark.asyncio
+async def test_trimmed_schemas_keep_wall_times_and_the_facts_they_repeated():
+    tools = {
+        tool.name: tool
+        for tool in await create_server(AppConfig.model_validate(config_data())).list_tools()
+    }
+    # Librus wall times carry no offset; the shorter pattern must still take them.
+    observed_at = tools["get_grades"].output_schema["$defs"]["Observation"]["properties"][
+        "observed_at"
+    ]["pattern"]
+    for wall_time in ("2026-11-14T08:05:00", "2026-11-14T08:05:00.5Z", "2026-11-14T08:05:00+01:00"):
+        assert re.fullmatch(observed_at, wall_time), wall_time
+    assert not re.fullmatch(observed_at, "2026-11-14 08:05:00")
+    # The dropped API docstrings only repeated these tool descriptions.
+    final = tools["get_final_grades"]
+    assert "description" not in final.output_schema["$defs"]["GradeSummaryValue"]
+    assert "unavailable" in final.description and "- raw value" in final.description
+    for name in ("get_grades", "get_grades_window"):
+        assert "description" not in tools[name].output_schema["$defs"]["FormativeGrade"]
+        assert "formative_id" in tools[name].description
