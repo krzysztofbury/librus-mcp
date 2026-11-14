@@ -1,5 +1,26 @@
 # Native migration verification ownership
 
+## Unreleased: behaviour points (#103)
+
+The branch pins API 1.10.0. `release_verification/measure_tools.py`: the
+catalog measures 127919 bytes for 31 default tools and 141250 bytes for 35
+tools, within the 128 and 144 KiB budgets (1787 bytes more than 2.7.0 in
+each profile).
+
+- `test_v21_stdio.py`: over stdio, `get_grades` and `get_grades_window` return
+  `behaviour_points` from a synthetic `Zachowanie` row (tally 50 with entries
+  +5 and -3 in semester 1, -7 alone in semester 2) and an empty list without
+  that row; grade `items` and `pagination` are equal with and without it, and
+  a cursor from the page without points continues the page with them; every
+  page carries the points; a window keeps the tally with only the entries in
+  its range and leaves out an item without one; every result matches the
+  published schema; no behaviour detail page is requested.
+- The behaviour-row parsing itself is covered by the API's
+  `tests/test_grade_records.py` (1.10.0).
+- Live qualification: pending the owner's authorization of the run and its
+  scope. The owner's logins show no behaviour points (checked 2026-11-13), so
+  it can only show that the field is empty and the grade tools still pass.
+
 ## 2.7.0 grade IDs and correction links
 
 2.7.0 pins API 1.9.0. `release_verification/measure_tools.py`: the catalog

@@ -98,6 +98,25 @@ host's own error, `Invalid structured content returned by tool <name>`.
   their payloads are library records, whose `grade_id` is computed, so
   stored notification identities do not change.
 
+## Additive behaviour points (#103)
+
+- `get_grades` and `get_grades_window` gain `behaviour_points`, a list beside
+  `items` (API `behaviour_points`, 1.10.0). Each item is one behaviour-row
+  cell with points: `semester` (1 or 2, the column it sits in), `tally` and
+  `entries`. `tally` is the number the cell shows. Whether it is the starting
+  points or a running total is not established, so it is passed on as shown,
+  never summed with or checked against the entries. A tally cell spanning both
+  periods gives no item. Each entry has signed `points`, `detail_id` (from its
+  `/przegladaj_oceny/zachowanie_szczegoly/<id>` link, never fetched),
+  `category` (the tooltip's first line), `day` (`Data wystawienia`) and
+  `metadata`, the tooltip's labelled lines in order.
+- Points are never grade items: they do not change `items`, their order or
+  cursors, and are not paged. Every page of a result carries the whole list;
+  it is empty for a page without points. In `get_grades_window` an item keeps
+  its tally and only the entries dated in the range; an item with no such
+  entry, including a tally alone, is left out.
+- Grade notifications do not report points.
+
 ## Additive 2.4 point grades
 
 - Grade `items` can have `record_type="point"`: an entry from the school's

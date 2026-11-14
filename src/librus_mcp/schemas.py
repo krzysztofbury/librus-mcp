@@ -7,6 +7,7 @@ from typing import Annotated, Literal
 from librus_python_api import (
     AttendanceRecord,
     AttendanceView,
+    BehaviourPoints,
     DescriptiveGrade,
     DescriptiveGradeSummary,
     FormativeGrade,
@@ -117,11 +118,50 @@ class FormativeItem(WireModel):
 GradeRecord = GradeItem | FormativeItem
 
 
+class BehaviourPointEntryItem(WireModel):
+    points: int
+    detail_id: str
+    category: str
+    day: date
+    metadata: tuple[tuple[str, str], ...]
+
+
+class BehaviourPointsItem(WireModel):
+    # The API does not establish whether the tally is the starting points or a
+    # running total (librus-python-api#138), so it is passed on uninterpreted.
+    semester: Literal[1, 2]
+    tally: Annotated[int, Field(description="The number shown, not interpreted.")]
+    entries: tuple[BehaviourPointEntryItem, ...]
+
+
+def behaviour_points_items(
+    items: Sequence[BehaviourPoints],
+) -> tuple[BehaviourPointsItem, ...]:
+    return tuple(
+        BehaviourPointsItem(
+            semester=item.semester,
+            tally=item.tally,
+            entries=tuple(
+                BehaviourPointEntryItem(
+                    points=entry.points,
+                    detail_id=entry.detail_id,
+                    category=entry.category,
+                    day=entry.day,
+                    metadata=entry.metadata,
+                )
+                for entry in item.entries
+            ),
+        )
+        for item in items
+    )
+
+
 class GradesResult(WireModel):
     items: tuple[GradeRecord, ...]
     averages: tuple[SchoolAverage, ...]
     point_results: tuple[SchoolAverage, ...]
     descriptive_summaries: tuple[DescriptiveGradeSummary, ...]
+    behaviour_points: tuple[BehaviourPointsItem, ...] = ()
     scope: GradeView
     identity: Identity
     observation: Observation

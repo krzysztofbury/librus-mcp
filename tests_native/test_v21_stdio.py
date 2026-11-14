@@ -132,6 +132,83 @@ async def test_grade_ids_and_the_all_views_correction_links():
                     assert not any("/szczegoly/" in path for _, path, _ in wire.calls)
 
 
+def _behaviour_entry(points, detail_id, day):
+    return {
+        "points": points,
+        "detail_id": detail_id,
+        "category": "Fixture behaviour category",
+        "day": day,
+        "metadata": [
+            ["Zakres od", "1"],
+            ["Zakres do", "5"],
+            ["Data wystawienia", day],
+            ["Dodał", "Fixture Teacher"],
+            ["Komentarz", "Fixture remark"],
+        ],
+    }
+
+
+@pytest.mark.asyncio
+async def test_behaviour_points_sit_beside_grades_without_changing_them():
+    # #103: the Zachowanie row's points (librus-python-api#138) are reported
+    # next to the grade items, uninterpreted, and never become a grade item.
+    plus = _behaviour_entry(5, "11", "2026-09-21")
+    minus = _behaviour_entry(-3, "12", "2026-09-25")
+    async with Wire().serve() as wire:
+        with anyio.fail_after(30):
+            async with stdio_client(server_process(wire.origin, [("first", "71")])) as streams:
+                async with ClientSession(*streams) as session:
+                    await session.initialize()
+
+                    async def read(tool, **query):
+                        result = await session.call_tool(tool, {"account_alias": "first"} | query)
+                        assert not result.is_error, result
+                        await assert_matches_published_schema(session, tool, result)
+                        return result.structured_content
+
+                    for tool in ("get_grades", "get_grades_window"):
+                        wire.behaviour_points = False
+                        plain = await read(tool, limit=1)
+                        assert plain["behaviour_points"] == []
+                        wire.behaviour_points = True
+                        first = await read(tool, limit=1)
+                        # Grade items and their cursor do not depend on the points:
+                        # a cursor from the page without them continues this one.
+                        for key in ("items", "pagination"):
+                            assert first[key] == plain[key]
+                        cursor = plain["pagination"]["next_cursor"]
+                        last = await read(tool, limit=1, cursor=cursor)
+                        assert [item["raw"] for item in first["items"] + last["items"]] == [
+                            "4+",
+                            "3",
+                        ]
+                        # Every page carries the points, like get_grades' averages.
+                        for page in (first, last):
+                            assert page["behaviour_points"][0] == {
+                                "semester": 1,
+                                "tally": 50,
+                                "entries": [plus, minus],
+                            }
+                    whole = await read("get_grades")
+                    assert whole["behaviour_points"][1] == {
+                        "semester": 2,
+                        "tally": -7,
+                        "entries": [],
+                    }
+                    assert all(item["subject"] != "Zachowanie" for item in whole["items"])
+                    # A window keeps each item's tally with only the entries in it;
+                    # an item without such entries is left out.
+                    window = await read("get_grades_window")
+                    assert [item["tally"] for item in window["behaviour_points"]] == [50]
+                    dated = await read("get_grades_window", date_from="2026-09-25")
+                    assert dated["behaviour_points"] == [
+                        {"semester": 1, "tally": 50, "entries": [minus]}
+                    ]
+                    none = await read("get_grades_window", date_to="2026-09-20")
+                    assert none["behaviour_points"] == []
+                    assert not any("zachowanie_szczegoly" in path for _, path, _ in wire.calls)
+
+
 def _grade(raw, grade_id, day="2026-09-24"):
     href = None if grade_id is None else f"/przegladaj_oceny/szczegoly/{grade_id}"
     return NumericGrade(

@@ -1,5 +1,7 @@
 """Original synthetic 2.1 school inputs authored from native public contracts."""
 
+from html import escape
+
 from aiohttp import web
 
 
@@ -76,3 +78,31 @@ def formative_table(text):
     <tr><th>KARTA SPOSTRZEŻEŃ</th><td><a href="/przegladaj_oceny/szczegoly/ksztaltujace/401"><span class="grade-box"></span>{text}</a></td>
     <td>Fixture development</td><td>1</td><td>2026-09-25</td><td>Fixture assessment</td></tr>
     </tbody><tfoot><tr><td colspan="6"></td></tr></tfoot></table>"""
+
+
+def behaviour_points_box(points, detail, day):
+    """An original behaviour-point entry; its tooltip opens with an unlabelled line."""
+    title = escape(
+        "Fixture behaviour category<br/>Zakres od: 1<br/>Zakres do: 5"
+        f"<br />Data wystawienia: {day}<br />Dodał: Fixture Teacher"
+        "<br>Komentarz: Fixture remark",
+        quote=True,
+    )
+    return (
+        f'<span class="grade-box"><a title="{title}" '
+        f'href="/przegladaj_oceny/zachowanie_szczegoly/{detail}">{points}</a></span>'
+    )
+
+
+def behaviour_row():
+    """The Zachowanie row: tally 50 with two entries, then -7 alone, per period."""
+    first = (
+        '<span class="tooltip" title="Fixture points">50</span>'
+        + behaviour_points_box("+5", "11", "2026-09-21")
+        + behaviour_points_box("-3", "12", "2026-09-25")
+    )
+    second = '<span class="tooltip" title="Fixture points">-7</span>'
+    return (
+        f"<tr><td></td><td>Zachowanie</td><td>{first}</td><td>-</td>"
+        f"<td>{second}</td><td>-</td></tr>"
+    )

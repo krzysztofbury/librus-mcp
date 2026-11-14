@@ -28,6 +28,7 @@ from librus_mcp.read_schemas import (
     FirstDay,
     FrequencyData,
     FrequencyResult,
+    GradesWindowResult,
     HomeworkItemOutput,
     HomeworkResult,
     ISODate,
@@ -46,8 +47,8 @@ from librus_mcp.read_schemas import (
 )
 from librus_mcp.runtime import Runtime
 from librus_mcp.schemas import (
-    GradeRecord,
     PresentationCursor,
+    behaviour_points_items,
     grade_items,
 )
 
@@ -78,8 +79,8 @@ async def get_grades_window(
     scope: Scope[GradeView] = GradeView.ALL,
     cursor: Cursor[PresentationCursor] = None,
     limit: PageLimit = 100,
-) -> WindowResult[GradeRecord]:
-    """List grades and formative assessments dated within date_from..date_to, without averages (see get_grades). A point grade's raw is a score on the scale its category names. scope also changes the view this login's Librus session remembers and may not apply to formative rows. A grade whose formative_id equals a formative row's assessment.detail_id is one assessment. grade_id, corrects and corrected_by: see get_grades."""
+) -> GradesWindowResult:
+    """List grades and formative assessments dated within date_from..date_to, without averages (see get_grades). A point grade's raw is a score on the scale its category names. scope also changes the view this login's Librus session remembers and may not apply to formative rows. A grade whose formative_id equals a formative row's assessment.detail_id is one assessment. grade_id, corrects and corrected_by: see get_grades. behaviour_points: see get_grades; only entries dated in the range, each item with its tally."""
     runtime = ctx.request_context.lifespan_context
     client = runtime.account(account_alias)
     query = ("grades", scope.value, str(date_from), str(date_to))
@@ -100,7 +101,7 @@ async def get_grades_window(
         cursor=cursor,
         limit=limit,
     )
-    return WindowResult[GradeRecord](
+    return GradesWindowResult(
         items=selected,
         date_from=date_from,
         date_to=date_to,
@@ -108,6 +109,7 @@ async def get_grades_window(
         identity=result.identity,
         observation=result.observation,
         pagination=pagination,
+        behaviour_points=behaviour_points_items(result.behaviour_points),
     )
 
 

@@ -21,6 +21,8 @@ from pydantic import BeforeValidator, Field
 
 from librus_mcp.config import ALIAS_PATTERN
 from librus_mcp.schemas import (
+    BehaviourPointsItem,
+    GradeRecord,
     HexDigest,
     Pagination,
     SizedWindowPagination,
@@ -74,6 +76,10 @@ class WindowResult(WireModel, Generic[T]):
     identity: Identity
     observation: Observation
     pagination: WindowPagination
+
+
+class GradesWindowResult(WindowResult[GradeRecord]):
+    behaviour_points: tuple[BehaviourPointsItem, ...] = ()
 
 
 class SchoolReferenceInput(WireModel):
