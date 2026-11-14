@@ -89,14 +89,19 @@ _SCHEMA_LIST = frozenset({"anyOf", "oneOf", "allOf", "prefixItems"})
 # fold, so Pydantic emits them without one. RFC 3339 "date-time" and "time"
 # require an offset and strict hosts reject such results; publish
 # the ISO 8601 shape Pydantic actually emits, with the offset optional.
+# Plain groups, not `(?:`, keep it in JSON Schema's recommended regex subset
+# and save bytes in every tool that returns a timestamp.
 _ISO_DATE_TIME = (
-    r"^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\.[0-9]{1,6})?"
-    r"(?:Z|[+-][0-9]{2}:[0-9]{2})?$"
+    r"^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\.[0-9]{1,6})?"
+    r"(Z|[+-][0-9]{2}:[0-9]{2})?$"
 )
 _ISO_TIME = (
-    r"^(?:[01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9](?:\.[0-9]{1,6})?"
-    r"(?:Z|[+-][0-9]{2}:[0-9]{2})?$"
+    r"^([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9](\.[0-9]{1,6})?"
+    r"(Z|[+-][0-9]{2}:[0-9]{2})?$"
 )
+# API model docstrings that only repeat the description of every tool that
+# returns them (get_grades, get_final_grades), published once per such tool.
+_REPEATED_MODEL_DOCS = frozenset({"FormativeGrade", "GradeSummaryValue"})
 
 
 def compact_schema(schema: Any) -> Any:
@@ -105,7 +110,8 @@ def compact_schema(schema: Any) -> Any:
     Pydantic titles repeat property/model names and made up about a fifth of the
     catalog sent to model context. Types, constraints, required fields, enums,
     defaults and descriptions are unchanged, except that `date-time` and `time`
-    formats become patterns that also accept the offset-free wall times served.
+    formats become patterns that also accept the offset-free wall times served,
+    and the docstrings in `_REPEATED_MODEL_DOCS` are dropped.
     """
     if not isinstance(schema, dict):
         return schema
@@ -122,6 +128,11 @@ def compact_schema(schema: Any) -> Any:
             result[key] = compact_schema(value)
         elif key in _SCHEMA_MAP and isinstance(value, dict):
             result[key] = {name: compact_schema(item) for name, item in value.items()}
+            if key == "$defs":
+                for name in _REPEATED_MODEL_DOCS & result[key].keys():
+                    result[key][name] = {
+                        k: v for k, v in result[key][name].items() if k != "description"
+                    }
         elif key in _SCHEMA_LIST and isinstance(value, list):
             result[key] = [compact_schema(item) for item in value]
         else:
