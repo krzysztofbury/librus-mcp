@@ -118,10 +118,9 @@ async def check_stdio(image: str, directory: Path) -> None:
         ],
     )
     with anyio.fail_after(STARTUP_TIMEOUT_SECONDS):
-        async with stdio_client(parameters) as (read, write):
-            async with ClientSession(read, write) as session:
-                await session.initialize()
-                result = await session.call_tool("list_accounts", {})
+        async with stdio_client(parameters) as (read, write), ClientSession(read, write) as session:
+            await session.initialize()
+            result = await session.call_tool("list_accounts", {})
     expected = {"items": [{"account_alias": account["alias"]} for account in ACCOUNTS]}
     if result.structured_content != expected:
         raise VerificationError("stdio image did not load the mounted multi-login file")
@@ -188,10 +187,13 @@ async def check_http(image: str) -> None:
             trust_env=False,
         )
         with anyio.fail_after(STARTUP_TIMEOUT_SECONDS):
-            async with client, streamable_http_client(url, http_client=client) as streams:
-                async with ClientSession(streams[0], streams[1]) as session:
-                    await session.initialize()
-                    result = await session.call_tool("list_accounts", {})
+            async with (
+                client,
+                streamable_http_client(url, http_client=client) as streams,
+                ClientSession(streams[0], streams[1]) as session,
+            ):
+                await session.initialize()
+                result = await session.call_tool("list_accounts", {})
         if result.structured_content != {"items": [{"account_alias": "librus"}]}:
             raise VerificationError("HTTP image did not load the environment login")
     finally:

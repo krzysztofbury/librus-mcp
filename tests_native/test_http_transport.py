@@ -206,20 +206,23 @@ async def test_http_serves_every_login_with_the_token_and_nothing_without(tmp_pa
                     headers={"Authorization": f"Bearer {TOKEN}"}, timeout=30, trust_env=False
                 )
                 with anyio.fail_after(30):
-                    async with client, streamable_http_client(url, http_client=client) as streams:
-                        async with ClientSession(*streams[:2]) as session:
-                            await session.initialize()
-                            assert len((await session.list_tools()).tools) == 32
-                            listed = await session.call_tool("list_accounts", {})
-                            assert listed.structured_content == {
-                                "items": [{"account_alias": alias} for alias, _ in accounts]
-                            }
-                            for alias, login in accounts:
-                                grades = await session.call_tool(
-                                    "get_grades", {"account_alias": alias, "scope": "week"}
-                                )
-                                assert not grades.is_error, grades
-                                assert grades.structured_content["items"][0]["raw"] == "4+"
+                    async with (
+                        client,
+                        streamable_http_client(url, http_client=client) as streams,
+                        ClientSession(*streams[:2]) as session,
+                    ):
+                        await session.initialize()
+                        assert len((await session.list_tools()).tools) == 32
+                        listed = await session.call_tool("list_accounts", {})
+                        assert listed.structured_content == {
+                            "items": [{"account_alias": alias} for alias, _ in accounts]
+                        }
+                        for alias, login in accounts:
+                            grades = await session.call_tool(
+                                "get_grades", {"account_alias": alias, "scope": "week"}
+                            )
+                            assert not grades.is_error, grades
+                            assert grades.structured_content["items"][0]["raw"] == "4+"
                 assert wire.logins == {login: 1 for _, login in accounts}
             finally:
                 process.terminate()

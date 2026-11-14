@@ -147,35 +147,30 @@ async def run_tool_checks(
     )
     try:
         with anyio.fail_after(HANDSHAKE_TIMEOUT_SECONDS):
-            async with stdio_client(server) as streams:
-                async with ClientSession(*streams) as session:
-                    await session.initialize()
-                    catalog = await session.list_tools()
-                    tools = {tool.name: tool for tool in catalog.tools}
-                    if len(tools) != (36 if all_features else 32):
-                        raise VerificationError(
-                            "installed catalog has an unexpected feature profile"
-                        )
-                    for tool in catalog.tools:
-                        validator_for(tool.input_schema).check_schema(tool.input_schema)
-                        if tool.output_schema is None:
-                            raise VerificationError("installed tool has no output schema")
-                        validator_for(tool.output_schema).check_schema(tool.output_schema)
-                    if (
-                        len(catalog.model_dump_json(by_alias=True, exclude_unset=True).encode())
-                        > (144 if all_features else 128) * 1024
-                    ):
-                        raise VerificationError("installed catalog exceeds its context budget")
-                    grades_tool = tools.get("get_grades")
-                    if grades_tool is None or grades_tool.output_schema is None:
-                        raise VerificationError("installed get_grades has no output schema")
-                    result = await session.call_tool("list_accounts", {})
-                    if result.is_error or result.structured_content != {
-                        "items": [{"account_alias": "release-smoke"}]
-                    }:
-                        raise VerificationError(
-                            "installed list_accounts returned an invalid result"
-                        )
+            async with stdio_client(server) as streams, ClientSession(*streams) as session:
+                await session.initialize()
+                catalog = await session.list_tools()
+                tools = {tool.name: tool for tool in catalog.tools}
+                if len(tools) != (36 if all_features else 32):
+                    raise VerificationError("installed catalog has an unexpected feature profile")
+                for tool in catalog.tools:
+                    validator_for(tool.input_schema).check_schema(tool.input_schema)
+                    if tool.output_schema is None:
+                        raise VerificationError("installed tool has no output schema")
+                    validator_for(tool.output_schema).check_schema(tool.output_schema)
+                if (
+                    len(catalog.model_dump_json(by_alias=True, exclude_unset=True).encode())
+                    > (144 if all_features else 128) * 1024
+                ):
+                    raise VerificationError("installed catalog exceeds its context budget")
+                grades_tool = tools.get("get_grades")
+                if grades_tool is None or grades_tool.output_schema is None:
+                    raise VerificationError("installed get_grades has no output schema")
+                result = await session.call_tool("list_accounts", {})
+                if result.is_error or result.structured_content != {
+                    "items": [{"account_alias": "release-smoke"}]
+                }:
+                    raise VerificationError("installed list_accounts returned an invalid result")
     except Exception as error:  # noqa: BLE001 - redact SDK and subprocess failures at this boundary
         raise VerificationError(
             f"installed MCP tool check failed: {type(error).__name__}"
