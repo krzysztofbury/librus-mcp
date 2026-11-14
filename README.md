@@ -318,6 +318,12 @@ grade's `grade_id`, as Librus shows them in one bracket (`[1 5]`). Other
 scopes show no brackets, so both fields are null there. See
 [grade IDs and corrections](MCP_CONTRACT.md#additive-27-grade-ids-and-corrections-88).
 
+At schools that grade behaviour with points, `get_grades` and
+`get_grades_window` list them in `behaviour_points`, apart from the grades:
+per semester, the number the `Zachowanie` row shows (`tally`, not
+interpreted) and its point entries. See
+[behaviour points](MCP_CONTRACT.md#additive-behaviour-points-103).
+
 ### What's new in 2.1
 
 Keep your existing 2.0 configuration, context key and durable state; reconnect

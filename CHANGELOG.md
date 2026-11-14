@@ -14,7 +14,7 @@ All notable changes to this project will be documented in this file.
   the tooltip's labelled lines in `metadata`. The list is empty on a page
   without points, and every page of a result carries it. In a window an item
   keeps only its entries dated in the range, and an item without one is left
-  out. Grade items, cursors and notifications do not change; the field is
+  out. Grade items and cursors do not change; the field is
   optional, so a host with an older catalog still validates results. Pins
   `librus-python-api==1.10.0`.
 - Agent workflow files: `.agents/cos.json` points the chief-of-staff role at

@@ -115,7 +115,10 @@ host's own error, `Invalid structured content returned by tool <name>`.
   it is empty for a page without points. In `get_grades_window` an item keeps
   its tally and only the entries dated in the range; an item with no such
   entry, including a tally alone, is left out.
-- Grade notifications do not report points.
+- Because the list is not paged, a login with very many entries can reach the
+  512 KiB result cap and get `LIMIT` from `get_grades`; `get_grades_window`
+  with a narrower range returns fewer entries. The API bounds grades and
+  entries together at 2048 per page.
 
 ## Additive 2.4 point grades
 
