@@ -17,11 +17,14 @@ bytes more than main at 7c67e3f (with #109 and #110) in each profile.
   published schema; no behaviour detail page is requested.
 - The behaviour-row parsing itself is covered by the API's
   `tests/test_grade_records.py` (1.10.0).
-- Live qualification: authorized by the owner on 2026-11-14 as one run on
-  main after #109 and #108 merge (`qualify_native.py --live`, phases
-  `academic` and `v21`, four owner logins), run by the owner session. The
-  owner's logins show no behaviour points (checked 2026-11-13), so it can
-  only show that the field is empty and the grade tools still pass.
+- Live qualification on main at 6e8c5d9 (API 1.10.0), authorized by the
+  owner on 2026-11-14 and run on the four owner logins: `qualify_native.py
+  --live --phase academic` 58 passed, 4 `VIEW_DISABLED` (completed lessons),
+  6 without a reference (122 requests, as in 2.5.0); `get_grades` and
+  `get_grades_window` passed on all four, their results validated by the MCP
+  client against the published output schemas. The qualifier does not record
+  `behaviour_points`; the API's 1.10.0 live check found none on these logins,
+  so a populated row is still unproven live.
 
 ## Unreleased: e-Justifications (#102)
 
@@ -45,9 +48,11 @@ within the 128 and 144 KiB budgets (131072 and 147456 bytes).
   reports a student login as unavailable without requesting the list.
 - The list parsing and the account-group guard are covered by the API's
   tests (1.10.0).
-- Live qualification (`qualify_native.py --live --phase v21`, four owner
-  logins): pending, needs the owner's authorization. Expected: passed on both
-  parent logins, `expected_unsupported` on both student logins.
+- Live qualification on main at 6e8c5d9, authorized by the owner on
+  2026-11-14: `qualify_native.py --live --phase v21` on the four owner logins
+  85 passed and 2 `expected_unsupported` (149 requests). `get_justifications`
+  passed with populated coverage on both parent logins (3 and 1 entries) and
+  was `expected_unsupported` on both student logins.
 
 ## 2.7.0 grade IDs and correction links
 
