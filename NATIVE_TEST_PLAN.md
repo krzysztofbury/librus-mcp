@@ -3,9 +3,9 @@
 ## Unreleased: behaviour points (#103)
 
 The branch pins API 1.10.0. `release_verification/measure_tools.py`: the
-catalog measures 126664 bytes for 31 default tools and 139979 bytes for 35
-tools, within the 128 and 144 KiB budgets (1734 bytes more than main at
-107da2b, after the #110 trim, in each profile).
+catalog measures 130875 bytes for 32 default tools and 144190 bytes for 36
+tools, within the 128 and 144 KiB budgets (131072 and 147456 bytes), 1734
+bytes more than main at 7c67e3f (with #109 and #110) in each profile.
 
 - `test_v21_stdio.py`: over stdio, `get_grades` and `get_grades_window` return
   `behaviour_points` from a synthetic `Zachowanie` row (tally 50 with entries
@@ -17,9 +17,37 @@ tools, within the 128 and 144 KiB budgets (1734 bytes more than main at
   published schema; no behaviour detail page is requested.
 - The behaviour-row parsing itself is covered by the API's
   `tests/test_grade_records.py` (1.10.0).
-- Live qualification: pending the owner's authorization of the run and its
-  scope. The owner's logins show no behaviour points (checked 2026-11-13), so
-  it can only show that the field is empty and the grade tools still pass.
+- Live qualification: authorized by the owner on 2026-11-14 as one run on
+  main after #109 and #108 merge (`qualify_native.py --live`, phases
+  `academic` and `v21`, four owner logins), run by the owner session. The
+  owner's logins show no behaviour points (checked 2026-11-13), so it can
+  only show that the field is empty and the grade tools still pass.
+
+## Unreleased: e-Justifications (#102)
+
+Pins API 1.10.0. `release_verification/measure_tools.py`: the catalog
+measures 129141 bytes for 32 default tools and 142456 bytes for 36 tools,
+within the 128 and 144 KiB budgets (131072 and 147456 bytes).
+
+- `test_v21_stdio.py`: over stdio on a parent login, `get_justifications`
+  returns a range entry and a one-day entry with lessons, in page order, with
+  the page's default window as `date_from` and `date_to`; a cursor pages
+  them, is refused for another login before any request, and every result
+  matches the published schema; the explicit empty list is `items: []`; the
+  list is only read with GET, never filtered by a POST. A login without the
+  parent account group gets `UNSUPPORTED_CAPABILITY` with no request to the
+  list.
+- `test_v21_stdio.py`: the live qualifier's `call` records a parent result
+  as passed with either coverage (`populated` or `empty`) and a student
+  login's refusal as `expected_unsupported`; `get_justifications` is in the
+  `v21` phase.
+- `test_check_tools.py`: `check-tools` reads the tool on a parent login and
+  reports a student login as unavailable without requesting the list.
+- The list parsing and the account-group guard are covered by the API's
+  tests (1.10.0).
+- Live qualification (`qualify_native.py --live --phase v21`, four owner
+  logins): pending, needs the owner's authorization. Expected: passed on both
+  parent logins, `expected_unsupported` on both student logins.
 
 ## 2.7.0 grade IDs and correction links
 

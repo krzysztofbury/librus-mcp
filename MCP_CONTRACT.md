@@ -8,9 +8,9 @@ compatibility adapter. See [MIGRATION_2_0.md](MIGRATION_2_0.md).
 
 `tools/list` is authoritative, generated from `librus_mcp` annotations. Every input
 and output schema is checked with the client's JSON Schema validator, including
-representative reference/cursor payloads. All 31 default tools (including
-notifications and attachments) have typed outputs. Enabling sending gives 35
-tools; disabling notifications and attachments leaves 27. Behaviour notes
+representative reference/cursor payloads. All 32 default tools (including
+notifications and attachments) have typed outputs. Enabling sending gives 36
+tools; disabling notifications and attachments leaves 28. Behaviour notes
 remain unregistered. Catalog listing is offline and does not authenticate.
 
 School wall-clock and wall-datetime values retain their original offset-free
@@ -72,6 +72,28 @@ without breaking such a host. A new enum value, a changed type, a renamed or
 removed field still needs the host to reload the catalog; the CHANGELOG says
 so for each release that has one. The symptom of a stale catalog is the
 host's own error, `Invalid structured content returned by tool <name>`.
+
+## Additive e-Justifications (#102)
+
+- `get_justifications` lists the e-usprawiedliwienia entries (API 1.10.0
+  `justifications()`) in page order, with `date_from` and `date_to`: the
+  window the list page shows without a filter, about the last month. Entries
+  sent before it are not returned; there is no range input, because a range
+  goes through the page's filter form, which the API does not post. The read
+  is one GET and changes no filter or view Librus remembers, so it is
+  annotated as an ordinary read, not a view selection.
+- Each item has `start` and `end` (a one-day entry has `start == end` and its
+  `lessons`; a range has no lessons), `absence_count`, `content` (the
+  parent's text, multi-line), `teachers` (the notified teachers), `sent_at`
+  (school wall time), `status` (`sent`, `justified`, `rejected`), nullable
+  `decided_by` and `has_attachment`. Attachments are never fetched.
+- Only a login whose `Me.Account.GroupId` is the parent group reads the list;
+  any other login fails with `UNSUPPORTED_CAPABILITY` before any request,
+  because the page ends a student login's session. `check-tools` and the live
+  qualifier report that outcome as expected for this tool only.
+- An empty list is `items: []`. Pages follow `limit` (default 100) and also end
+  by size, like announcements (`pagination.reason` `size_limit`), since one
+  entry's content can be long. Cursors are bound to the login and the list.
 
 ## Additive 2.7 grade IDs and corrections (#88)
 

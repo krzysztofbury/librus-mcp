@@ -281,7 +281,7 @@ automatically; custom scripts must follow the [migration guide](MIGRATION_2_0.md
 
 ## Tools and safety
 
-The default catalog has 31 typed tools:
+The default catalog has 32 typed tools:
 
 - Accounts/profile: `list_accounts`, `get_student_information`.
 - Grades: `get_grades`, `get_final_grades`, `get_grades_window`.
@@ -289,7 +289,8 @@ The default catalog has 31 typed tools:
   `get_attendance_frequency`, `get_subject_frequency`.
 - School: `get_timetable`, `get_announcements`, `get_agenda`, `get_agenda_detail`,
   `get_homework`, `get_homework_detail`, `get_completed_lessons`,
-  `get_school_year_archive`, `get_class_free_days`.
+  `get_school_year_archive`, `get_class_free_days`, `get_justifications`
+  (parent logins).
 - Communication: `get_messages`, `get_message_content`, `get_recipient_types`,
   `get_recipient_choices`, `get_recipients`, `get_message_correspondents`,
   `get_teacher_subjects`, `get_message_unread_counts`.
@@ -299,8 +300,8 @@ The default catalog has 31 typed tools:
   `attachments`).
 
 Enabling the `send_message` feature adds `preview_message`, `send_message`,
-`get_send_outcome` and `get_send_history`, for 35 tools. Disabling notifications
-and attachments leaves 27 tools.
+`get_send_outcome` and `get_send_history`, for 36 tools. Disabling notifications
+and attachments leaves 28 tools.
 
 Collections are paged with `limit` and a `cursor`; an announcements page also
 ends early when long texts would exceed the result size cap (`reason:
@@ -323,6 +324,13 @@ At schools that grade behaviour with points, `get_grades` and
 per semester, the number the `Zachowanie` row shows (`tally`, not
 interpreted) and its point entries. See
 [behaviour points](MCP_CONTRACT.md#additive-behaviour-points-103).
+
+On a parent login, `get_justifications` lists the absence justifications sent
+through e-usprawiedliwienia with their status (sent, justified or rejected) and
+who decided it. It covers only the window Librus shows by default, about the
+last month, and changes no filter. A student login gets
+`UNSUPPORTED_CAPABILITY`. See
+[e-Justifications](MCP_CONTRACT.md#additive-e-justifications-102).
 
 ### What's new in 2.1
 

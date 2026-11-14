@@ -1,7 +1,9 @@
 """2.1 contracts over MCP stdio, the installed API and original loopback inputs."""
 
+import importlib.util
 from contextlib import AsyncExitStack
 from datetime import date
+from pathlib import Path
 
 import anyio
 import pytest
@@ -485,3 +487,131 @@ async def test_archive_filters_cursor_roundtrip_and_preflight_binding():
                             "error": {"code": "UNSUPPORTED_CAPABILITY"}
                         }
                         assert len(wire.calls) == calls
+
+
+@pytest.mark.asyncio
+async def test_justifications_page_in_librus_order_with_the_default_window():
+    async with Wire().serve() as wire:
+        with anyio.fail_after(40):
+            async with stdio_client(
+                server_process(wire.origin, [("first", "71"), ("second", "72")])
+            ) as streams:
+                async with ClientSession(*streams) as session:
+                    await session.initialize()
+                    query = {"account_alias": "first", "limit": 1}
+                    first = await session.call_tool("get_justifications", query)
+                    assert not first.is_error, first
+                    await assert_matches_published_schema(session, "get_justifications", first)
+                    cursor = first.structured_content["pagination"]["next_cursor"]
+                    assert first.structured_content["pagination"]["reason"] == "item_limit"
+                    calls = len(wire.calls)
+                    bad = await session.call_tool(
+                        "get_justifications", query | {"account_alias": "second", "cursor": cursor}
+                    )
+                    assert closed(bad.structured_content) == {"error": {"code": "INVALID_INPUT"}}
+                    assert len(wire.calls) == calls
+                    last = await session.call_tool("get_justifications", query | {"cursor": cursor})
+                    assert not last.is_error, last
+                    await assert_matches_published_schema(session, "get_justifications", last)
+                    assert last.structured_content["pagination"]["next_cursor"] is None
+                    for page in (first, last):
+                        window = page.structured_content
+                        assert (window["date_from"], window["date_to"]) == (
+                            "2026-09-24",
+                            "2026-10-24",
+                        )
+                    assert first.structured_content["items"] + last.structured_content["items"] == [
+                        {
+                            "start": "2026-10-01",
+                            "end": "2026-10-03",
+                            "lessons": [],
+                            "absence_count": 4,
+                            "content": "Fixture reason\nsecond line",
+                            "teachers": ["A. Fixture", "B. Fixture", "C. Fixture"],
+                            "sent_at": "2026-10-04T08:15:00",
+                            "status": "justified",
+                            "decided_by": "D. Fixture",
+                            "has_attachment": False,
+                        },
+                        {
+                            "start": "2026-10-07",
+                            "end": "2026-10-07",
+                            "lessons": [2, 3],
+                            "absence_count": 2,
+                            "content": "Fixture appointment",
+                            "teachers": ["A. Fixture"],
+                            "sent_at": "2026-10-07T19:30:05",
+                            "status": "sent",
+                            "decided_by": None,
+                            "has_attachment": False,
+                        },
+                    ]
+                    wire.justifications_empty = True
+                    empty = await session.call_tool(
+                        "get_justifications", {"account_alias": "first"}
+                    )
+                    assert not empty.is_error, empty
+                    await assert_matches_published_schema(session, "get_justifications", empty)
+                    assert empty.structured_content["items"] == []
+                    # The list is only read, never filtered by a form POST.
+                    assert {
+                        method for method, path, _ in wire.calls if path == "/eusprawiedliwienia"
+                    } == {"GET"}
+
+
+@pytest.mark.asyncio
+async def test_a_student_login_gets_unsupported_justifications_without_a_request():
+    async with Wire().serve() as wire:
+        wire.account_group = 8  # a student login's group
+        with anyio.fail_after(30):
+            async with stdio_client(server_process(wire.origin, [("first", "71")])) as streams:
+                async with ClientSession(*streams) as session:
+                    await session.initialize()
+                    result = await session.call_tool(
+                        "get_justifications", {"account_alias": "first"}
+                    )
+                    assert closed(result.structured_content) == {
+                        "error": {"code": "UNSUPPORTED_CAPABILITY"}
+                    }
+                    assert any(path == "/gateway/api/2.0/Me" for _, path, _ in wire.calls)
+                    assert not any(path == "/eusprawiedliwienia" for _, path, _ in wire.calls)
+
+
+def _qualifier():
+    path = Path(__file__).resolve().parents[1] / "scripts/qualify_native.py"
+    if not path.exists():
+        pytest.skip("source checkout only")
+    spec = importlib.util.spec_from_file_location("qualify_native", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("group", "empty", "record"),
+    [
+        (5, False, {"status": "passed", "coverage": "populated", "item_count": 2}),
+        (5, True, {"status": "passed", "coverage": "empty", "item_count": 0}),
+        (8, False, {"status": "expected_unsupported"}),
+        (None, False, {"status": "expected_unsupported"}),
+    ],
+)
+async def test_the_live_qualifier_accepts_any_parent_coverage_and_the_student_refusal(
+    group, empty, record
+):
+    qualifier = _qualifier()
+    assert ("get_justifications", {"limit": 5}) in qualifier.cases("v21")
+    async with Wire().serve() as wire:
+        wire.account_group = group
+        wire.justifications_empty = empty
+        with anyio.fail_after(30):
+            async with stdio_client(server_process(wire.origin, [("first", "71")])) as streams:
+                async with ClientSession(*streams) as session:
+                    await session.initialize()
+                    records = []
+                    _, stop = await qualifier.call(
+                        session, records, 1, "get_justifications", {"account_alias": "first"}
+                    )
+    assert not stop
+    assert records == [{"account_index": 1, "tool": "get_justifications"} | record]

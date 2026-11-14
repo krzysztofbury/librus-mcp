@@ -101,7 +101,8 @@ publication, are unchanged from 1.6.4. The 1.7.1 fix release keeps the same
 license expression and runtime requirements on PyPI, and so do 1.8.0,
 1.8.1 (read from PyPI after publication on 2026-10-29), 1.8.2 (read on
 2026-11-01), 1.8.3 (read on 2026-11-06), 1.8.4 (read on 2026-11-08), 1.9.0 (read on
-2026-11-08) and 1.10.0 (read on 2026-11-14). The
+2026-11-08) and 1.10.0 (read from the installed wheel's metadata on
+2026-11-14). The
 2.5.0 `check-tools` command imports jsonschema, already in the runtime
 closure through mcp.
 2.3.0 declares uvicorn (BSD-3-Clause, already in the runtime closure through

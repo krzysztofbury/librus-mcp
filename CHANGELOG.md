@@ -4,7 +4,17 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+Pins `librus-python-api==1.10.0`.
+
 ### Added
+
+- `get_justifications` (#102): on a parent login, the absence justifications
+  sent through e-usprawiedliwienia in the window Librus shows by default
+  (about the last month), with period, absence count, content, notified
+  teachers, sent time, status and who decided it. Student logins get
+  `UNSUPPORTED_CAPABILITY` without a request. The catalog has 32 default
+  tools (36 with sending, 28 minimal); refresh the host's tool catalog.
+  `check-tools` and the live qualifier's `v21` phase include it.
 
 - `get_grades` and `get_grades_window` gain `behaviour_points`: the
   `Zachowanie` row's points per semester, apart from grade `items` (#103,
@@ -15,8 +25,8 @@ All notable changes to this project will be documented in this file.
   without points, and every page of a result carries it. In a window an item
   keeps only its entries dated in the range, and an item without one is left
   out. Grade items and cursors do not change; the field is
-  optional, so a host with an older catalog still validates results. Pins
-  `librus-python-api==1.10.0`.
+  optional, so a host with an older catalog still validates results.
+
 - Agent workflow files: `.agents/cos.json` points the chief-of-staff role at
   the Librus project board for this repository and `librus-python-api`,
   `.agents/escalation.md` lists what the approver role must hand to the owner,
