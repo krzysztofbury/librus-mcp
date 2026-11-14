@@ -67,9 +67,10 @@ mutation = [
 # Set at the project level, it overrides any user-level setting, and the lock
 # stores only the window, so local and CI locks stay byte-identical.
 exclude-newer = "7 days"
-# Admit the reviewed stable native release without relaxing the quarantine for
-# unrelated dependencies.
-exclude-newer-package = { librus-python-api = "2026-11-09T00:00:00Z" }
+# The owner's own library is exempt, so a new API release resolves as soon as
+# it is on PyPI. Its version is pinned exactly in `dependencies`, and its own
+# dependencies stay inside the window.
+exclude-newer-package = { librus-python-api = false }
 
 [tool.ruff]
 line-length = 100
