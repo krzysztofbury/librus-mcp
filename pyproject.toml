@@ -36,7 +36,7 @@ Issues = "https://github.com/krzysztofbury/librus-mcp/issues"
 librus-mcp = "librus_mcp.cli:main"
 
 [build-system]
-requires = ["hatchling==1.27.0"]
+requires = ["hatchling==1.33.0"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
@@ -49,7 +49,7 @@ only-include = ["src/librus_mcp", "tests_native", "release_verification", "scrip
 dev = [
     "ruff>=0.11.0",
     "bandit[toml]>=1.8.0",
-    "hatchling==1.27.0",
+    "hatchling==1.33.0",
     "pytest>=8.0.0",
     "pytest-asyncio>=0.24.0",
     "mypy>=1.19,<3",
@@ -58,7 +58,7 @@ dev = [
 mutation = [
     # mutmut's fork-based runner is POSIX-only; normal platform CI stays offline
     # and installs the dev group without mutation tooling.
-    "mutmut==3.7.0; sys_platform != 'win32'",
+    "mutmut==3.8.1; sys_platform != 'win32'",
 ]
 
 [tool.uv]
@@ -107,6 +107,7 @@ line-ending = "auto"
 
 [tool.pytest.ini_options]
 asyncio_mode = "strict"
+asyncio_default_fixture_loop_scope = "function"
 testpaths = ["tests_native", "release_verification"]
 # A hung test fails with its id after two minutes instead of holding a CI job
 # until the job timeout; the slowest test takes about five seconds.

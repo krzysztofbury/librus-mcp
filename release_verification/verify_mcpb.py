@@ -82,18 +82,17 @@ async def check_server(directory: Path, private: Path, version: str) -> int:
         env=environment,
     )
     with anyio.fail_after(STARTUP_TIMEOUT_SECONDS):
-        async with stdio_client(parameters) as (read, write):
-            async with ClientSession(read, write) as session:
-                initialized = await session.initialize()
-                if (initialized.server_info.name, initialized.server_info.version) != (
-                    "librus-mcp",
-                    version,
-                ):
-                    raise VerificationError("bundle server reported the wrong identity")
-                tools = (await session.list_tools()).tools
-                result = await session.call_tool("list_accounts", {})
-                if result.structured_content != {"items": [{"account_alias": "librus"}]}:
-                    raise VerificationError("bundle server did not load the host login")
+        async with stdio_client(parameters) as (read, write), ClientSession(read, write) as session:
+            initialized = await session.initialize()
+            if (initialized.server_info.name, initialized.server_info.version) != (
+                "librus-mcp",
+                version,
+            ):
+                raise VerificationError("bundle server reported the wrong identity")
+            tools = (await session.list_tools()).tools
+            result = await session.call_tool("list_accounts", {})
+            if result.structured_content != {"items": [{"account_alias": "librus"}]}:
+                raise VerificationError("bundle server did not load the host login")
     return len(tools)
 
 

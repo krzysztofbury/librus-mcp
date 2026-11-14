@@ -408,16 +408,18 @@ async def qualify(
         env=environment,
     )
     with open(os.devnull, "w") as errors, anyio.fail_after(MAX_SECONDS + 15):
-        async with stdio_client(server, errlog=errors) as streams:
-            async with ClientSession(*streams) as session:
-                await session.initialize()
-                aliases = await session.call_tool("list_accounts", {})
-                if aliases.is_error or len(aliases.structured_content.get("items", [])) != len(
-                    config.accounts
-                ):
-                    raise RuntimeError("account configuration mismatch")
-                completed = await account_checks(session, config, records, phase)
-                totals = (await session.call_tool("qualification_budget", {})).structured_content
+        async with (
+            stdio_client(server, errlog=errors) as streams,
+            ClientSession(*streams) as session,
+        ):
+            await session.initialize()
+            aliases = await session.call_tool("list_accounts", {})
+            if aliases.is_error or len(aliases.structured_content.get("items", [])) != len(
+                config.accounts
+            ):
+                raise RuntimeError("account configuration mismatch")
+            completed = await account_checks(session, config, records, phase)
+            totals = (await session.call_tool("qualification_budget", {})).structured_content
     return {"mcp_version": __version__, "completed": completed, "checks": records, "budget": totals}
 
 

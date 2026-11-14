@@ -45,10 +45,12 @@ async def test_a_parse_failure_names_its_site_without_school_data(tmp_path, diag
         if diagnose:
             process.env["LIBRUS_MCP_DIAGNOSE_FAILURES"] = "1"
         with anyio.fail_after(30), stderr_path.open("w") as errlog:
-            async with stdio_client(process, errlog=errlog) as streams:
-                async with ClientSession(*streams) as session:
-                    await session.initialize()
-                    result = await session.call_tool("get_grades", {"account_alias": ALIAS})
+            async with (
+                stdio_client(process, errlog=errlog) as streams,
+                ClientSession(*streams) as session,
+            ):
+                await session.initialize()
+                result = await session.call_tool("get_grades", {"account_alias": ALIAS})
     assert result.is_error
     assert closed(result.structured_content) == {"error": {"code": "PARSE"}}
     where = result.structured_content["error"]["where"]
@@ -209,14 +211,16 @@ async def test_operation_log_lists_each_librus_read_without_logins(tmp_path):
         process = server_process(wire.origin, [(ALIAS, "71")])
         process.env["LIBRUS_MCP_LOG_OPERATIONS"] = "1"
         with anyio.fail_after(30), stderr_path.open("w") as errlog:
-            async with stdio_client(process, errlog=errlog) as streams:
-                async with ClientSession(*streams) as session:
-                    await session.initialize()
-                    profile = await session.call_tool(
-                        "get_student_information", {"account_alias": ALIAS}
-                    )
-                    assert not profile.is_error
-                    await session.call_tool("get_grades", {"account_alias": ALIAS})
+            async with (
+                stdio_client(process, errlog=errlog) as streams,
+                ClientSession(*streams) as session,
+            ):
+                await session.initialize()
+                profile = await session.call_tool(
+                    "get_student_information", {"account_alias": ALIAS}
+                )
+                assert not profile.is_error
+                await session.call_tool("get_grades", {"account_alias": ALIAS})
     stderr = stderr_path.read_text(encoding="utf-8")
     assert "librus-mcp: operation student_information OK " in stderr
     assert " status=200" in stderr.split("operation student_information OK", 1)[1].split("\n")[0]

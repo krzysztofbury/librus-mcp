@@ -90,193 +90,191 @@ async def test_four_logins_share_traffic_but_not_sessions_and_catalog_does_not_l
     accounts = [(f"account-{number}", f"login-{number}") for number in range(4)]
     async with Wire().serve() as wire:
         with anyio.fail_after(30):
-            async with stdio_client(server_process(wire.origin, accounts)) as streams:
-                async with ClientSession(*streams) as session:
-                    await session.initialize()
-                    listed = await session.list_tools()
-                    catalog = listed.tools
-                    assert {tool.name for tool in catalog} == {
-                        "list_accounts",
-                        "get_student_information",
-                        "get_final_grades",
-                        "get_grades",
-                        "get_attendance",
-                        "get_grades_window",
-                        "get_attendance_window",
-                        "get_attendance_detail",
-                        "get_attendance_frequency",
-                        "get_subject_frequency",
-                        "get_timetable",
-                        "get_announcements",
-                        "get_agenda",
-                        "get_agenda_detail",
-                        "get_homework",
-                        "get_homework_detail",
-                        "get_completed_lessons",
-                        "get_school_year_archive",
-                        "get_class_free_days",
-                        "get_justifications",
-                        "get_message_correspondents",
-                        "get_teacher_subjects",
-                        "get_message_unread_counts",
-                        "get_messages",
-                        "get_message_content",
-                        "get_recipient_types",
-                        "get_recipient_choices",
-                        "get_recipients",
-                        # Default-on features; sending stays opt-in.
-                        "download_attachment",
-                        "get_new_notifications",
-                        "get_notification_status",
-                        "acknowledge_notifications",
-                    }
-                    assert all(tool.output_schema for tool in catalog)
-                    assert (
-                        len(listed.model_dump_json(by_alias=True, exclude_unset=True).encode())
-                        < 128 * 1024
-                    )
-                    result = await session.call_tool("list_accounts", {})
-                    assert result.structured_content == {
-                        "items": [{"account_alias": alias} for alias, _ in accounts]
-                    }
-                    assert wire.calls == []
-                    workload_started = time.monotonic()
-                    results = await asyncio.gather(
-                        *[
-                            session.call_tool("get_student_information", {"account_alias": alias})
-                            for alias, _ in accounts
-                        ]
-                    )
-                    for result, (alias, login) in zip(results, accounts, strict=True):
-                        assert not result.is_error, result
-                        data = result.structured_content
-                        assert data["data"]["school"] == login
-                        assert data["data"]["identity"]["owner"]["id"] == login
-                        assert data["data"]["identity"]["student"]["id"] == "shared-pupil"
-                        assert data["observation"]["account"] == alias
-                    assert wire.logins == {login: 1 for _, login in accounts}
-                    # API 1.0.2 shares four active requests across all logins.
-                    assert 1 <= wire.peak <= 4
-                    calls = len(wire.calls)
-                    cached = await session.call_tool(
-                        "get_student_information", {"account_alias": accounts[0][0]}
-                    )
-                    assert not cached.is_error
-                    assert wire.logins == {login: 1 for _, login in accounts}
-                    assert wire.calls[calls:] == [("GET", "/informacja", accounts[0][1])]
-                    calls = len(wire.calls)
-                    bad = await session.call_tool(
-                        "get_student_information", {"account_alias": "unknown"}
-                    )
-                    assert bad.is_error and closed(bad.structured_content) == {
-                        "error": {"code": "INVALID_INPUT"}
-                    }
-                    assert len(wire.calls) == calls
-                    # One shared default token budget (API 1.0.2: burst 20, ten per
-                    # second), not a burst per alias.
-                    # Include connection establishment in the client workload
-                    # clock. Arrival timestamps can be compressed by DNS/TCP
-                    # delays and are not exact scheduler dispatch timestamps.
-                    for index, dispatched_at in enumerate(wire.dispatch_times, start=1):
-                        assert index <= 21 + 10 * (dispatched_at - workload_started)
+            async with (
+                stdio_client(server_process(wire.origin, accounts)) as streams,
+                ClientSession(*streams) as session,
+            ):
+                await session.initialize()
+                listed = await session.list_tools()
+                catalog = listed.tools
+                assert {tool.name for tool in catalog} == {
+                    "list_accounts",
+                    "get_student_information",
+                    "get_final_grades",
+                    "get_grades",
+                    "get_attendance",
+                    "get_grades_window",
+                    "get_attendance_window",
+                    "get_attendance_detail",
+                    "get_attendance_frequency",
+                    "get_subject_frequency",
+                    "get_timetable",
+                    "get_announcements",
+                    "get_agenda",
+                    "get_agenda_detail",
+                    "get_homework",
+                    "get_homework_detail",
+                    "get_completed_lessons",
+                    "get_school_year_archive",
+                    "get_class_free_days",
+                    "get_justifications",
+                    "get_message_correspondents",
+                    "get_teacher_subjects",
+                    "get_message_unread_counts",
+                    "get_messages",
+                    "get_message_content",
+                    "get_recipient_types",
+                    "get_recipient_choices",
+                    "get_recipients",
+                    # Default-on features; sending stays opt-in.
+                    "download_attachment",
+                    "get_new_notifications",
+                    "get_notification_status",
+                    "acknowledge_notifications",
+                }
+                assert all(tool.output_schema for tool in catalog)
+                assert (
+                    len(listed.model_dump_json(by_alias=True, exclude_unset=True).encode())
+                    < 128 * 1024
+                )
+                result = await session.call_tool("list_accounts", {})
+                assert result.structured_content == {
+                    "items": [{"account_alias": alias} for alias, _ in accounts]
+                }
+                assert wire.calls == []
+                workload_started = time.monotonic()
+                results = await asyncio.gather(
+                    *[
+                        session.call_tool("get_student_information", {"account_alias": alias})
+                        for alias, _ in accounts
+                    ]
+                )
+                for result, (alias, login) in zip(results, accounts, strict=True):
+                    assert not result.is_error, result
+                    data = result.structured_content
+                    assert data["data"]["school"] == login
+                    assert data["data"]["identity"]["owner"]["id"] == login
+                    assert data["data"]["identity"]["student"]["id"] == "shared-pupil"
+                    assert data["observation"]["account"] == alias
+                assert wire.logins == {login: 1 for _, login in accounts}
+                # API 1.0.2 shares four active requests across all logins.
+                assert 1 <= wire.peak <= 4
+                calls = len(wire.calls)
+                cached = await session.call_tool(
+                    "get_student_information", {"account_alias": accounts[0][0]}
+                )
+                assert not cached.is_error
+                assert wire.logins == {login: 1 for _, login in accounts}
+                assert wire.calls[calls:] == [("GET", "/informacja", accounts[0][1])]
+                calls = len(wire.calls)
+                bad = await session.call_tool(
+                    "get_student_information", {"account_alias": "unknown"}
+                )
+                assert bad.is_error and closed(bad.structured_content) == {
+                    "error": {"code": "INVALID_INPUT"}
+                }
+                assert len(wire.calls) == calls
+                # One shared default token budget (API 1.0.2: burst 20, ten per
+                # second), not a burst per alias.
+                # Include connection establishment in the client workload
+                # clock. Arrival timestamps can be compressed by DNS/TCP
+                # delays and are not exact scheduler dispatch timestamps.
+                for index, dispatched_at in enumerate(wire.dispatch_times, start=1):
+                    assert index <= 21 + 10 * (dispatched_at - workload_started)
 
 
 @pytest.mark.asyncio
 async def test_native_grade_attendance_contracts_and_effect_annotations():
     async with Wire().serve() as wire:
         with anyio.fail_after(20):
-            async with stdio_client(server_process(wire.origin, [("account", "login")])) as streams:
-                async with ClientSession(*streams) as session:
-                    await session.initialize()
-                    tools = {tool.name: tool for tool in (await session.list_tools()).tools}
-                    for name in ("get_grades", "get_attendance"):
-                        assert tools[name].annotations.read_only_hint is False
-                        properties = tools[name].input_schema["properties"]
-                        assert "account_alias" in properties and "scope" in properties
-                        assert "student_alias" not in properties and "sort_by" not in properties
-                    # Legacy recipient lookups select a Librus view (#66).
-                    for name in ("get_recipient_types", "get_recipient_choices", "get_recipients"):
-                        assert tools[name].annotations.read_only_hint is False
-                        assert tools[name].annotations.destructive_hint is False
-                    grades = await session.call_tool(
-                        "get_grades", {"account_alias": "account", "scope": "week"}
-                    )
-                    assert not grades.is_error, grades
-                    assert grades.structured_content["items"][0]["raw"] == "4+"
-                    assert grades.structured_content["items"][0]["counts_toward_average"] is None
-                    assert "href" not in grades.structured_content["items"][0]
-                    assert grades.structured_content["scope"] == "week"
-                    assert grades.structured_content["pagination"]["consistency"] == "best_effort"
-                    final = await session.call_tool(
-                        "get_final_grades", {"account_alias": "account"}
-                    )
-                    assert not final.is_error, final
-                    assert final.structured_content["items"][0]["annual"] == {
-                        "availability": "available",
-                        "raw": "5",
-                    }
-                    attendance = await session.call_tool(
-                        "get_attendance", {"account_alias": "account"}
-                    )
-                    assert not attendance.is_error, attendance
-                    assert attendance.structured_content["items"][0]["symbol"] == "nb"
-                    before = len(wire.calls)
-                    invalid = await session.call_tool(
-                        "get_grades",
-                        {"account_alias": "account", "scope": "private-sensitive-value"},
-                    )
-                    assert invalid.is_error
-                    assert closed(invalid.structured_content) == {
-                        "error": {"code": "INVALID_INPUT"}
-                    }
-                    assert "private-sensitive-value" not in invalid.model_dump_json()
-                    assert len(wire.calls) == before
+            async with (
+                stdio_client(server_process(wire.origin, [("account", "login")])) as streams,
+                ClientSession(*streams) as session,
+            ):
+                await session.initialize()
+                tools = {tool.name: tool for tool in (await session.list_tools()).tools}
+                for name in ("get_grades", "get_attendance"):
+                    assert tools[name].annotations.read_only_hint is False
+                    properties = tools[name].input_schema["properties"]
+                    assert "account_alias" in properties and "scope" in properties
+                    assert "student_alias" not in properties and "sort_by" not in properties
+                # Legacy recipient lookups select a Librus view (#66).
+                for name in ("get_recipient_types", "get_recipient_choices", "get_recipients"):
+                    assert tools[name].annotations.read_only_hint is False
+                    assert tools[name].annotations.destructive_hint is False
+                grades = await session.call_tool(
+                    "get_grades", {"account_alias": "account", "scope": "week"}
+                )
+                assert not grades.is_error, grades
+                assert grades.structured_content["items"][0]["raw"] == "4+"
+                assert grades.structured_content["items"][0]["counts_toward_average"] is None
+                assert "href" not in grades.structured_content["items"][0]
+                assert grades.structured_content["scope"] == "week"
+                assert grades.structured_content["pagination"]["consistency"] == "best_effort"
+                final = await session.call_tool("get_final_grades", {"account_alias": "account"})
+                assert not final.is_error, final
+                assert final.structured_content["items"][0]["annual"] == {
+                    "availability": "available",
+                    "raw": "5",
+                }
+                attendance = await session.call_tool("get_attendance", {"account_alias": "account"})
+                assert not attendance.is_error, attendance
+                assert attendance.structured_content["items"][0]["symbol"] == "nb"
+                before = len(wire.calls)
+                invalid = await session.call_tool(
+                    "get_grades",
+                    {"account_alias": "account", "scope": "private-sensitive-value"},
+                )
+                assert invalid.is_error
+                assert closed(invalid.structured_content) == {"error": {"code": "INVALID_INPUT"}}
+                assert "private-sensitive-value" not in invalid.model_dump_json()
+                assert len(wire.calls) == before
 
 
 @pytest.mark.asyncio
 async def test_rejected_account_and_parse_failure_are_classified_not_empty():
     async with Wire().serve() as wire:
         with anyio.fail_after(20):
-            async with stdio_client(
-                server_process(wire.origin, [("good", "login"), ("bad", "denied")])
-            ) as streams:
-                async with ClientSession(*streams) as session:
-                    await session.initialize()
-                    bad = await session.call_tool(
-                        "get_student_information", {"account_alias": "bad"}
-                    )
-                    assert bad.is_error and closed(bad.structured_content) == {
-                        "error": {"code": "CREDENTIALS_REJECTED"}
-                    }
-                    assert wire.logins["denied"] == 1
-                    bad_again = await session.call_tool(
-                        "get_student_information", {"account_alias": "bad"}
-                    )
-                    assert bad_again.is_error
-                    assert wire.logins["denied"] == 1
-                    wire.bad_profile = True
-                    parsed = await session.call_tool(
-                        "get_student_information", {"account_alias": "good"}
-                    )
-                    assert parsed.is_error and closed(parsed.structured_content) == {
-                        "error": {"code": "PARSE"}
-                    }
-                    assert "unrecognized sensitive page" not in parsed.model_dump_json()
-                    wire.bad_profile = False
-                    wire.unavailable_profile = True
-                    unavailable = await session.call_tool(
-                        "get_student_information", {"account_alias": "good"}
-                    )
-                    assert unavailable.is_error and closed(unavailable.structured_content) == {
-                        "error": {"code": "MODULE_UNAVAILABLE"}
-                    }
-                    assert "/modul_niedostepny" not in unavailable.model_dump_json()
-                    assert not any(path == "/modul_niedostepny" for _, path, _ in wire.calls)
-                    # An unavailable module must not poison the login or be
-                    # confused with expiry requiring another authentication.
-                    grades = await session.call_tool("get_grades", {"account_alias": "good"})
-                    assert not grades.is_error
-                    assert wire.logins["login"] == 1
+            async with (
+                stdio_client(
+                    server_process(wire.origin, [("good", "login"), ("bad", "denied")])
+                ) as streams,
+                ClientSession(*streams) as session,
+            ):
+                await session.initialize()
+                bad = await session.call_tool("get_student_information", {"account_alias": "bad"})
+                assert bad.is_error and closed(bad.structured_content) == {
+                    "error": {"code": "CREDENTIALS_REJECTED"}
+                }
+                assert wire.logins["denied"] == 1
+                bad_again = await session.call_tool(
+                    "get_student_information", {"account_alias": "bad"}
+                )
+                assert bad_again.is_error
+                assert wire.logins["denied"] == 1
+                wire.bad_profile = True
+                parsed = await session.call_tool(
+                    "get_student_information", {"account_alias": "good"}
+                )
+                assert parsed.is_error and closed(parsed.structured_content) == {
+                    "error": {"code": "PARSE"}
+                }
+                assert "unrecognized sensitive page" not in parsed.model_dump_json()
+                wire.bad_profile = False
+                wire.unavailable_profile = True
+                unavailable = await session.call_tool(
+                    "get_student_information", {"account_alias": "good"}
+                )
+                assert unavailable.is_error and closed(unavailable.structured_content) == {
+                    "error": {"code": "MODULE_UNAVAILABLE"}
+                }
+                assert "/modul_niedostepny" not in unavailable.model_dump_json()
+                assert not any(path == "/modul_niedostepny" for _, path, _ in wire.calls)
+                # An unavailable module must not poison the login or be
+                # confused with expiry requiring another authentication.
+                grades = await session.call_tool("get_grades", {"account_alias": "good"})
+                assert not grades.is_error
+                assert wire.logins["login"] == 1
 
 
 @pytest.mark.asyncio
