@@ -4,7 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
-Pins `librus-python-api==1.10.0`.
+## [2.8.0] - 2026-11-14
+
+Pins `librus-python-api==1.10.0`. Refresh the host's tool catalog for the new
+`get_justifications` tool. Grade results gain an optional field; a host that
+keeps an old catalog still validates results (see MCP_CONTRACT.md, output
+schema evolution).
 
 ### Added
 
