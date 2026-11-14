@@ -14,9 +14,9 @@ from tests_native.test_config import config_data
 @pytest.mark.parametrize(
     ("features", "count"),
     [
-        (None, 31),  # defaults: notifications and attachments on, sending off
-        ({"notifications": False, "attachments": False}, 27),
-        ({"send_message": True}, 35),
+        (None, 32),  # defaults: notifications and attachments on, sending off
+        ({"notifications": False, "attachments": False}, 28),
+        ({"send_message": True}, 36),
     ],
 )
 async def test_every_tool_has_a_title_effect_hints_described_inputs_and_compiling_schemas(

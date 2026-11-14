@@ -66,6 +66,7 @@ CHECKS: Mapping[str, Arguments] = {
     "get_completed_lessons": _lessons,
     "get_school_year_archive": _none,
     "get_class_free_days": _none,
+    "get_justifications": _none,
     "get_messages": _one_page,
     "get_recipient_types": _none,
     "get_message_correspondents": _none,
@@ -97,6 +98,8 @@ REFUSED: Mapping[str, str] = {
 }
 # The login cannot use the tool; that is not a schema failure.
 UNAVAILABLE = frozenset({"VIEW_DISABLED", "MODULE_UNAVAILABLE"})
+# Parent-only modules: a student login gets UNSUPPORTED_CAPABILITY before any request.
+PARENT_ONLY = frozenset({"get_justifications"})
 
 
 def warsaw_today() -> date:
@@ -202,7 +205,7 @@ async def _check(
     if result.is_error:
         detail = content.get("error", {})
         code = detail.get("code")
-        if code in UNAVAILABLE:
+        if code in UNAVAILABLE or (code == "UNSUPPORTED_CAPABILITY" and tool in PARENT_ONLY):
             write(f"{label}: unavailable on this login ({code})")
             return True
         where = " < ".join(reversed(detail.get("where", [])))

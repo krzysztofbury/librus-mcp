@@ -118,3 +118,23 @@ async def test_the_default_run_reads_every_safe_tool_without_effects(tmp_path, b
         lines.append,
     )
     assert status and lines[-1].startswith("login 1 get_notification_status: OK")
+
+
+@pytest.mark.asyncio
+async def test_a_student_login_reports_parent_only_justifications_as_unavailable(tmp_path):
+    lines: list[str] = []
+    async with Wire().serve() as wire:
+        wire.account_group = None
+        with anyio.fail_after(30):
+            assert await check_tools(
+                _wire_server(wire.origin, tmp_path),
+                [(ALIAS, MessagingBackend.MODERN)],
+                ("get_justifications", "get_grades"),
+                lines.append,
+            )
+        assert not any(path == "/eusprawiedliwienia" for _, path, _ in wire.calls)
+    assert (
+        lines[1] == "login 1 get_justifications: unavailable on this login (UNSUPPORTED_CAPABILITY)"
+    )
+    # The run goes on to the next tool.
+    assert lines[2].startswith("login 1 get_grades: OK")

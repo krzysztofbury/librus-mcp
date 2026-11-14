@@ -33,6 +33,10 @@ class Wire:
         self.message_count = 3
         self.message_queries = []
         self.history_empty = False
+        # `Me.Account.GroupId`: 5 is a parent login, None leaves it out as a
+        # student-like login the API refuses justifications for.
+        self.account_group: int | None = 5
+        self.justifications_empty = False
         # (title, content) pairs served as the announcements page, when set.
         self.announcements = None
         self.formative = False
@@ -154,7 +158,8 @@ class Wire:
             return web.json_response(
                 {
                     "Me": {
-                        "Account": {"Id": owner, "FirstName": "Example", "LastName": "Owner"},
+                        "Account": {"Id": owner, "FirstName": "Example", "LastName": "Owner"}
+                        | ({} if self.account_group is None else {"GroupId": self.account_group}),
                         "User": {"Id": "shared-pupil", "FirstName": "Example", "LastName": "Pupil"},
                     }
                 }

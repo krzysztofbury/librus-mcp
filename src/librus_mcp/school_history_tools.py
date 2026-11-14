@@ -1,13 +1,20 @@
 """Bounded presentation of native history and class-free-day reads."""
 
+from datetime import date
 from typing import Any, Literal
 
-from librus_python_api import ArchiveAchievement, ArchiveYear, ClassFreeDay
+from librus_python_api import ArchiveAchievement, ArchiveYear, ClassFreeDay, Justification
 from mcp.server.mcpserver import Context, MCPServer
 from mcp.types import ToolAnnotations
 
-from librus_mcp.presentation import validate_window_cursor, window_page
-from librus_mcp.read_schemas import AccountAliasInput, Cursor, PagedResult, PageLimit
+from librus_mcp.presentation import sized_page, validate_window_cursor, window_page
+from librus_mcp.read_schemas import (
+    AccountAliasInput,
+    Cursor,
+    PagedResult,
+    PageLimit,
+    SizedPagedResult,
+)
 from librus_mcp.runtime import Runtime
 from librus_mcp.schemas import PresentationCursor, WireModel
 
@@ -25,10 +32,17 @@ class ArchiveAchievementItem(WireModel):
 ArchiveItem = ArchiveYearItem | ArchiveAchievementItem
 
 
+class JustificationsResult(SizedPagedResult[Justification]):
+    # The window the list page shows by default; older entries are not read.
+    date_from: date
+    date_to: date
+
+
 def register_school_history_tools(server: MCPServer[Runtime]) -> None:
     ordinary = ToolAnnotations(read_only_hint=True, open_world_hint=True)
     server.tool(title="School year archive", annotations=ordinary)(get_school_year_archive)
     server.tool(title="Class-free days", annotations=ordinary)(get_class_free_days)
+    server.tool(title="Absence justifications", annotations=ordinary)(get_justifications)
 
 
 async def get_school_year_archive(
@@ -74,6 +88,31 @@ async def get_class_free_days(
     )
     return PagedResult[ClassFreeDay](
         items=selected,
+        identity=result.identity,
+        observation=result.observation,
+        pagination=pagination,
+    )
+
+
+async def get_justifications(
+    account_alias: AccountAliasInput,
+    ctx: Context[Runtime, Any],
+    cursor: Cursor[PresentationCursor] = None,
+    limit: PageLimit = 100,
+) -> JustificationsResult:
+    """List absence justifications parents sent via e-usprawiedliwienia, in Librus's order. Covers only date_from..date_to, the window Librus shows by default (about the last month); older entries are omitted. Parent logins only; a student login returns UNSUPPORTED_CAPABILITY. Changes no filter Librus remembers; each page rereads the list."""
+    runtime = ctx.request_context.lifespan_context
+    client = runtime.account(account_alias)
+    query = ("justifications",)
+    validate_window_cursor(cursor, client.context.identifier, query)
+    result = await client.justifications(budget=runtime.budget)
+    selected, pagination = sized_page(
+        result.items, context=client.context.identifier, query=query, cursor=cursor, limit=limit
+    )
+    return JustificationsResult(
+        items=selected,
+        date_from=result.window_start,
+        date_to=result.window_end,
         identity=result.identity,
         observation=result.observation,
         pagination=pagination,

@@ -26,6 +26,7 @@ from mcp.server.mcpserver import Context
 from mcp.types import ToolAnnotations
 
 from librus_mcp import __version__
+from librus_mcp.check_tools import PARENT_ONLY
 from librus_mcp.config import AppConfig, read_config_file
 from librus_mcp.runtime import Runtime
 from librus_mcp.server import create_server
@@ -101,6 +102,7 @@ def cases(phase: str = "academic") -> list[tuple[str, dict[str, Any]]]:
             ),
             ("get_school_year_archive", {"limit": 5}),
             ("get_class_free_days", {"limit": 5}),
+            ("get_justifications", {"limit": 5}),
             ("get_teacher_subjects", {"limit": 5}),
             ("get_message_unread_counts", {}),
             ("get_message_correspondents", {"folder": "received", "limit": 5}),
@@ -179,6 +181,10 @@ async def call(
     value = result.structured_content
     if result.is_error:
         code = value.get("error", {}).get("code", "INTERNAL_ERROR") if value else "INTERNAL_ERROR"
+        if name in PARENT_ONLY and code == "UNSUPPORTED_CAPABILITY":
+            # A student login is refused before any request; that is the defined outcome.
+            records.append({"account_index": index, "tool": name, "status": "expected_unsupported"})
+            return None, False
         # A failed upstream response is never echoed, including raw ToolError text.
         records.append({"account_index": index, "tool": name, "status": code})
         return None, code in STOP_CODES

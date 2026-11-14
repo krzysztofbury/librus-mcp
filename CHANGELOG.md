@@ -4,7 +4,17 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+Pins `librus-python-api==1.10.0`.
+
 ### Added
+
+- `get_justifications` (#102): on a parent login, the absence justifications
+  sent through e-usprawiedliwienia in the window Librus shows by default
+  (about the last month), with period, absence count, content, notified
+  teachers, sent time, status and who decided it. Student logins get
+  `UNSUPPORTED_CAPABILITY` without a request. The catalog has 32 default
+  tools (36 with sending, 28 minimal); refresh the host's tool catalog.
+  `check-tools` and the live qualifier's `v21` phase include it.
 
 - Agent workflow files: `.agents/cos.json` points the chief-of-staff role at
   the Librus project board for this repository and `librus-python-api`,
