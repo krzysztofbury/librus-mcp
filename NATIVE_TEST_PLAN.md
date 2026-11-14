@@ -1,5 +1,16 @@
 # Native migration verification ownership
 
+## 2.8.0 release live check
+
+Authorized by the owner's release request, on the tagged checkout (v2.8.0,
+API 1.10.0) on 2026-11-14, `qualify_native.py --live` on the four owner
+logins: academic 58 passed, 4 `VIEW_DISABLED`, 6 without a reference (122
+requests); communication 22 passed, 2 without a sent reference, 4 expected
+unsupported (66 requests); homework_history 10 passed, 2 without a reference
+(42 requests); v21 85 passed, 2 expected unsupported (149 requests).
+`get_justifications` passed with populated coverage on both parent logins and
+was `expected_unsupported` on both student logins.
+
 ## 2.8.0 behaviour points (#103)
 
 2.8.0 pins API 1.10.0. `release_verification/measure_tools.py`: the
