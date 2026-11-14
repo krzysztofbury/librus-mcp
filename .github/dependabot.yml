@@ -10,8 +10,8 @@ updates:
       timezone: Europe/Warsaw
     cooldown:
       default-days: 7
-    # Pinned by hand in a coordinated release, with its own
-    # `exclude-newer-package` date.
+    # Pinned by hand in a coordinated release; exempt from the window in
+    # pyproject.toml.
     ignore:
       - dependency-name: librus-python-api
     open-pull-requests-limit: 5

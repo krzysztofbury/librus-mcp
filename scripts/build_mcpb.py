@@ -40,8 +40,25 @@ def bundle_cutoff(window: str) -> str:
     try:
         datetime.fromisoformat(window)
     except ValueError:
-        return datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+        return _now()
     return window
+
+
+def _now() -> str:
+    return datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def bundle_package_cutoff(cutoff: str | bool) -> str:
+    """A package's cutoff in the bundle; an exempt package (false) gets the build time.
+
+    A host uv that reads dated `exclude-newer-package` entries may predate
+    `false`, and the constraints pin the exempt package's version anyway.
+    """
+    if cutoff is False:
+        return _now()
+    if not isinstance(cutoff, str):
+        raise BundleError(f"unsupported exclude-newer-package value {cutoff!r}")
+    return bundle_cutoff(cutoff)
 
 
 def qualified_pins() -> list[str]:
@@ -61,7 +78,7 @@ def bundle_pyproject(
     version: str, wheel_name: str, quarantine: dict[str, Any], pins: list[str]
 ) -> str:
     packages = ", ".join(
-        f"{json.dumps(name)} = {_toml_string(cutoff)}"
+        f"{json.dumps(name)} = {_toml_string(bundle_package_cutoff(cutoff))}"
         for name, cutoff in quarantine.get("exclude-newer-package", {}).items()
     )
     constraints = "".join(f"\n    {_toml_string(pin)}," for pin in pins)

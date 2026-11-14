@@ -1,7 +1,10 @@
 """Who can publish, and which commit a release may publish from."""
 
+import importlib.util
 import shutil
 import subprocess
+import tomllib
+from datetime import datetime
 from pathlib import Path
 
 import pytest
@@ -99,3 +102,22 @@ def test_a_release_must_be_on_main(tmp_path, monkeypatch, merged):
     else:
         with pytest.raises(VerificationError, match="not on main"):
             verify_release(checkout, f"v{version}", head)
+
+
+def test_the_bundle_writes_a_date_for_an_exempt_package():
+    """A host uv that reads dated `exclude-newer-package` entries may predate `false`."""
+    path = ROOT / "scripts/build_mcpb.py"
+    if not path.exists():
+        pytest.skip("source checkout only")
+    spec = importlib.util.spec_from_file_location("build_mcpb", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    quarantine = {"exclude-newer": "7 days", "exclude-newer-package": {"librus-python-api": False}}
+    text = module.bundle_pyproject(
+        "1.0.0", "librus_mcp-1.0.0-py3-none-any.whl", quarantine, ["anyio==4.0.0"]
+    )
+    cutoff = tomllib.loads(text)["tool"]["uv"]["exclude-newer-package"]["librus-python-api"]
+    assert isinstance(cutoff, str)
+    datetime.fromisoformat(cutoff)
+    with pytest.raises(module.BundleError):
+        module.bundle_package_cutoff(True)
