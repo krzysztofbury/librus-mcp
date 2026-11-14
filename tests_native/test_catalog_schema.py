@@ -113,10 +113,14 @@ async def test_behaviour_points_tally_is_the_number_shown_and_nothing_more():
         tool.name: tool
         for tool in await create_server(AppConfig.model_validate(config_data())).list_tools()
     }
+    # The rule is stated once, on the tally field both grade tools publish.
     for name in ("get_grades", "get_grades_window"):
         tool = tools[name]
         item = tool.output_schema["$defs"]["BehaviourPointsItem"]
-        assert "number shown" in item["properties"]["tally"]["description"]
+        tally = item["properties"]["tally"]["description"]
+        assert "number shown" in tally
+        assert "never summed with or checked against the entries" in tally
+        assert "tally" not in tool.description
         published = (tool.description + json.dumps(tool.output_schema)).lower()
         for claim in ("starting", "running total", "punkty startowe"):
             assert claim not in published, (name, claim)

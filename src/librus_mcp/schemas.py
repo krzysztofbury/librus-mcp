@@ -130,7 +130,10 @@ class BehaviourPointsItem(WireModel):
     # The API does not establish whether the tally is the starting points or a
     # running total (librus-python-api#138), so it is passed on uninterpreted.
     semester: Literal[1, 2]
-    tally: Annotated[int, Field(description="The number shown, not interpreted.")]
+    tally: Annotated[
+        int,
+        Field(description="The number shown, never summed with or checked against the entries."),
+    ]
     entries: tuple[BehaviourPointEntryItem, ...]
 
 
