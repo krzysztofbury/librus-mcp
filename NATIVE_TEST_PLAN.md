@@ -3,9 +3,9 @@
 ## Unreleased: behaviour points (#103)
 
 The branch pins API 1.10.0. `release_verification/measure_tools.py`: the
-catalog measures 127919 bytes for 31 default tools and 141250 bytes for 35
-tools, within the 128 and 144 KiB budgets (1787 bytes more than 2.7.0 in
-each profile).
+catalog measures 126664 bytes for 31 default tools and 139979 bytes for 35
+tools, within the 128 and 144 KiB budgets (1734 bytes more than main at
+107da2b, after the #110 trim, in each profile).
 
 - `test_v21_stdio.py`: over stdio, `get_grades` and `get_grades_window` return
   `behaviour_points` from a synthetic `Zachowanie` row (tally 50 with entries
