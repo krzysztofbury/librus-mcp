@@ -1,5 +1,16 @@
 # Native migration verification ownership
 
+## 2.8.1 release live check
+
+Authorized by the owner's release request, on the tagged checkout (v2.8.1,
+API 1.10.1) on 2026-11-15, `qualify_native.py --live` on the four owner
+logins: academic 58 passed, 4 `VIEW_DISABLED`, 6 without a reference (122
+requests); communication 22 passed, 2 without a sent reference, 4 expected
+unsupported (66 requests); homework_history 10 passed, 2 without a reference
+(42 requests); v21 85 passed, 2 expected unsupported (149 requests), the same
+counts as 2.8.0. `get_grades` and `get_grades_window` passed on all four
+logins in the academic and v21 phases.
+
 ## 2.8.1 descriptive grades shown as boxes
 
 2.8.1 pins API 1.10.1, which reads a descriptive grades table whose cells show
