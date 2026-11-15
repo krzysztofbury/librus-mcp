@@ -1,5 +1,19 @@
 # Native migration verification ownership
 
+## 2.8.1 descriptive grades shown as boxes
+
+2.8.1 pins API 1.10.1, which reads a descriptive grades table whose cells show
+grade boxes and whose detail rows are filled in, without the gateway.
+`release_verification/measure_tools.py`: the catalog is unchanged at 130875
+bytes for 32 default tools and 144190 bytes for 36 tools.
+
+- `test_v21_stdio.py`: over stdio, `get_grades` and `get_grades_window` return
+  the grades of a synthetic box table, and no `/Auth/` gateway request is
+  made. The test fails on API 1.10.0 and passes on 1.10.1.
+- The box layout parsing and its fail-closed cases are covered by the API's
+  `tests/test_gateway_grades.py` (1.10.1); the API's 1.10.1 release live check
+  passed on the four owner logins.
+
 ## 2.8.0 release live check
 
 Authorized by the owner's release request, on the tagged checkout (v2.8.0,

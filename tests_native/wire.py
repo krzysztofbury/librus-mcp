@@ -17,6 +17,7 @@ from aiohttp import web
 from tests_native.academic_wire import academic_response, announcement_table
 from tests_native.history_wire import (
     behaviour_row,
+    descriptive_box_table,
     formative_table,
     history_response,
     point_table,
@@ -55,6 +56,8 @@ class Wire:
         self.formative_text = "Fixture formative assessment"
         # Add a Zachowanie row: tally 50 with entries +5 and -3, then -7 alone.
         self.behaviour_points = False
+        # Add a new-schema descriptive table that shows one grade as a box.
+        self.descriptive_boxes = False
         self.sent_payloads = []
         self.send_unknown = False
         self.attachment_body = b"Fixture attachment bytes\x00"
@@ -354,6 +357,8 @@ class Wire:
                 body = body.replace("</body>", point_table() + "</body>")
             if self.behaviour_points:
                 body = body.replace("</tbody>", behaviour_row() + "</tbody>", 1)
+            if self.descriptive_boxes:
+                body = body.replace("</body>", descriptive_box_table() + "</body>")
             if self.corrections:
                 # Other flags rewrite the same anchors; keep this one alone.
                 assert not (self.formative or self.shuffle_grades)

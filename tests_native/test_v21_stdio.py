@@ -217,6 +217,46 @@ async def test_behaviour_points_sit_beside_grades_without_changing_them():
                 assert not any("zachowanie_szczegoly" in path for _, path, _ in wire.calls)
 
 
+@pytest.mark.asyncio
+async def test_descriptive_grades_shown_as_boxes_reach_both_grade_tools():
+    # API 1.10.1 (librus-python-api#173): a new-schema table whose semester cells
+    # hold grade boxes failed every grade read; its grades are descriptive items.
+    async with Wire().serve() as wire:
+        wire.descriptive_boxes = True
+        with anyio.fail_after(30):
+            async with (
+                stdio_client(server_process(wire.origin, [("first", "71")])) as streams,
+                ClientSession(*streams) as session,
+            ):
+                await session.initialize()
+                for tool in ("get_grades", "get_grades_window"):
+                    result = await session.call_tool(tool, {"account_alias": "first"})
+                    assert not result.is_error, result
+                    await assert_matches_published_schema(session, tool, result)
+                    boxes = [
+                        item
+                        for item in result.structured_content["items"]
+                        if item["record_type"] == "descriptive"
+                    ]
+                    assert len(boxes) == 1
+                    box = boxes[0]
+                    assert (box["subject"], box["raw"], box["day"], box["semester"]) == (
+                        "Fixture Maths",
+                        "O+",
+                        "2026-09-23",
+                        1,
+                    )
+                    assert (box["teacher"], box["comment"], box["grade_id"]) == (
+                        "Fixture Teacher",
+                        "Fixture remark",
+                        None,
+                    )
+                    assert ["Umiejętność", "Fixture counts to ten"] in box["metadata"]
+                # The page shows the grades; the descriptive gateway routes
+                # (librus-python-api contracts/grades.md) are never requested.
+                assert not any("/Auth/" in path for _, path, _ in wire.calls)
+
+
 def _grade(raw, grade_id, day="2026-09-24"):
     href = None if grade_id is None else f"/przegladaj_oceny/szczegoly/{grade_id}"
     return NumericGrade(
