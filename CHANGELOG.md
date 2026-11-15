@@ -4,6 +4,24 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [2.8.1] - 2026-11-15
+
+Pins `librus-python-api==1.10.1`. No tool, schema or configuration changes;
+the host's tool catalog stays the same.
+
+### Fixed
+
+- `get_grades` and `get_grades_window` failed with `UNSUPPORTED_CAPABILITY`
+  for schools whose descriptive grading table shows grades as boxes, such as
+  `O` or `C+` (librus-python-api#173). Those grades are now descriptive items
+  with their date, teacher, comment and the tooltip's grading area and skill
+  in `metadata`, and no extra Librus request is made for them.
+
+### Changed
+
+- Dependency updates from #114 (pydantic 2.14, uvicorn 0.54 and others) ship
+  in this release.
+
 ## [2.8.0] - 2026-11-14
 
 Pins `librus-python-api==1.10.0`. Refresh the host's tool catalog for the new

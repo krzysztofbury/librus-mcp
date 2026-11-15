@@ -98,6 +98,52 @@ def behaviour_points_box(points, detail, day):
     )
 
 
+def descriptive_box_table():
+    """A new-schema descriptive table that shows its grades as boxes (API 1.10.1,
+    librus-python-api#76): one grade in semester 1, and a filled detail row
+    listing the same grade."""
+    title = escape(
+        "Obszar oceniania: Fixture Maths<br />Umiejętność: Fixture counts to ten"
+        "<br />Data: 2026-09-23 (śr.)<br />Nauczyciel: Fixture Teacher"
+        "<br />Dodał: Fixture Teacher<br />Komentarz: Fixture remark",
+        quote=True,
+    )
+    columns = "".join(
+        f"<td>{label}</td>"
+        for label in (
+            "Ocena",
+            "K",
+            "Obszar oceniania",
+            "Umiejętność",
+            "Data",
+            "Nauczyciel",
+            "Treść oceny",
+            "Dodał",
+        )
+    )
+    return (
+        '<table class="decorated stretch newSchemaGradesByStudentTable"><thead>'
+        '<tr class="bolded"><td class="micro center screen-only"></td>'
+        "<td>Obszar oceniania</td><td>Okres 1</td><td>Okres 2</td></tr></thead><tbody>"
+        '<tr class="studentRow line0" data-subject_id="501" data-user_id="71">'
+        '<td class="micro center screen-only"></td><td>Fixture Maths</td>'
+        f'<td><span class="grade-box"><a href="javascript:void(0);" title="{title}">'
+        "O+</a></span></td><td>Brak ocen</td></tr>"
+        '<tr class="studentGradesDetailsRow line0" data-subject_id="501" '
+        'data-user_id="71" style="display: none;">'
+        '<td class="studentGradesDetailsCell" colspan="4"><table class="stretch">'
+        f"<thead><tr>{columns}</tr></thead><tbody>"
+        '<tr class="line1 bolded"><td class="center" colspan="8">Okres 1</td></tr>'
+        '<tr class="line1 detail-grades"><td class="center">O+</td><td> </td>'
+        "<td>Fixture Maths</td><td>Fixture counts to ten</td><td>2026-09-23</td>"
+        "<td>Fixture Teacher</td><td> </td><td>Fixture Teacher</td></tr>"
+        '<tr class="line1 bolded"><td class="center" colspan="8">Okres 2</td></tr>'
+        '<tr class="line1"><td class="center" colspan="8">Brak ocen</td></tr>'
+        '</tbody><tfoot><tr><td colspan="9"></td></tr></tfoot></table></td></tr>'
+        "</tbody></table>"
+    )
+
+
 def behaviour_row():
     """The Zachowanie row: tally 50 with two entries, then -7 alone, per period."""
     first = (
