@@ -167,7 +167,7 @@ class AgendaEventOutput(WireModel):
     reference: SchoolReferenceInput | None
 
 
-class AgendaResult(CollectionResult[AgendaEventOutput]):
+class AgendaResult(SizedPagedResult[AgendaEventOutput]):
     year: int
     month: int
     timezone: Literal["Europe/Warsaw"] = "Europe/Warsaw"
@@ -185,7 +185,7 @@ class HomeworkItemOutput(WireModel):
     reference: SchoolReferenceInput | None
 
 
-class HomeworkResult(CollectionResult[HomeworkItemOutput]):
+class HomeworkResult(SizedPagedResult[HomeworkItemOutput]):
     date_from: date
     date_to: date
 
