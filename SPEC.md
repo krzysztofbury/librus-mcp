@@ -1,4 +1,4 @@
-# Native 2.1 application specification
+# Native application specification
 
 The installed import package is `librus_mcp`; the console entry is
 `librus_mcp.cli:main`. All releases before 2.0 use apix. The native package is MIT;
