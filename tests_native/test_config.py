@@ -3,6 +3,7 @@
 import asyncio
 import json
 import os
+import re
 from pathlib import Path
 
 import pytest
@@ -189,7 +190,9 @@ def test_behaviour_notes_from_1x_are_ignored_with_a_notice(tmp_path, capsys):
     path = tmp_path / "config.json"
     write_config(path, config_data() | {"features": {"behaviour_notes": True}})
     config = load_config(path)
-    assert "behaviour notes are unavailable" in capsys.readouterr().err
+    notice = capsys.readouterr().err
+    assert "behaviour notes are unavailable" in notice
+    assert not re.search(r"\d+\.\d+", notice), "the notice must not name a release"
     names = {tool.name for tool in asyncio.run(create_server(config).list_tools())}
     assert not any("behaviour" in name for name in names)
 
