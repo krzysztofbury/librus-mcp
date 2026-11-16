@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- `get_agenda` and `get_homework` returned `LIMIT` and no items when a month
+  or range held a lot of text (#117). They now page like `get_announcements`:
+  `limit` (default 256) and a source-bound `cursor`, and a page also ends
+  before it would push the result over 512 KiB (`pagination.reason`
+  `size_limit`). A cursor is bound to its month or date range; with the
+  default homework range, pass the returned `date_from` and `date_to` with the
+  cursor. Refresh the host's tool catalog.
+
 ## [2.8.1] - 2026-11-15
 
 Pins `librus-python-api==1.10.1`. No tool, schema or configuration changes;
