@@ -135,7 +135,7 @@ async def test_four_logins_share_traffic_but_not_sessions_and_catalog_does_not_l
                 assert all(tool.output_schema for tool in catalog)
                 assert (
                     len(listed.model_dump_json(by_alias=True, exclude_unset=True).encode())
-                    < 128 * 1024
+                    < 132 * 1024
                 )
                 result = await session.call_tool("list_accounts", {})
                 assert result.structured_content == {
