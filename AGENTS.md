@@ -16,7 +16,7 @@ project rules. [CONTRIBUTING.md](CONTRIBUTING.md) lists the checks CI runs.
   when a call changes the view, week, month or range Librus remembers for the
   login. Every input parameter has a description (`test_catalog_schema.py`).
   Measure both profiles with `release_verification/measure_tools.py` against
-  the 128 and 144 KiB budgets in [MCP_CONTRACT.md](MCP_CONTRACT.md); output
+  the 132 and 144 KiB budgets in [MCP_CONTRACT.md](MCP_CONTRACT.md); output
   schemas are most of the catalog, so spend bytes on descriptions only.
   Annotations are documented contract, not wording to tune.
 - CI also runs the installed wheel and the desktop bundle on Windows, which has

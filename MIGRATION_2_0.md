@@ -16,12 +16,13 @@ library `1.0.2`. Use an explicit version pin when selecting a release.
 
 ## Moving from 2.0 to 2.1
 
-2.8.1 pins API 1.10.1. Reuse the existing configuration,
+2.9.0 pins API 1.10.2. Reuse the existing configuration,
 context key, sends and notification stores. Refresh the host's tool catalog.
 Custom consumers must accept the new `formative` grade item variant, the
 `point` variant (2.4), the nullable `formative_id` on existing variants and,
 from 2.7, the nullable `grade_id`, `corrects` and `corrected_by` and, from
-2.8, the optional `behaviour_points` on grade results; restart old grade
+2.8, the optional `behaviour_points` on grade results and, from 2.9, the
+sized `pagination` of `get_agenda` and `get_homework`; restart old grade
 cursors. Error handling must accept `CONSENT_REQUIRED` with
 `requires` (2.5.1), returned where `INVALID_INPUT` was for a received message
 opened without consent.
@@ -30,20 +31,19 @@ unfiltered mail. New archive/filter fields must be preserved on round trips.
 No migration command or state reset is required. The new history, class-free-day
 and modern discovery contracts are in [MCP_CONTRACT.md](MCP_CONTRACT.md).
 
-The setup commands below retain the published 2.0 migration example; the
-[README](README.md) targets 2.1.
+The setup commands below pin the current release, as the [README](README.md) does.
 
 ## Upgrading an existing setup
 
-Change the host's version pin to `librus-mcp==2.0.0` and run it with Python 3.14
-(`uvx --python 3.14 librus-mcp==2.0.0 ...`). Keep the existing `--config` or
+Change the host's version pin to `librus-mcp==2.9.0` and run it with Python 3.14
+(`uvx --python 3.14 librus-mcp==2.9.0 ...`). Keep the existing `--config` or
 `LIBRUS_CONFIG` file. On first start the server, without operator steps:
 
 - creates a persistent context key in `state_dir/context.key` when the
   configuration has none (back up the state directory with it);
 - restricts the user's own configuration file to `0600` and the state/download
   directories to `0700` when they are shared, as 1.x download directories were;
-- ignores `behaviour_notes`, which 2.0 does not provide, with a notice;
+- ignores `behaviour_notes`, which 2.x does not provide, with a notice;
 - adopts 1.x notification files on an account's first poll: consumed but
   undelivered agenda events are imported and delivered, and the originals move
   to `state_dir/legacy-1x`. Old seen-IDs cannot be translated, so the first poll
@@ -70,9 +70,9 @@ Native service defaults bound combined rate, burst, active requests and queues.
 | Final-grade legacy mappings | `items` with midterm/predicted/annual availability and raw values |
 | Runtime exception text | `isError=true` with a closed `error.code`; no raw input/page/cause text |
 
-The current 2.1 catalog has 31 tools, including notifications and attachments.
-Enabling sending gives 35 tools; disabling notifications and attachments leaves
-27. Every tool has typed input/output schemas:
+The current catalog includes notifications and attachments; the tool counts for
+each feature setting are in [MCP_CONTRACT.md](MCP_CONTRACT.md). Every tool has
+typed input/output schemas:
 
 | Family | Tools |
 | --- | --- |

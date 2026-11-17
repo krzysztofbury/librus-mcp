@@ -23,7 +23,7 @@ uv run python release_verification/measure_tools.py
 uv run python release_verification/measure_tools.py --all-features
 ```
 
-The default and all-feature UTF-8 catalog budgets are 128 and 144 KiB. They count
+The default and all-feature UTF-8 catalog budgets are 132 and 144 KiB. They count
 descriptions, annotations, inputs and outputs. These are context-size gates, not
 performance claims. The text block of a typed result is the same JSON value as
 `structuredContent`, serialized compactly (UTF-8, no indentation) because many
@@ -41,7 +41,9 @@ push the result over 512 KiB, with `pagination.reason` `size_limit` instead of
 `item_limit`; its first item is always returned. A single announcement whose
 own JSON is over the cap, which takes tens of thousands of control
 characters, is still `LIMIT`, and the announcements after it are then out of
-reach. References are inert identifiers, not upstream URLs.
+reach. Since 2.9.0 `get_agenda` and `get_homework` page the same way, with a
+cursor bound to the month or date range. References are inert identifiers, not
+upstream URLs.
 
 Domain/protocol errors return `isError=true` and
 `{"error":{"code":"CLOSED_CODE","where":[...],"versions":{"mcp":"X","api":"Y"}}}`.

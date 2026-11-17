@@ -255,10 +255,14 @@ async def get_agenda(
     year: Annotated[int, Field(strict=True, ge=2001, le=2100, description="Calendar year.")],
     month: Annotated[int, Field(strict=True, ge=1, le=12, description="Month, 1 to 12.")],
     ctx: Context[Runtime, Any],
+    cursor: Cursor[PresentationCursor] = None,
+    limit: PageLimit = 256,
 ) -> AgendaResult:
-    """List one month of school calendar events such as tests, trips and days off. Pass an event's reference, when present, to get_agenda_detail. Selecting the month also changes the month this login's Librus session remembers."""
+    """List one month of school calendar events such as tests, trips and days off. Pass an event's reference, when present, to get_agenda_detail. Long months are paged; pass pagination.next_cursor for the rest. Selecting the month also changes the month this login's Librus session remembers."""
     runtime = ctx.request_context.lifespan_context
     client = runtime.account(account_alias)
+    query = ("agenda", str(year), str(month))
+    validate_window_cursor(cursor, client.context.identifier, query)
     result = await client.agenda(year, month, budget=runtime.budget)
     items = tuple(
         AgendaEventOutput(
@@ -278,12 +282,16 @@ async def get_agenda(
         for day in result.days
         for item in day.events
     )
+    selected, pagination = sized_page(
+        items, context=client.context.identifier, query=query, cursor=cursor, limit=limit
+    )
     return AgendaResult(
-        items=items,
+        items=selected,
         year=result.year,
         month=result.month,
         identity=result.identity,
         observation=result.observation,
+        pagination=pagination,
     )
 
 
@@ -328,8 +336,10 @@ async def get_homework(
     ctx: Context[Runtime, Any],
     date_from: FirstDay[ISODate | None] = None,
     date_to: LastDay[ISODate | None] = None,
+    cursor: Cursor[PresentationCursor] = None,
+    limit: PageLimit = 256,
 ) -> HomeworkResult:
-    """List homework in a date range; give both dates or neither (today to 14 days ahead, Warsaw time). Pass an item's reference to get_homework_detail. The range also changes what this login's Librus session remembers."""
+    """List homework in a date range; give both dates or neither (today to 14 days ahead, Warsaw time). Pass an item's reference to get_homework_detail. Long ranges are paged; pass pagination.next_cursor with the returned date_from and date_to for the rest. The range also changes what this login's Librus session remembers."""
     runtime = ctx.request_context.lifespan_context
     if (date_from is None) != (date_to is None):
         raise LibrusError(ErrorKind.INVALID_INPUT)
@@ -337,6 +347,8 @@ async def get_homework(
         date_from = datetime.now(ZoneInfo("Europe/Warsaw")).date()
         date_to = date_from + timedelta(days=14)
     client = runtime.account(account_alias)
+    query = ("homework", date_from.isoformat(), date_to.isoformat())
+    validate_window_cursor(cursor, client.context.identifier, query)
     result = await client.homework_range(
         HomeworkRangeRequest(date_from, date_to), budget=runtime.budget
     )
@@ -356,12 +368,16 @@ async def get_homework(
         )
         for item in result.items
     )
+    selected, pagination = sized_page(
+        items, context=client.context.identifier, query=query, cursor=cursor, limit=limit
+    )
     return HomeworkResult(
-        items=items,
+        items=selected,
         date_from=result.start,
         date_to=result.end,
         identity=result.identity,
         observation=result.observation,
+        pagination=pagination,
     )
 
 

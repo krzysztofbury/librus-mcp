@@ -1,5 +1,24 @@
 # Native migration verification ownership
 
+## 2.9.0 paged agenda and homework (#117)
+
+2.9.0 pins API 1.10.2. `release_verification/measure_tools.py`: the catalog
+measures 133519 bytes for 32 default tools and 146834 bytes for 36 tools,
+within the 132 and 144 KiB budgets (135168 and 147456 bytes), 2644 bytes
+more than 2.8.1 in each profile because both tools gain the paging inputs and
+outputs.
+
+- `test_school_paging.py`: through `NativeServer.call_tool` with the API
+  client's agenda and homework reads stubbed, 40 items of about 5 KB come back
+  page by page, every item in order, each page within 512 KiB and valid
+  against the published schema, with `size_limit` reasons. A cursor sent with
+  another year, month, `date_from` or `date_to` gets `INVALID_INPUT` before any
+  read; a changed collection gets `STALE_CURSOR`; small and empty results are
+  one page and `limit` pages by count. Before the fix, the developer recorded
+  `LIMIT` for both large cases on `main` (#117).
+- The installed-wheel gate (`release_verification/verify_wheel.py`) checks the
+  default catalog against 132 KiB, as `test_native_stdio.py` does.
+
 ## 2.8.1 release live check
 
 Authorized by the owner's release request, on the tagged checkout (v2.8.1,
@@ -611,7 +630,7 @@ do not remove an independent safety proof without identifying its owner.
 | Legacy tests/concerns | Final owner and required evidence |
 | --- | --- |
 | CLI, config, credential files, feature gates | MCP; native tests cover selection, redaction, private-file limits, duplicate aliases, unavailable features, persistent context-key provisioning and explicit offline doctor/storage diagnostics. |
-| MCP stdio/catalog/output models, tool errors, context budgets | MCP; native tests cover 31 default, 35 all-feature and 27 minimal tools, schema compilation, effects/projections, input/domain redaction, whole-result byte caps, pre-I/O cursor/reference guards and host-wide budget exhaustion. Installed profiles enforce 128/144 KiB catalog bounds. |
+| MCP stdio/catalog/output models, tool errors, context budgets | MCP; native tests cover 32 default, 36 all-feature and 28 minimal tools, schema compilation, effects/projections, input/domain redaction, whole-result byte caps, pre-I/O cursor/reference guards and host-wide budget exhaustion. Installed profiles enforce 132/144 KiB catalog bounds. |
 | Login cookies, retries, request limits, metadata caches, parser rules | API; use its existing public transport/parser proof. MCP retains real service-to-loopback tests for routing/traffic integration, not duplicate parsers. |
 | Notification files, locks, pending spools, collision handling | API owns native transactions; MCP tests cover real old files -> reviewed bootstrap -> restart -> historical poll/ack, mirror/hash conflicts, malformed input, capacity rejection, manifest interruption and per-account quarantine. Raw checkpoint retention, archive round-trip and loss-consenting uncertainty resolution use public contracts. Supported platform profiles pass hosted acceptance; no automatic rollback is promised. |
 | Send preview/confirmation, feature consent and UNKNOWN recovery | API owns durable claims/outcomes; MCP stdio tests cover both backends, exact token/payload binding, consent, native HTTP, restart recovery, accepted/rejected/unknown outcomes, cancellation/disconnect and no resubmission. Store-error projection is consumer-owned; claim/save transaction internals remain API-owned. |

@@ -107,10 +107,10 @@ class AppConfig(BaseModel):
         return bytes.fromhex(self.context_key.get_secret_value())
 
     def require_supported_features(self) -> None:
-        # Behaviour notes are not registered in 2.0. A 1.x configuration that
+        # Behaviour notes are not registered in 2.x. A 1.x configuration that
         # enabled them keeps working without the tool instead of failing startup.
         if self.features.behaviour_notes:
-            notice("behaviour notes are unavailable in 2.0; the setting is ignored")
+            notice("behaviour notes are unavailable; the setting is ignored")
 
 
 def valid_key_text(value: str) -> bool:
