@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [2.9.0] - 2026-11-17
+
+Pins `librus-python-api==1.10.2`. Refresh the host's tool catalog:
+`get_agenda` and `get_homework` gain `cursor` and `limit`, and their
+`pagination` changes shape.
+
 ### Fixed
 
 - `get_agenda` and `get_homework` returned `LIMIT` and no items when a month
@@ -12,7 +18,19 @@ All notable changes to this project will be documented in this file.
   before it would push the result over 512 KiB (`pagination.reason`
   `size_limit`). A cursor is bound to its month or date range; with the
   default homework range, pass the returned `date_from` and `date_to` with the
-  cursor. Refresh the host's tool catalog.
+  cursor.
+- The upgrade guide, the SPEC title and the behaviour-notes notice no longer
+  name 2.0 or 2.1 (#118).
+- API 1.10.2: a date whose weekday label names another day and a
+  completed-lesson subject/teacher cell with more than one comma now fail as
+  `PARSE` instead of being read; a failed attendance metadata collection is
+  read again on the next call instead of being cached as empty for an hour;
+  both caches drop the entry refreshed longest ago.
+
+### Changed
+
+- The default catalog budget is 132 KiB (was 128); the paging inputs and
+  outputs add about 1.1 KB per tool. The all-feature budget stays 144 KiB.
 
 ## [2.8.1] - 2026-11-15
 

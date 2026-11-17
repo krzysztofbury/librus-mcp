@@ -16,12 +16,13 @@ library `1.0.2`. Use an explicit version pin when selecting a release.
 
 ## Moving from 2.0 to 2.1
 
-2.8.1 pins API 1.10.1. Reuse the existing configuration,
+2.9.0 pins API 1.10.2. Reuse the existing configuration,
 context key, sends and notification stores. Refresh the host's tool catalog.
 Custom consumers must accept the new `formative` grade item variant, the
 `point` variant (2.4), the nullable `formative_id` on existing variants and,
 from 2.7, the nullable `grade_id`, `corrects` and `corrected_by` and, from
-2.8, the optional `behaviour_points` on grade results; restart old grade
+2.8, the optional `behaviour_points` on grade results and, from 2.9, the
+sized `pagination` of `get_agenda` and `get_homework`; restart old grade
 cursors. Error handling must accept `CONSENT_REQUIRED` with
 `requires` (2.5.1), returned where `INVALID_INPUT` was for a received message
 opened without consent.
@@ -34,8 +35,8 @@ The setup commands below pin the current release, as the [README](README.md) doe
 
 ## Upgrading an existing setup
 
-Change the host's version pin to `librus-mcp==2.8.1` and run it with Python 3.14
-(`uvx --python 3.14 librus-mcp==2.8.1 ...`). Keep the existing `--config` or
+Change the host's version pin to `librus-mcp==2.9.0` and run it with Python 3.14
+(`uvx --python 3.14 librus-mcp==2.9.0 ...`). Keep the existing `--config` or
 `LIBRUS_CONFIG` file. On first start the server, without operator steps:
 
 - creates a persistent context key in `state_dir/context.key` when the

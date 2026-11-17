@@ -1,5 +1,24 @@
 # Native migration verification ownership
 
+## 2.9.0 paged agenda and homework (#117)
+
+2.9.0 pins API 1.10.2. `release_verification/measure_tools.py`: the catalog
+measures 133519 bytes for 32 default tools and 146834 bytes for 36 tools,
+within the 132 and 144 KiB budgets (135168 and 147456 bytes), 2644 bytes
+more than 2.8.1 in each profile because both tools gain the paging inputs and
+outputs.
+
+- `test_school_paging.py`: through `NativeServer.call_tool` with the API
+  client's agenda and homework reads stubbed, 40 items of about 5 KB come back
+  page by page, every item in order, each page within 512 KiB and valid
+  against the published schema, with `size_limit` reasons. A cursor sent with
+  another year, month, `date_from` or `date_to` gets `INVALID_INPUT` before any
+  read; a changed collection gets `STALE_CURSOR`; small and empty results are
+  one page and `limit` pages by count. Before the fix, the developer recorded
+  `LIMIT` for both large cases on `main` (#117).
+- The installed-wheel gate (`release_verification/verify_wheel.py`) checks the
+  default catalog against 132 KiB, as `test_native_stdio.py` does.
+
 ## 2.8.1 release live check
 
 Authorized by the owner's release request, on the tagged checkout (v2.8.1,
