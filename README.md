@@ -303,9 +303,9 @@ Enabling the `send_message` feature adds `preview_message`, `send_message`,
 `get_send_outcome` and `get_send_history`, for 36 tools. Disabling notifications
 and attachments leaves 28 tools.
 
-Collections are paged with `limit` and a `cursor`; an announcements page also
-ends early when long texts would exceed the result size cap (`reason:
-"size_limit"`). Every login is independent,
+Collections are paged with `limit` and a `cursor`; announcements,
+justifications, agenda and homework pages also end early when long texts would
+exceed the result size cap (`reason: "size_limit"`). Every login is independent,
 including logins for the same student. Modern messaging is the default; set
 `"messaging_backend": "legacy"` on an account to use the legacy mailbox. Behaviour
 notes remain unavailable. Observation cards are supported as formative grades.

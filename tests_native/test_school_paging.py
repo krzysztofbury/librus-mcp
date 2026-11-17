@@ -154,7 +154,7 @@ TOOLS = (
     pytest.param(
         "get_agenda",
         {"account_alias": "fixture", "year": 2026, "month": 9},
-        {"month": 10},
+        ({"month": 10}, {"year": 2025}),
         "events",
         agenda_event,
         "text",
@@ -163,7 +163,7 @@ TOOLS = (
     pytest.param(
         "get_homework",
         {"account_alias": "fixture", "date_from": "2026-09-01", "date_to": "2026-09-30"},
-        {"date_to": "2026-09-29"},
+        ({"date_to": "2026-09-29"}, {"date_from": "2026-09-02"}),
         "homework",
         homework_item,
         "topic",
@@ -187,10 +187,11 @@ async def test_a_large_result_is_returned_page_by_page(name, query, other, attri
     first = await server.call_tool(name, query, context)
     cursor = first.structured_content["pagination"]["next_cursor"]
     reads = client.reads
-    moved = await server.call_tool(name, query | other | {"cursor": cursor}, context)
-    assert moved.is_error and closed(moved.structured_content) == {
-        "error": {"code": "INVALID_INPUT"}
-    }
+    for change in other:
+        moved = await server.call_tool(name, query | change | {"cursor": cursor}, context)
+        assert moved.is_error and closed(moved.structured_content) == {
+            "error": {"code": "INVALID_INPUT"}
+        }
     assert client.reads == reads
     # A changed month or range is stale, not a page of the new collection.
     setattr(client, attribute, getattr(client, attribute)[1:])

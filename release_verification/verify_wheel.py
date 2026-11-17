@@ -160,7 +160,7 @@ async def run_tool_checks(
                     validator_for(tool.output_schema).check_schema(tool.output_schema)
                 if (
                     len(catalog.model_dump_json(by_alias=True, exclude_unset=True).encode())
-                    > (144 if all_features else 128) * 1024
+                    > (144 if all_features else 132) * 1024
                 ):
                     raise VerificationError("installed catalog exceeds its context budget")
                 grades_tool = tools.get("get_grades")

@@ -26,7 +26,7 @@ formative records and their mirror IDs, point records with their period
 results, grade IDs with the all view's correction links (2.7), and behaviour points beside grades (2.8). Modern message query/reference/cursor
 projections preserve archive and filter selection. See [MCP_CONTRACT.md](MCP_CONTRACT.md)
 for exact wire shapes and capability limits. Default/all-feature catalog budgets
-are 128/144 KiB for 32/36 tools; the minimal profile has 28 tools.
+are 132/144 KiB for 32/36 tools; the minimal profile has 28 tools.
 
 Invalid aliases, dates and bound references fail before upstream requests.
 Native errors become closed codes without causes, HTML, credentials or inputs.

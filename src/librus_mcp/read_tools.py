@@ -339,7 +339,7 @@ async def get_homework(
     cursor: Cursor[PresentationCursor] = None,
     limit: PageLimit = 256,
 ) -> HomeworkResult:
-    """List homework in a date range; give both dates or neither (today to 14 days ahead, Warsaw time). Pass an item's reference to get_homework_detail. Long ranges are paged; pass pagination.next_cursor with the same dates for the rest. The range also changes what this login's Librus session remembers."""
+    """List homework in a date range; give both dates or neither (today to 14 days ahead, Warsaw time). Pass an item's reference to get_homework_detail. Long ranges are paged; pass pagination.next_cursor with the returned date_from and date_to for the rest. The range also changes what this login's Librus session remembers."""
     runtime = ctx.request_context.lifespan_context
     if (date_from is None) != (date_to is None):
         raise LibrusError(ErrorKind.INVALID_INPUT)
