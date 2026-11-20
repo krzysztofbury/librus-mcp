@@ -318,7 +318,15 @@ def verify_wheel(repository: Path, wheel: Path, *, consumer_tests: bool = False)
             raise VerificationError("temporary environment must be outside the checkout")
         virtual_environment = temporary_directory / "venv"
         subprocess.run(
-            ["uv", "venv", "--python", "3.14", str(virtual_environment)],
+            # UV_PYTHON names an exact interpreter where 3.14 alone is not one
+            # (x64 Python on Windows on ARM, see README).
+            [
+                "uv",
+                "venv",
+                "--python",
+                os.environ.get("UV_PYTHON", "3.14"),
+                str(virtual_environment),
+            ],
             cwd=temporary_directory,
             check=True,
         )

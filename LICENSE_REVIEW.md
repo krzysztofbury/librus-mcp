@@ -1,7 +1,7 @@
 # Native 2.0 license and provenance review
 
 First reviewed on 2026-10-05; the notes below date each later pin. Scope: the
-`2.9.0` native wheel and sdist, not a retroactive license change to any published
+`2.9.1` native wheel and sdist, not a retroactive license change to any published
 artifact. The owner requested MIT for their new 2.0 work. This is an engineering
 inventory, not legal advice or a claim that every dependency is itself MIT.
 
@@ -52,7 +52,7 @@ the MCP wheel or sdist.
 | idna | 3.19 | BSD-3-Clause |
 | jsonschema | 4.26.0 | MIT |
 | jsonschema-specifications | 2025.9.1 | MIT |
-| librus-python-api | 1.10.2 | MIT |
+| librus-python-api | 1.10.3 | MIT |
 | lxml | 6.1.2 | BSD-3-Clause with additional terms below |
 | mcp | 2.3.0 | MIT |
 | mcp-types | 2.3.0 | MIT |
