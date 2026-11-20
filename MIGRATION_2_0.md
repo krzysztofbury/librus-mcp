@@ -16,7 +16,7 @@ library `1.0.2`. Use an explicit version pin when selecting a release.
 
 ## Moving from 2.0 to 2.1
 
-2.9.0 pins API 1.10.2. Reuse the existing configuration,
+2.9.1 pins API 1.10.3. Reuse the existing configuration,
 context key, sends and notification stores. Refresh the host's tool catalog.
 Custom consumers must accept the new `formative` grade item variant, the
 `point` variant (2.4), the nullable `formative_id` on existing variants and,
@@ -35,8 +35,8 @@ The setup commands below pin the current release, as the [README](README.md) doe
 
 ## Upgrading an existing setup
 
-Change the host's version pin to `librus-mcp==2.9.0` and run it with Python 3.14
-(`uvx --python 3.14 librus-mcp==2.9.0 ...`). Keep the existing `--config` or
+Change the host's version pin to `librus-mcp==2.9.1` and run it with Python 3.14
+(`uvx --python 3.14 librus-mcp==2.9.1 ...`). Keep the existing `--config` or
 `LIBRUS_CONFIG` file. On first start the server, without operator steps:
 
 - creates a persistent context key in `state_dir/context.key` when the

@@ -4,6 +4,37 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [2.9.1] - 2026-11-20
+
+Pins `librus-python-api==1.10.3`. The tool catalog is unchanged.
+
+Thank you, @mpietson, for #121 and the libxml2 error counts that located it.
+
+### Fixed
+
+- Windows: every tool that reads a Synergia page failed with `PARSE`,
+  because lxml's Windows wheels bundle libxml2 2.11.9 (#121). API 1.10.3
+  accepts the repairs that version reports and decodes `&nbsp` without `;` as
+  the Linux and macOS wheels do; on four live logins every `check-tools`
+  result was the same with both libxml2 versions.
+- API 1.10.3: a grades page whose detail table holds one `Brak ocen` row and
+  no period headings no longer fails the read
+  (krzysztofbury/librus-python-api#184), and `get_school_year_archive`
+  returns `MAINTENANCE` instead of `PARSE` while Synergia fills the archive
+  with the previous school year.
+- `check-tools` reports `MAINTENANCE` as unavailable on the login, not as a
+  failed check.
+
+### Changed
+
+- README: on Windows on ARM, run the x64 Python
+  (`--python cpython-3.14-windows-x86_64-none`). `cryptography`, which the MCP
+  SDK needs, has no Windows ARM64 wheels since 46.0.4; `--no-build` would fall
+  back to 46.0.3, which has known security advisories.
+- CI also verifies the installed wheel on a Windows ARM64 runner with that
+  Python. The API's CI and release qualification run its full suite on
+  Windows x64 and ARM64.
+
 ## [2.9.0] - 2026-11-17
 
 Pins `librus-python-api==1.10.2`. Refresh the host's tool catalog:

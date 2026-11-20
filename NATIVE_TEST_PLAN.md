@@ -1,5 +1,31 @@
 # Native migration verification ownership
 
+## 2.9.1 Windows page reads (#121)
+
+2.9.1 pins API 1.10.3. `release_verification/measure_tools.py`: the catalog is
+unchanged, 133519 bytes for 32 default tools and 146834 bytes for 36 tools.
+
+- `test_failure_stdio.py::test_inspect_page_reads_a_page_with_browser_repairs`:
+  `inspect-page profile` reads a page with a repeated attribute, a stray quote
+  in a start tag, `nobr` and `&nbsp` without `;`. With API 1.10.2 it fails on
+  libxml2 2.11.9 (a local lxml build, as in lxml's Windows wheels) and passes
+  with 1.10.3; the Windows CI jobs run it on that libxml2.
+- `test_check_tools.py`: the archive's loading notice is reported as
+  unavailable (`MAINTENANCE`), not as a failed check.
+- CI `Installed wheel (windows-11-arm)` runs the consumer tests with the x64
+  Python the README recommends on Windows on ARM.
+
+## 2.9.0 release live check
+
+Authorized by the owner's release request, on the tagged checkout (v2.9.0,
+API 1.10.2) on 2026-11-17, `qualify_native.py --live` on the four owner
+logins: academic 58 passed, 4 `VIEW_DISABLED`, 6 without a reference (122
+requests); communication 22 passed, 2 without a sent reference, 4 expected
+unsupported (66 requests); homework_history 10 passed, 2 without a reference
+(42 requests); v21 85 passed, 2 expected unsupported (149 requests), the same
+counts as 2.8.1. `get_agenda` and `get_homework` results validated against the
+new paged schemas on all four logins.
+
 ## 2.9.0 paged agenda and homework (#117)
 
 2.9.0 pins API 1.10.2. `release_verification/measure_tools.py`: the catalog

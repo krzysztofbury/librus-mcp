@@ -5,6 +5,7 @@ from datetime import date
 
 import anyio
 import pytest
+from aiohttp import web
 from jsonschema import Draft202012Validator
 from librus_python_api import MessagingBackend
 from librus_python_api.config import ENDPOINTS, SideEffect
@@ -138,3 +139,33 @@ async def test_a_student_login_reports_parent_only_justifications_as_unavailable
     )
     # The run goes on to the next tool.
     assert lines[2].startswith("login 1 get_grades: OK")
+
+
+class ArchiveLoadingWire(Wire):
+    async def _response(self, request):
+        if request.path == "/archiwum":
+            self.calls.append((request.method, request.path, None))
+            # Observed live (2026-11-20) while Synergia fills the archive.
+            return web.Response(
+                text='<html><body><div class="warning-box information">'
+                '<div class="warning-content">Opcja chwilowo niedostępna. Aktualnie '
+                "trwa proces zasilania archiwum danymi z poprzedniego roku szkolnego. "
+                "Po zakończeniu procesu zasilania opcja zostanie ponownie "
+                "udostępniona.</div></div></body></html>",
+                content_type="text/html",
+            )
+        return await super()._response(request)
+
+
+@pytest.mark.asyncio
+async def test_a_temporarily_unavailable_archive_is_reported_as_unavailable(tmp_path):
+    lines: list[str] = []
+    async with ArchiveLoadingWire().serve() as wire:
+        with anyio.fail_after(30):
+            assert await check_tools(
+                _wire_server(wire.origin, tmp_path),
+                [(ALIAS, MessagingBackend.MODERN)],
+                ("get_school_year_archive",),
+                lines.append,
+            )
+    assert lines[1] == "login 1 get_school_year_archive: unavailable on this login (MAINTENANCE)"

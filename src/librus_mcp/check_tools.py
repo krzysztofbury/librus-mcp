@@ -97,7 +97,8 @@ REFUSED: Mapping[str, str] = {
     "get_send_outcome": "needs confirmation_token from preview_message",
 }
 # The login cannot use the tool; that is not a schema failure.
-UNAVAILABLE = frozenset({"VIEW_DISABLED", "MODULE_UNAVAILABLE"})
+# MAINTENANCE: Librus answers later, such as an archive being filled (2.9.1).
+UNAVAILABLE = frozenset({"VIEW_DISABLED", "MODULE_UNAVAILABLE", "MAINTENANCE"})
 # Parent-only modules: a student login gets UNSUPPORTED_CAPABILITY before any request.
 PARENT_ONLY = frozenset({"get_justifications"})
 

@@ -102,6 +102,25 @@ def test_inspect_page_needs_no_configuration(tmp_path, monkeypatch, capsys):
     assert "OK lucky_number=0" in capsys.readouterr().out
 
 
+def test_inspect_page_reads_a_page_with_browser_repairs(tmp_path, capsys):
+    # #121: lxml's Windows wheels bundle libxml2 2.11.9, which reports each of
+    # these repairs; every page read failed there. The Windows CI job runs this.
+    page = tmp_path / "page.html"
+    page.write_text(
+        '<html><body><table class="decorated" class="decorated">'
+        '<tr " class="line0"><th nowrap nowrap>Uczeń</th><td>A&nbspB</td></tr>'
+        "<tr><th>Klasa</th><td><nobr>1</nobr></span></td></tr>"
+        "<tr><th>Nr w dzienniku</th><td>2</td></tr>"
+        "<tr><th>Wychowawca</th><td>C&nbsp&nbsp;D</td></tr>"
+        "<tr><th>Szkoła</th><td>E</td></tr></table></body></html>",
+        encoding="utf-8",
+    )
+    with pytest.raises(SystemExit) as profile:
+        main(["inspect-page", "profile", str(page)])
+    assert profile.value.code == 0
+    assert "OK lucky_number=0" in capsys.readouterr().out
+
+
 @pytest.mark.asyncio
 async def test_an_unknown_tool_name_is_never_echoed_to_stderr(capsys):
     from librus_mcp.config import AppConfig
