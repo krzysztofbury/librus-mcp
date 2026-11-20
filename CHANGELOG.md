@@ -29,8 +29,8 @@ Thank you, @mpietson, for #121 and the libxml2 error counts that located it.
 
 - README: on Windows on ARM, run the x64 Python
   (`--python cpython-3.14-windows-x86_64-none`). `cryptography`, which the MCP
-  SDK needs, has no Windows ARM64 wheels since 47; `--no-build` would fall back
-  to 46.0.3, which has known security advisories.
+  SDK needs, has no Windows ARM64 wheels since 46.0.4; `--no-build` would fall
+  back to 46.0.3, which has known security advisories.
 - CI also verifies the installed wheel on a Windows ARM64 runner with that
   Python. The API's CI and release qualification run its full suite on
   Windows x64 and ARM64.

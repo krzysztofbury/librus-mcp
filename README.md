@@ -160,10 +160,10 @@ If a GUI assistant cannot find `uvx`, use its absolute path (`which uvx` or
 
 On Windows on ARM, replace `--python 3.14` with
 `--python cpython-3.14-windows-x86_64-none`. Windows runs that x64 Python, and
-`cryptography`, which the MCP SDK needs, publishes Windows wheels for x64 only
-since version 47; with the ARM64 Python, uv tries to compile it. Do not use
-`--no-build` instead: it falls back to cryptography 46.0.3, which has known
-security advisories. The desktop bundle below starts the ARM64 Python there, so
+`cryptography`, which the MCP SDK needs, publishes no Windows ARM64 wheels
+since version 46.0.4; with the ARM64 Python, uv tries to compile it. Do not use
+`--no-build` instead: it falls back to cryptography 46.0.3, the last version
+with them, which has known security advisories. The desktop bundle below starts the ARM64 Python there, so
 use this setup instead.
 
 ### Desktop bundle (preview)

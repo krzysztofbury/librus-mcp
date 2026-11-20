@@ -66,7 +66,7 @@ jobs:
         include:
           - python: "3.14"
           # The README setup for Windows on ARM: x64 Python, because
-          # cryptography has no Windows ARM64 wheels since 47 (#121).
+          # cryptography has no Windows ARM64 wheels since 46.0.4 (#121).
           - os: windows-11-arm
             python: cpython-3.14-windows-x86_64-none
     env:
@@ -86,7 +86,7 @@ jobs:
         run: |
           uv python install "$UV_PYTHON"
           uv sync --locked
-          uv run python -c "import platform, lxml.etree as e; print(platform.machine(), 'libxml2', e.LIBXML_VERSION)"
+          uv run python -c "import sysconfig, lxml.etree as e; print(sysconfig.get_platform(), 'libxml2', e.LIBXML_VERSION)"
 
       - name: Build package
         run: uv build --no-build-isolation
