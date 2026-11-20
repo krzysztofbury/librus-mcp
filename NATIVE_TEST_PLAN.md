@@ -1,5 +1,20 @@
 # Native migration verification ownership
 
+## 2.9.1 Windows page reads (#121)
+
+2.9.1 pins API 1.10.3. `release_verification/measure_tools.py`: the catalog is
+unchanged, 133519 bytes for 32 default tools and 146834 bytes for 36 tools.
+
+- `test_failure_stdio.py::test_inspect_page_reads_a_page_with_browser_repairs`:
+  `inspect-page profile` reads a page with a repeated attribute, a stray quote
+  in a start tag, `nobr` and `&nbsp` without `;`. With API 1.10.2 it fails on
+  libxml2 2.11.9 (a local lxml build, as in lxml's Windows wheels) and passes
+  with 1.10.3; the Windows CI jobs run it on that libxml2.
+- `test_check_tools.py`: the archive's loading notice is reported as
+  unavailable (`MAINTENANCE`), not as a failed check.
+- CI `Installed wheel (windows-11-arm)` runs the consumer tests with the x64
+  Python the README recommends on Windows on ARM.
+
 ## 2.9.0 release live check
 
 Authorized by the owner's release request, on the tagged checkout (v2.9.0,
