@@ -47,8 +47,12 @@ is needed, publish that library first, then pin it here.
 5. Inspect that run's tag, commit and results, then approve the publish job.
    `publish.yml` then runs as described below and attaches the wheel, sdist,
    `SHA256SUMS` and bundle to the release.
-6. Check what users get, as in "Verified and not verified" below, and record
-   those checks and the live counts in this file and `NATIVE_TEST_PLAN.md`.
+6. Check what users get, as in "Verified and not verified" below. Add those
+   checks and the live counts to the GitHub Release notes at once
+   (`gh release edit vX.Y.Z --notes-file FILE`), and record them in this file
+   and `NATIVE_TEST_PLAN.md` in the next change merged to `main`, the next
+   release pull request at the latest. Never open a pull request only for
+   these records: it ships nothing and costs another CI cycle.
 
 ## How a release publishes them
 
