@@ -22,6 +22,18 @@ gains `temporarily_unavailable`), 596 bytes under the 144 KiB budget.
 - CI `Installed wheel (windows-11-arm)` runs the consumer tests with the x64
   Python the README recommends on Windows on ARM.
 
+## 2.10.0 release live check
+
+Authorized by the owner's release request, on the tagged checkout (v2.10.0,
+API 1.11.0) on 2026-11-21, `qualify_native.py --live` on the four owner
+logins: academic 58 passed, 4 `VIEW_DISABLED`, 6 without a reference (122
+requests); communication 22 passed, 2 without a sent reference, 4 expected
+unsupported (66 requests); homework_history 10 passed, 2 without a reference
+(42 requests); v21 81 passed, `get_school_year_archive`
+`TEMPORARILY_UNAVAILABLE` on all four, 2 expected unsupported (149 requests).
+On the unpublished v2.9.1 tag (API 1.10.3) the same archive notice was
+`MAINTENANCE` and ended the v21 phase on the first login.
+
 ## 2.9.0 release live check
 
 Authorized by the owner's release request, on the tagged checkout (v2.9.0,
