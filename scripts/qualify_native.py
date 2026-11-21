@@ -29,7 +29,7 @@ from librus_mcp import __version__
 from librus_mcp.check_tools import PARENT_ONLY
 from librus_mcp.config import AppConfig, read_config_file
 from librus_mcp.runtime import Runtime
-from librus_mcp.server import create_server
+from librus_mcp.server import create_server, error_detail
 
 MAX_REQUESTS = 160
 MAX_SECONDS = 360.0
@@ -180,7 +180,7 @@ async def call(
     result = await session.call_tool(name, arguments)
     value = result.structured_content
     if result.is_error:
-        code = value.get("error", {}).get("code", "INTERNAL_ERROR") if value else "INTERNAL_ERROR"
+        code = error_detail(result).get("code", "INTERNAL_ERROR")
         if name in PARENT_ONLY and code == "UNSUPPORTED_CAPABILITY":
             # A student login is refused before any request; that is the defined outcome.
             records.append({"account_index": index, "tool": name, "status": "expected_unsupported"})

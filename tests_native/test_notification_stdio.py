@@ -57,7 +57,7 @@ async def test_notification_consent_restart_exact_replay_ack_and_account_isolati
                         {"account_alias": "first", "categories": categories},
                     )
                     assert rejected.is_error
-                    assert closed(rejected.structured_content) == {"error": error}
+                    assert closed(rejected) == {"error": error}
                     assert wire.calls == []
                 query = {"account_alias": "first", "categories": ["messages", "grades"]}
                 batch = await session.call_tool("get_new_notifications", query)
@@ -96,9 +96,7 @@ async def test_notification_consent_restart_exact_replay_ack_and_account_isolati
                 foreign = await session.call_tool(
                     "acknowledge_notifications", ack | {"account_alias": "second"}
                 )
-                assert foreign.is_error and closed(foreign.structured_content) == {
-                    "error": {"code": "INVALID_INPUT"}
-                }
+                assert foreign.is_error and closed(foreign) == {"error": {"code": "INVALID_INPUT"}}
                 assert len(wire.calls) == calls
                 for _ in range(2):
                     accepted = await session.call_tool("acknowledge_notifications", ack)
@@ -113,9 +111,7 @@ async def test_notification_consent_restart_exact_replay_ack_and_account_isolati
                     rejected = await session.call_tool(
                         "acknowledge_notifications", ack | {"context": wrong}
                     )
-                    assert closed(rejected.structured_content) == {
-                        "error": {"code": "INVALID_INPUT"}
-                    }
+                    assert closed(rejected) == {"error": {"code": "INVALID_INPUT"}}
                 assert len(wire.calls) == calls
             async with stdio_client(process) as streams, ClientSession(*streams) as session:
                 await session.initialize()
@@ -171,9 +167,7 @@ async def test_lost_consume_response_remains_uncertain_until_explicit_loss_accep
                 )
                 assert status.structured_content["data"]["uncertain_consume"] is True
                 again = await session.call_tool("get_new_notifications", query)
-                assert again.is_error and closed(again.structured_content) == {
-                    "error": {"code": "CHECKPOINT"}
-                }
+                assert again.is_error and closed(again) == {"error": {"code": "CHECKPOINT"}}
                 assert len(wire.calls) == calls
             path = tmp_path / "config.json"
             data = config_data() | {"state_dir": str(state), "features": {"notifications": True}}
@@ -233,9 +227,7 @@ async def test_malformed_legacy_state_stays_quarantined_for_its_account_only(tmp
                 blocked = await session.call_tool(
                     "get_new_notifications", {"account_alias": "old", "categories": ["grades"]}
                 )
-                assert blocked.is_error and closed(blocked.structured_content) == {
-                    "error": {"code": "STORAGE"}
-                }
+                assert blocked.is_error and closed(blocked) == {"error": {"code": "STORAGE"}}
                 assert (
                     wire.calls == []
                     and source.read_bytes() == b"malformed old state, do not overwrite"
@@ -271,9 +263,7 @@ async def test_consumed_checkpoint_replays_or_stays_quarantined_without_second_c
                     "get_new_notifications", query | {"allow_consume_events": True}
                 )
                 if malformed:
-                    assert result.is_error and closed(result.structured_content) == {
-                        "error": {"code": "PARSE"}
-                    }
+                    assert result.is_error and closed(result) == {"error": {"code": "PARSE"}}
                 else:
                     assert (
                         not result.is_error and len(result.structured_content["data"]["items"]) == 1
@@ -297,9 +287,7 @@ async def test_consumed_checkpoint_replays_or_stays_quarantined_without_second_c
                 assert status.structured_content["data"]["uncertain_consume"] is False
                 replay = await session.call_tool("get_new_notifications", query)
                 if malformed:
-                    assert replay.is_error and closed(replay.structured_content) == {
-                        "error": {"code": "PARSE"}
-                    }
+                    assert replay.is_error and closed(replay) == {"error": {"code": "PARSE"}}
                     retry = await session.call_tool(
                         "get_new_notifications", query | {"allow_consume_events": True}
                     )
@@ -383,7 +371,7 @@ async def test_adoption_stops_rather_than_replace_a_preserved_original(tmp_path)
         (archived / name).write_bytes(b"kept")
     async with Wire().serve() as wire:
         blocked = await poll_legacy_agenda(wire, state)
-        assert closed(blocked.structured_content) == {"error": {"code": "STORAGE"}}
+        assert closed(blocked) == {"error": {"code": "STORAGE"}}
         assert baseline.exists()
         assert {(archived / name).read_bytes() for name in names} == {b"kept"}
         # One free name is enough: the imported event is still delivered.

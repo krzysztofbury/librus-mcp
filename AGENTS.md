@@ -72,13 +72,18 @@ None of these count on their own:
 Users and testers send symptoms, not stack traces. Work from the most precise
 evidence available, in this order:
 
-1. **An error result** has `code`, `where` and `versions`. `where` is a list of
-   `module:function:line` in `librus_mcp` and `librus_python_api`, the failure
-   site last; read it against the source of exactly those versions (tags
-   `vX.Y.Z` in both repositories), not against `main`.
-2. **The host's `Invalid structured content returned by tool ...`** is
-   client-side schema validation (the MCP Python SDK validates results against the
-   catalog cached at `list_tools`). First rule out a stale catalog (reload,
+1. **An error result** has `code`, `where`, `versions` and, for a page the
+   library could not read, `at`. `where` is a list of `module:function:line`
+   in `librus_mcp` and `librus_python_api`, the failure site last; read it
+   against the source of exactly those versions (tags `vX.Y.Z` in both
+   repositories), not against `main`. `at` is the masked element path and
+   column counts at the failure; rebuild that row in an original fixture.
+2. **The host's `Invalid structured content returned by tool ...`** (Python
+   SDK) or **`Structured content does not match the tool's output schema`**
+   (TypeScript SDK) is client-side schema validation against the catalog
+   cached at `list_tools`. Before 2.10.2, TypeScript SDK 1.x hosts also showed
+   it in place of every error result, so on an older version ask for an
+   upgrade first. First rule out a stale catalog (reload,
    new session, same server version), then have the user run
    `librus-mcp check-tools`, which reports the result path and schema rule.
    It calls every tool that needs no reference and has no effect beyond
@@ -99,7 +104,8 @@ evidence available, in this order:
    both on standard error.
 
 Diagnostic output is built from allowlists in the library
-(`diagnostics.describe_failure`, `config.TOOLTIP_LABELS`): extend those lists
+(`diagnostics.describe_failure`, `diagnostics.failure_locator`,
+`config.TOOLTIP_LABELS`): extend those lists
 only with Librus-authored labels and markup, never with values. A new
 diagnostic channel must keep logins, aliases, arguments, exception messages
 and school text out, with a test that plants a marker and asserts it never

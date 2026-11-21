@@ -398,70 +398,79 @@ reference. Downloading does not open the message body.
 Diagnostics never print school data, logins or aliases; review any output
 before sharing it anyway.
 
-| Situation | What to use | What you get |
-| --- | --- | --- |
-| A tool returns an error | the error result itself | `code`, `where` (code locations, the failure site last), `versions` |
-| You want to see failures in the logs | the server's standard error (`docker logs` for the image) | one line per failed call |
-| You want the page structure of a failure | `LIBRUS_MCP_DIAGNOSE_FAILURES=1` | the masked HTML structure around the failure, or a summary of the whole page (notices, table rows, known labels), on standard error |
-| A tool returns `CONSENT_REQUIRED` | ask the user, then call again with the input named in `requires` | for a received message, `allow_mark_read=true`: opening marks it read in Librus (only with `mark_read_consent`, or after `allow_mark_read=false`); for new calendar events in `get_new_notifications`, `allow_consume_events=true`: Librus reports them only once |
-| You want a trace of every Librus read | `LIBRUS_MCP_LOG_OPERATIONS=1` | one line per read: operation, outcome, time, requests, HTTP status, failure site |
-| The assistant says `Invalid structured content returned by tool ...` | reload the assistant's tool list, then `librus-mcp check-tools` | the failing result path and schema rule |
-| A page fails to parse and you want to report it | `librus-mcp inspect-page grades page.html` (or `final-grades`, `profile`) | counts, or code locations and the masked structure, offline |
+### When a tool fails
 
-With Docker, pass the variables with `-e NAME=1` and read `docker logs`. Run
-`check-tools` in the running container with
-`docker exec CONTAINER librus-mcp check-tools` (it uses the container's own
-configuration and signs every login in a second time, so the server's next
-read may have to sign in again). `inspect-page` needs the file inside the
-container; use the `docker run` form in step 2 below.
+1. **Copy the error result.** It is JSON with `code`, `where` (code
+   locations, the failure site last), `at` for a page the library could not
+   read (where in the page it failed, as masked structure and column counts,
+   such as `table.stretch.decorated[1] > tbody[1] > tr.bolded.line0[2] >
+   td.center[7]; cells 7, columns 11, width 10`) and `versions`. For `PARSE`
+   or `UNSUPPORTED_CAPABILITY`, your school's page has a layout the library
+   does not read yet: open an
+   [issue](https://github.com/krzysztofbury/librus-mcp/issues) with that
+   JSON. It is often enough to fix it. The server's standard error
+   (`docker logs` for the image) has the same line for every failed call.
+2. **If asked for more, run `inspect-page` on the saved page.** It reads the
+   page offline and prints counts, or the masked structure around the
+   failure:
+   - Save the failing page's source as `page.html` (UTF-8). On Windows and
+     Linux press Ctrl+U, then Ctrl+S. On macOS, in Safari use File > Save As
+     with format Page Source; in Chrome press Option+Cmd+U, then Cmd+S. Do not
+     paste the source into TextEdit: that saves a text document, which
+     `inspect-page` rejects.
 
-- **`Invalid structured content returned by tool ...`** comes from your
-  assistant, not the server: it checks each result against the tool list it
-  saved. After an upgrade, reload the tool list (Hermes: `/reload-mcp`;
-  otherwise restart the assistant or reconnect the server). If it persists,
-  run `uvx --python 3.14 librus-mcp==2.10.1 --config /path/to/config.json check-tools`.
-  It calls every read tool that needs no reference for every login (about 20
-  tool calls per login, each one or more normal Librus reads, which change
-  the views, week and month Librus remembers as the tools do), checks each result the way assistants do
-  and prints the failing path and schema rule, never school data. Modern-only
-  tools are skipped on legacy logins. Tools that need a reference or have an
-  effect are never called: the detail tools, `get_message_content`,
-  `get_recipient_choices`, `get_recipients`, `download_attachment`,
-  `get_new_notifications`, `acknowledge_notifications`, `preview_message`,
-  `send_message` and `get_send_outcome`. Repeat `--tool NAME` to check only
-  those tools; the ones above are refused.
-- **A tool returns `PARSE` or `UNSUPPORTED_CAPABILITY`**: the error lists
-  `where` it failed and the `versions`. Your school's page has a layout the
-  library does not read yet. To report it without sharing school data:
-  1. In the browser, open the failing page and save its source as
-     `page.html` (UTF-8):
-
-     | Tool | Page | `inspect-page` parser |
+     | Tool | Page | Parser |
      | --- | --- | --- |
      | `get_grades`, `get_grades_window` | `https://synergia.librus.pl/przegladaj_oceny/uczen` | `grades` |
      | `get_final_grades` | the same page | `final-grades` |
      | `get_student_information` | `https://synergia.librus.pl/informacja` | `profile` |
 
-     On Windows and Linux press Ctrl+U, then Ctrl+S. On macOS, in Safari use
-     File > Save As with format Page Source; in Chrome press Option+Cmd+U,
-     then Cmd+S. Do not paste the source into TextEdit: that saves a text
-     document, which `inspect-page` rejects. A copied table (Inspect, Copy
-     outer HTML) also works, but shows the page after its scripts ran.
-  2. Run `uvx --python 3.14 librus-mcp==2.10.1 inspect-page grades page.html`
-     (with the parser from the table). With Docker:
-     `docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/in:ro" ghcr.io/krzysztofbury/librus-mcp:2.10.1 inspect-page grades /in/page.html`
+   - Run `uvx --python 3.14 librus-mcp==2.10.2 inspect-page grades page.html`
+     with the parser from the table. With Docker:
+     `docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/in:ro" ghcr.io/krzysztofbury/librus-mcp:2.10.2 inspect-page grades /in/page.html`
      (add `:z` after `ro` on SELinux hosts).
-  3. Review the output and attach it to an
-     [issue](https://github.com/krzysztofbury/librus-mcp/issues), together
-     with the `where` and `versions` from the error.
+   - Review the output and attach it to the issue.
 
-  If your saved page passes `inspect-page` but the tool still fails, the
-  server received a different page than your browser (a notice, an error
-  page, or another login). Restart the server with
-  `LIBRUS_MCP_DIAGNOSE_FAILURES=1` and `LIBRUS_MCP_LOG_OPERATIONS=1`, repeat
-  the call, and attach the server's standard error: it summarizes the page
-  the server received (notices, tables, known labels, lengths) and the
-  response size, without its text.
+   If the saved page passes `inspect-page` but the tool still fails, the
+   server received a different page (a notice, an error page or another
+   login). Restart it with `LIBRUS_MCP_DIAGNOSE_FAILURES=1` and
+   `LIBRUS_MCP_LOG_OPERATIONS=1`, repeat the call and attach its standard
+   error: a summary of the page it received and one line per Librus read,
+   without page text. With Docker, pass them with `-e NAME=1`.
+
+A tool returning `CONSENT_REQUIRED` has not failed: ask the user, then call
+again with the input named in `requires` (`allow_mark_read=true` for a
+received message, which marks it read in Librus; `allow_consume_events=true`
+for new calendar events in `get_new_notifications`, which Librus reports only
+once).
+
+### When the assistant rejects a result
+
+`Invalid structured content returned by tool ...` (Python MCP SDK) or
+`Structured content does not match the tool's output schema` (TypeScript MCP
+SDK) comes from your assistant, not the server: it checks each result against
+the tool list it saved.
+
+- After an upgrade, reload the tool list (Hermes: `/reload-mcp`; otherwise
+  restart the assistant or reconnect the server).
+- Before 2.10.2, assistants on the TypeScript SDK 1.x showed this message
+  instead of every error result. Upgrade to see the error itself.
+- If it persists, run
+  `uvx --python 3.14 librus-mcp==2.10.2 --config /path/to/config.json check-tools`.
+  It checks each result the way assistants do and prints the failing path and
+  schema rule, never school data. It calls every read tool that needs no
+  reference for every login: about 20 calls per login, each one or more
+  normal Librus reads, which change the views, week and month Librus
+  remembers as the tools do. Modern-only tools are skipped on legacy logins.
+  Tools that need a reference or have an effect are never called: the detail
+  tools, `get_message_content`, `get_recipient_choices`, `get_recipients`,
+  `download_attachment`, `get_new_notifications`,
+  `acknowledge_notifications`, `preview_message`, `send_message` and
+  `get_send_outcome`. Repeat `--tool NAME` to check only those tools; the
+  ones above are refused. In a running container, use
+  `docker exec CONTAINER librus-mcp check-tools`: it uses the container's
+  configuration and signs every login in a second time, so the server's next
+  read may have to sign in again.
 
 ## Privacy
 

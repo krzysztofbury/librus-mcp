@@ -17,7 +17,7 @@ from librus_python_api import MessagingBackend
 from mcp import Client
 
 from librus_mcp import __version__
-from librus_mcp.server import VERSIONS, NativeServer
+from librus_mcp.server import VERSIONS, NativeServer, error_detail
 
 Arguments = Callable[[date], dict[str, Any]]
 
@@ -203,16 +203,17 @@ async def _check(
     except Exception as error:  # noqa: BLE001 - reported by type; messages may hold data
         write(f"{label}: client error {type(error).__name__}")
         return False
-    content = result.structured_content or {}
     if result.is_error:
-        detail = content.get("error", {})
+        detail = error_detail(result)
         code = detail.get("code")
         if code in UNAVAILABLE or (code == "UNSUPPORTED_CAPABILITY" and tool in PARENT_ONLY):
             write(f"{label}: unavailable on this login ({code})")
             return True
         where = " < ".join(reversed(detail.get("where", [])))
-        write(f"{label}: tool error {code}" + (f" at {where}" if where else ""))
+        page = f"; page {detail['at']}" if detail.get("at") else ""
+        write(f"{label}: tool error {code}" + (f" at {where}" if where else "") + page)
         return False
+    content = result.structured_content or {}
     items = content.get("items") if isinstance(content, dict) else None
     count = f", {len(items)} items" if isinstance(items, list) else ""
     write(f"{label}: OK{count}")

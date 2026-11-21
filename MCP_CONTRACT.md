@@ -45,8 +45,17 @@ reach. Since 2.9.0 `get_agenda` and `get_homework` page the same way, with a
 cursor bound to the month or date range. References are inert identifiers, not
 upstream URLs.
 
-Domain/protocol errors return `isError=true` and
+Domain/protocol errors return `isError=true` and one text block holding
 `{"error":{"code":"CLOSED_CODE","where":[...],"versions":{"mcp":"X","api":"Y"}}}`.
+Since 2.10.2 an error result has no `structuredContent`: hosts on the
+TypeScript MCP SDK 1.x validate `structuredContent` against the tool's output
+schema even when `isError` is set, so they replaced every error with
+`Structured content does not match the tool's output schema`
+(librus-python-api#189). Read the JSON from the text block. For a page the
+library could not read (`PARSE`, `UNSUPPORTED_CAPABILITY`, `INTERNAL_ERROR`),
+2.10.2 adds `at`: where in the page it failed, as the masked element path and
+the column counts compared (API `diagnostics.failure_locator`), never page
+text or values; omitted when no page element is involved.
 Since 2.5, `where` lists the failure's code locations in `librus_mcp` and
 `librus_python_api` (`module:function:line`, the original site last; omitted
 when there is none) and `versions` names both packages; unanticipated errors
@@ -77,7 +86,9 @@ built from closed models), so a later release can add an optional result field
 without breaking such a host. A new enum value, a changed type, a renamed or
 removed field still needs the host to reload the catalog; the CHANGELOG says
 so for each release that has one. The symptom of a stale catalog is the
-host's own error, `Invalid structured content returned by tool <name>`.
+host's own error on a successful result, `Invalid structured content returned
+by tool <name>` (Python SDK) or `Structured content does not match the tool's
+output schema` (TypeScript SDK).
 
 ## Additive e-Justifications (#102)
 
