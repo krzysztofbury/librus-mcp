@@ -679,7 +679,7 @@ wheels = [
 
 [[package]]
 name = "librus-mcp"
-version = "2.10.0"
+version = "2.10.1"
 source = { editable = "." }
 dependencies = [
     { name = "librus-python-api" },
@@ -705,7 +705,7 @@ mutation = [
 
 [package.metadata]
 requires-dist = [
-    { name = "librus-python-api", specifier = "==1.11.0" },
+    { name = "librus-python-api", specifier = "==1.11.1" },
     { name = "mcp", specifier = ">=2.2.0,<3" },
     { name = "pydantic", specifier = ">=2.12,<3" },
     { name = "pywin32", marker = "sys_platform == 'win32'", specifier = ">=312" },
@@ -726,7 +726,7 @@ mutation = [{ name = "mutmut", marker = "sys_platform != 'win32'", specifier = "
 
 [[package]]
 name = "librus-python-api"
-version = "1.11.0"
+version = "1.11.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "aiohttp" },
@@ -736,9 +736,9 @@ dependencies = [
     { name = "tzdata", marker = "sys_platform == 'win32'" },
     { name = "yarl" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/bc/12/4a35fe3a2a8dcfcd89fd83fd867bba67b1a21979f56d052fd765b8cf1267/librus_python_api-1.11.0.tar.gz", hash = "sha256:3fa1daee5c34905a125044f805f48a6cc751da1a58db71154b96e34852d51963", size = 368729, upload-time = "2026-11-21T08:41:24.538Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/2d/5f/8b67ea1cc2c5f39de83e5b23900e34bf06a12076786bd5b5658d77706f34/librus_python_api-1.11.1.tar.gz", hash = "sha256:e42a87ffbdf952daf4ca8a70941486ab4b1145234e419d6fb047980ef78ac81b", size = 369222, upload-time = "2026-11-21T12:05:07.998Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/c1/25/c887a84f78a6be66cce7112efe48f419dcf146db5aeece1e640444ed2498/librus_python_api-1.11.0-py3-none-any.whl", hash = "sha256:b3387eb1922e566287e4794b2c11330cb9291224825566a0ebbbf8540ab46514", size = 196655, upload-time = "2026-11-21T08:41:23.312Z" },
+    { url = "https://files.pythonhosted.org/packages/b1/da/c887ae29fb7bc1dbf47bfaa79e6a402db4c645a6faf489516075ccaf7a9a/librus_python_api-1.11.1-py3-none-any.whl", hash = "sha256:de753fb26a43ce6142f2f39bb80a0599614002fac5a8aa8341ae8b500e07f4c7", size = 197023, upload-time = "2026-11-21T12:05:06.32Z" },
 ]
 
 [[package]]
