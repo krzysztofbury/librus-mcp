@@ -656,3 +656,30 @@ async def test_the_live_qualifier_accepts_any_parent_coverage_and_the_student_re
                 )
     assert not stop
     assert records == [{"account_index": 1, "tool": "get_justifications"} | record]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("status", "code", "stops"),
+    [(200, "TEMPORARILY_UNAVAILABLE", False), (503, "MAINTENANCE", True)],
+)
+async def test_the_live_qualifier_goes_on_past_a_view_unavailable_for_now(status, code, stops):
+    # 2.10.0: as MAINTENANCE, the archive's loading notice ended every login.
+    from tests_native.test_check_tools import ArchiveLoadingWire
+
+    qualifier = _qualifier()
+    wire = ArchiveLoadingWire()
+    wire.status = status
+    async with wire.serve():
+        with anyio.fail_after(30):
+            async with (
+                stdio_client(server_process(wire.origin, [("first", "71")])) as streams,
+                ClientSession(*streams) as session,
+            ):
+                await session.initialize()
+                records = []
+                _, stop = await qualifier.call(
+                    session, records, 1, "get_school_year_archive", {"account_alias": "first"}
+                )
+    assert stop is stops
+    assert records == [{"account_index": 1, "tool": "get_school_year_archive", "status": code}]

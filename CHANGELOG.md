@@ -4,9 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
-## [2.9.1] - 2026-11-20
+## [2.10.0] - 2026-11-21
 
-Pins `librus-python-api==1.10.3`. The tool catalog is unchanged.
+Pins `librus-python-api==1.11.0`. With sending enabled, refresh the host's
+tool catalog: `send_message`'s `reason` can now be `temporarily_unavailable`.
+The default catalog is unchanged. 2.9.1 was tagged but never published; its
+changes are part of this release.
 
 Thank you, @mpietson, for #121 and the libxml2 error counts that located it.
 
@@ -19,11 +22,15 @@ Thank you, @mpietson, for #121 and the libxml2 error counts that located it.
   result was the same with both libxml2 versions.
 - API 1.10.3: a grades page whose detail table holds one `Brak ocen` row and
   no period headings no longer fails the read
-  (krzysztofbury/librus-python-api#184), and `get_school_year_archive`
-  returns `MAINTENANCE` instead of `PARSE` while Synergia fills the archive
-  with the previous school year.
-- `check-tools` reports `MAINTENANCE` as unavailable on the login, not as a
-  failed check.
+  (krzysztofbury/librus-python-api#184).
+- `get_school_year_archive` failed with `PARSE` while Synergia fills the
+  archive with the previous school year. With API 1.11.0 it returns the new
+  error code `TEMPORARILY_UNAVAILABLE`: only this view is unavailable for now,
+  the rest of Librus works, and a later call can succeed. `MAINTENANCE` still
+  means Librus itself is down.
+- `check-tools` reports `TEMPORARILY_UNAVAILABLE` as unavailable on the
+  login, not as a failed check. `scripts/qualify_native.py` records it and
+  goes on with the login, as it does for `VIEW_DISABLED`.
 
 ### Changed
 

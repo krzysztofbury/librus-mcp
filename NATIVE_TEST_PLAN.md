@@ -1,17 +1,24 @@
 # Native migration verification ownership
 
-## 2.9.1 Windows page reads (#121)
+## 2.10.0 Windows page reads (#121), archive unavailable for now
 
-2.9.1 pins API 1.10.3. `release_verification/measure_tools.py`: the catalog is
-unchanged, 133519 bytes for 32 default tools and 146834 bytes for 36 tools.
+2.10.0 pins API 1.11.0 (2.9.1 was tagged, never published).
+`release_verification/measure_tools.py`: 133519 bytes for 32 default tools
+(unchanged) and 146860 bytes for 36 tools (+26: `send_message`'s `reason` enum
+gains `temporarily_unavailable`), 596 bytes under the 144 KiB budget.
 
 - `test_failure_stdio.py::test_inspect_page_reads_a_page_with_browser_repairs`:
   `inspect-page profile` reads a page with a repeated attribute, a stray quote
   in a start tag, `nobr` and `&nbsp` without `;`. With API 1.10.2 it fails on
   libxml2 2.11.9 (a local lxml build, as in lxml's Windows wheels) and passes
   with 1.10.3; the Windows CI jobs run it on that libxml2.
-- `test_check_tools.py`: the archive's loading notice is reported as
-  unavailable (`MAINTENANCE`), not as a failed check.
+- `test_check_tools.py::test_only_a_view_unavailable_for_now_passes_as_unavailable`:
+  the archive's loading notice is reported as unavailable
+  (`TEMPORARILY_UNAVAILABLE`, API 1.11.0), not as a failed check, while an
+  HTTP 503 (`MAINTENANCE`) is still a failed check.
+- `test_v21_stdio.py::test_the_live_qualifier_goes_on_past_a_view_unavailable_for_now`:
+  `qualify_native.py` records `TEMPORARILY_UNAVAILABLE` and goes on with the
+  login; `MAINTENANCE` still ends it.
 - CI `Installed wheel (windows-11-arm)` runs the consumer tests with the x64
   Python the README recommends on Windows on ARM.
 
