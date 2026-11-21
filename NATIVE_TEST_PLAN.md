@@ -22,6 +22,15 @@ gains `temporarily_unavailable`), 596 bytes under the 144 KiB budget.
 - CI `Installed wheel (windows-11-arm)` runs the consumer tests with the x64
   Python the README recommends on Windows on ARM.
 
+## 2.10.1 Windows stores shared by several processes
+
+2.10.1 pins API 1.11.1, whose Windows sidecar check treats a SQLite journal
+deleted by another process's commit as absent
+(krzysztofbury/librus-python-api#187). That repository's two-process
+durable-send test failed in 36 of 180 repeated Windows CI runs before the fix
+and in none after. No MCP code changed. `release_verification/measure_tools.py`:
+133519 bytes for 32 default tools and 146860 bytes for 36 tools, unchanged.
+
 ## 2.10.0 release live check
 
 Authorized by the owner's release request, on the tagged checkout (v2.10.0,

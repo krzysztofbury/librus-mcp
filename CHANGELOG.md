@@ -4,6 +4,23 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [2.10.1] - 2026-11-21
+
+Pins `librus-python-api==1.11.1`. The tool catalog is unchanged.
+
+### Fixed
+
+- Windows: with several server processes sharing one state directory, such
+  as one per agent host session, a tool could fail with `STORAGE`, including
+  `send_message` after the message was dispatched. Between the store's check
+  of SQLite's rollback journal and its open, another process's commit could
+  delete the journal. API 1.11.1 treats a journal that is gone as absent, as
+  on Linux and macOS (krzysztofbury/librus-python-api#187).
+
+### Changed
+
+- CI requires the Windows on ARM installed-wheel job on every pull request.
+
 ## [2.10.0] - 2026-11-21
 
 Pins `librus-python-api==1.11.0`. With sending enabled, refresh the host's
