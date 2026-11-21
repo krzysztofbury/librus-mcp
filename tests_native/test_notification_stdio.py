@@ -291,7 +291,7 @@ async def test_consumed_checkpoint_replays_or_stays_quarantined_without_second_c
                     retry = await session.call_tool(
                         "get_new_notifications", query | {"allow_consume_events": True}
                     )
-                    assert retry.is_error and retry.structured_content == replay.structured_content
+                    assert retry.is_error and closed(retry) == closed(replay)
                 else:
                     assert not replay.is_error and replay.structured_content == batch
                     acknowledged = await session.call_tool(

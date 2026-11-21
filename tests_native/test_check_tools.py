@@ -14,7 +14,7 @@ from librus_mcp.check_tools import CATALOG_TOOLS, CHECKS, MODERN_ONLY, REFUSED, 
 from librus_mcp.config import AppConfig
 from librus_mcp.server import create_server
 from tests_native.test_config import config_data
-from tests_native.test_failure_stdio import ALIAS, _wire_server
+from tests_native.test_failure_stdio import ALIAS, SECRET, BrokenTooltipWire, _wire_server
 from tests_native.wire import Wire
 
 PROFILES = [
@@ -188,3 +188,22 @@ async def test_only_a_view_unavailable_for_now_passes_as_unavailable(
                 is passed
             )
     assert lines[1].startswith(f"login 1 get_school_year_archive: {line}")
+
+
+@pytest.mark.asyncio
+async def test_a_page_failure_names_where_in_the_page_without_school_data(tmp_path):
+    lines: list[str] = []
+    wire = BrokenTooltipWire()
+    async with wire.serve():
+        with anyio.fail_after(30):
+            assert not await check_tools(
+                _wire_server(wire.origin, tmp_path),
+                [(ALIAS, MessagingBackend.MODERN)],
+                ("get_grades",),
+                lines.append,
+            )
+    assert lines[1].startswith("login 1 get_grades: tool error PARSE at markup:tooltip_fields:")
+    assert lines[1].endswith(
+        "; page table.stretch.decorated[1] > tbody[1] > tr[1] > td[3] > span.grade-box[1] > a[1]"
+    )
+    assert all(SECRET not in line for line in lines)
