@@ -17,7 +17,7 @@ Upgrading from 1.x? See [Upgrading from 1.x](#upgrading-from-1x).
 
 ## Quick start
 
-The commands below pin **2.10.1**, using the native API 1.11.1. You need your
+The commands below pin **2.10.2**, using the native API 1.11.2. You need your
 Librus Synergia login and password. Accounts that require interactive
 two-factor authentication are not supported.
 
@@ -103,7 +103,7 @@ Claude Code:
 
 ```bash
 claude mcp add --scope user --transport stdio librus \
-  -- uvx --python 3.14 librus-mcp==2.10.1 --config /absolute/path/to/config.json
+  -- uvx --python 3.14 librus-mcp==2.10.2 --config /absolute/path/to/config.json
 ```
 
 Claude Desktop (Settings > Developer > Edit Config):
@@ -113,7 +113,7 @@ Claude Desktop (Settings > Developer > Edit Config):
   "mcpServers": {
     "librus": {
       "command": "uvx",
-      "args": ["--python", "3.14", "librus-mcp==2.10.1", "--config", "/absolute/path/to/config.json"]
+      "args": ["--python", "3.14", "librus-mcp==2.10.2", "--config", "/absolute/path/to/config.json"]
     }
   }
 }
@@ -123,21 +123,21 @@ Gemini CLI:
 
 ```bash
 gemini mcp add --scope user --transport stdio \
-  librus uvx --python 3.14 librus-mcp==2.10.1 --config /absolute/path/to/config.json
+  librus uvx --python 3.14 librus-mcp==2.10.2 --config /absolute/path/to/config.json
 ```
 
 OpenAI Codex CLI:
 
 ```bash
 codex mcp add librus \
-  -- uvx --python 3.14 librus-mcp==2.10.1 --config /absolute/path/to/config.json
+  -- uvx --python 3.14 librus-mcp==2.10.2 --config /absolute/path/to/config.json
 ```
 
 OpenCode:
 
 ```bash
 opencode mcp add librus --global -- \
-  uvx --python 3.14 librus-mcp==2.10.1 --config /absolute/path/to/config.json
+  uvx --python 3.14 librus-mcp==2.10.2 --config /absolute/path/to/config.json
 ```
 
 Hermes Agent (`~/.hermes/config.yaml`):
@@ -146,13 +146,13 @@ Hermes Agent (`~/.hermes/config.yaml`):
 mcp_servers:
   librus:
     command: "uvx"
-    args: ["--python", "3.14", "librus-mcp==2.10.1", "--config", "/absolute/path/to/config.json"]
+    args: ["--python", "3.14", "librus-mcp==2.10.2", "--config", "/absolute/path/to/config.json"]
 ```
 
 Check the setup without contacting Librus:
 
 ```bash
-uvx --python 3.14 librus-mcp==2.10.1 --config /absolute/path/to/config.json --check-config
+uvx --python 3.14 librus-mcp==2.10.2 --config /absolute/path/to/config.json --check-config
 ```
 
 If a GUI assistant cannot find `uvx`, use its absolute path (`which uvx` or
@@ -168,7 +168,7 @@ use this setup instead.
 
 ### Desktop bundle (preview)
 
-Each release attaches `librus-mcp-2.10.1.mcpb` to its
+Each release attaches `librus-mcp-2.10.2.mcpb` to its
 [GitHub release](https://github.com/krzysztofbury/librus-mcp/releases). Open it
 with an app that supports MCP Bundles, such as Claude Desktop. The app asks for
 the Librus login and password, keeps them in its settings, and installs Python
@@ -189,7 +189,7 @@ readable only by it:
 ```bash
 mkdir -p ~/librus-mcp/data && cd ~/librus-mcp
 # config.json: the same format as above, any number of logins
-docker run --rm ghcr.io/krzysztofbury/librus-mcp:2.10.1 --generate-token > token
+docker run --rm ghcr.io/krzysztofbury/librus-mcp:2.10.2 --generate-token > token
 chmod 600 config.json token
 ```
 
@@ -199,7 +199,7 @@ of `id -u` and `id -g`:
 ```yaml
 services:
   librus-mcp:
-    image: ghcr.io/krzysztofbury/librus-mcp:2.10.1
+    image: ghcr.io/krzysztofbury/librus-mcp:2.10.2
     command: ["--transport", "http", "--allowed-host", "librus-mcp.example.lan:*"]
     user: "1000:1000"
     environment:
@@ -261,7 +261,7 @@ Things to know about HTTP mode:
 
 The same image also runs over stdio for a client on the Docker host:
 `docker run -i --rm -v librus-mcp-data:/data -e LIBRUS_USERNAME -e LIBRUS_PASSWORD
-ghcr.io/krzysztofbury/librus-mcp:2.10.1`.
+ghcr.io/krzysztofbury/librus-mcp:2.10.2`.
 
 ### MCP Registry
 
@@ -273,7 +273,7 @@ and the desktop bundle. Clients that install from the registry ask for
 
 ## Upgrading from 1.x
 
-Change the version in your assistant's configuration to `librus-mcp==2.10.1`, add
+Change the version in your assistant's configuration to `librus-mcp==2.10.2`, add
 `--python 3.14` before it and keep your existing `--config` file. On first start
 2.0 adapts the old setup automatically: it creates the key, restricts shared
 1.x folders to your user, ignores the removed behaviour-notes setting and adopts
@@ -343,7 +343,7 @@ last month, and changes no filter. A student login gets
 ### What's new in 2.1
 
 Keep your existing 2.0 configuration, context key and durable state; reconnect
-your assistant to refresh its tool catalog. The server pins API 1.11.1.
+your assistant to refresh its tool catalog. The server pins API 1.11.2.
 
 - Ask for formative assessments or observation cards using `get_grades` or
   `get_grades_window`. `items` can now have `record_type="formative"` with an
