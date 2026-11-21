@@ -62,7 +62,11 @@ inputs, aliases, messages, credentials, tokens, HTML, causes or raw exception
 text are included. Unanticipated errors are
 `INTERNAL_ERROR`. Unsupported capability and valid empty results are distinct.
 `MODULE_UNAVAILABLE` means the school's product lacks a module; it is distinct
-from `VIEW_DISABLED`, `ACCESS_DENIED` and parser failures.
+from `VIEW_DISABLED`, `ACCESS_DENIED` and parser failures. Since 2.10.0,
+`TEMPORARILY_UNAVAILABLE` means Synergia says this one view is unavailable for
+now, such as the school-year archive while it is filled with the previous
+year; other tools still work and a later call can succeed. `MAINTENANCE`
+means Librus itself is down (HTTP 503).
 
 ## Output schema evolution (2.5)
 

@@ -142,9 +142,13 @@ async def test_a_student_login_reports_parent_only_justifications_as_unavailable
 
 
 class ArchiveLoadingWire(Wire):
+    status = 200
+
     async def _response(self, request):
         if request.path == "/archiwum":
             self.calls.append((request.method, request.path, None))
+            if self.status != 200:
+                return web.Response(status=self.status)
             # Observed live (2026-11-20) while Synergia fills the archive.
             return web.Response(
                 text='<html><body><div class="warning-box information">'
@@ -158,14 +162,29 @@ class ArchiveLoadingWire(Wire):
 
 
 @pytest.mark.asyncio
-async def test_a_temporarily_unavailable_archive_is_reported_as_unavailable(tmp_path):
+@pytest.mark.parametrize(
+    "status,passed,line",
+    [
+        (200, True, "unavailable on this login (TEMPORARILY_UNAVAILABLE)"),
+        # 2.10.0: Synergia being down is a failed check again, as before 2.9.1.
+        (503, False, "tool error MAINTENANCE"),
+    ],
+)
+async def test_only_a_view_unavailable_for_now_passes_as_unavailable(
+    tmp_path, status, passed, line
+):
     lines: list[str] = []
-    async with ArchiveLoadingWire().serve() as wire:
+    wire = ArchiveLoadingWire()
+    wire.status = status
+    async with wire.serve():
         with anyio.fail_after(30):
-            assert await check_tools(
-                _wire_server(wire.origin, tmp_path),
-                [(ALIAS, MessagingBackend.MODERN)],
-                ("get_school_year_archive",),
-                lines.append,
+            assert (
+                await check_tools(
+                    _wire_server(wire.origin, tmp_path),
+                    [(ALIAS, MessagingBackend.MODERN)],
+                    ("get_school_year_archive",),
+                    lines.append,
+                )
+                is passed
             )
-    assert lines[1] == "login 1 get_school_year_archive: unavailable on this login (MAINTENANCE)"
+    assert lines[1].startswith(f"login 1 get_school_year_archive: {line}")
