@@ -13,6 +13,17 @@ field over stdio, on standard error, and that the planted marker appears in
 neither. `release_verification/measure_tools.py`: 133519 bytes for 32 default
 tools and 146860 bytes for 36 tools, unchanged.
 
+## 2.10.2 release live check
+
+Authorized by the owner's release request, on the tagged checkout (v2.10.2,
+API 1.11.2) on 2026-11-21, `qualify_native.py --live` on the four owner
+logins gave the same counts and request totals as 2.10.1: academic 58
+passed, 4 `VIEW_DISABLED`, 6 without a reference (122 requests);
+communication 22 passed, 2 without a sent reference, 4 expected unsupported
+(66 requests); homework_history 10 passed, 2 without a reference (42
+requests); v21 81 passed, `get_school_year_archive` `TEMPORARILY_UNAVAILABLE`
+on all four, 2 expected unsupported (149 requests).
+
 ## 2.10.0 Windows page reads (#121), archive unavailable for now
 
 2.10.0 pins API 1.11.0 (2.9.1 was tagged, never published).
