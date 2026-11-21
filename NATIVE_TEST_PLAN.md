@@ -1,5 +1,18 @@
 # Native migration verification ownership
 
+## 2.10.2 Error results as text; a behaviour row wider than the grade table
+
+2.10.2 pins API 1.11.2, which reads a `Zachowanie` row whose last cell spans
+one column past the grade table's header, for exactly the cell spans
+reported (krzysztofbury/librus-python-api#189). Error results are text only,
+without `structuredContent`, because hosts on the TypeScript MCP SDK 1.x
+validated it against the output schema even on an error. Every error test
+reads the payload through `tests_native/errors.py::closed`, which asserts that
+`structuredContent` is absent. `test_failure_stdio.py` checks the new `at`
+field over stdio, on standard error, and that the planted marker appears in
+neither. `release_verification/measure_tools.py`: 133519 bytes for 32 default
+tools and 146860 bytes for 36 tools, unchanged.
+
 ## 2.10.0 Windows page reads (#121), archive unavailable for now
 
 2.10.0 pins API 1.11.0 (2.9.1 was tagged, never published).

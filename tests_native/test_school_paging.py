@@ -189,16 +189,12 @@ async def test_a_large_result_is_returned_page_by_page(name, query, other, attri
     reads = client.reads
     for change in other:
         moved = await server.call_tool(name, query | change | {"cursor": cursor}, context)
-        assert moved.is_error and closed(moved.structured_content) == {
-            "error": {"code": "INVALID_INPUT"}
-        }
+        assert moved.is_error and closed(moved) == {"error": {"code": "INVALID_INPUT"}}
     assert client.reads == reads
     # A changed month or range is stale, not a page of the new collection.
     setattr(client, attribute, getattr(client, attribute)[1:])
     stale = await server.call_tool(name, query | {"cursor": cursor}, context)
-    assert stale.is_error and closed(stale.structured_content) == {
-        "error": {"code": "STALE_CURSOR"}
-    }
+    assert stale.is_error and closed(stale) == {"error": {"code": "STALE_CURSOR"}}
 
 
 @pytest.mark.asyncio

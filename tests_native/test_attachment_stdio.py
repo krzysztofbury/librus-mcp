@@ -73,7 +73,7 @@ async def test_download_namespace_follows_the_reference_unless_the_file_flag_is_
                 if archived:
                     # An archive message's files are never in the current namespace.
                     assert result.is_error
-                    assert closed(result.structured_content) == {"error": {"code": "INVALID_INPUT"}}
+                    assert closed(result) == {"error": {"code": "INVALID_INPUT"}}
                     assert len(wire.calls) == calls
                 else:
                     assert not result.is_error, result
@@ -158,9 +158,7 @@ async def test_native_publication_binding_resource_restart_and_failed_download(t
                 foreign = await session.call_tool(
                     "download_attachment", arguments | {"account_alias": "second"}
                 )
-                assert foreign.is_error and closed(foreign.structured_content) == {
-                    "error": {"code": "INVALID_INPUT"}
-                }
+                assert foreign.is_error and closed(foreign) == {"error": {"code": "INVALID_INPUT"}}
                 assert len(wire.calls) == calls
                 result = await session.call_tool("download_attachment", arguments)
                 assert not result.is_error, result
@@ -192,15 +190,11 @@ async def test_native_publication_binding_resource_restart_and_failed_download(t
                 limited = await session.call_tool(
                     "download_attachment", arguments | {"max_bytes": 1}
                 )
-                assert limited.is_error and closed(limited.structured_content) == {
-                    "error": {"code": "LIMIT"}
-                }
+                assert limited.is_error and closed(limited) == {"error": {"code": "LIMIT"}}
                 assert set(path.parent.iterdir()) == files
                 wire.attachment_location = "https://example.invalid/GetFile/not-authorized"
                 denied = await session.call_tool("download_attachment", arguments)
-                assert denied.is_error and closed(denied.structured_content) == {
-                    "error": {"code": "ACCESS_DENIED"}
-                }
+                assert denied.is_error and closed(denied) == {"error": {"code": "ACCESS_DENIED"}}
                 assert set(path.parent.iterdir()) == files
             if uri:
                 async with stdio_client(process) as streams, ClientSession(*streams) as session:

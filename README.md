@@ -17,7 +17,7 @@ Upgrading from 1.x? See [Upgrading from 1.x](#upgrading-from-1x).
 
 ## Quick start
 
-The commands below pin **2.10.1**, using the native API 1.11.1. You need your
+The commands below pin **2.10.2**, using the native API 1.11.2. You need your
 Librus Synergia login and password. Accounts that require interactive
 two-factor authentication are not supported.
 
@@ -103,7 +103,7 @@ Claude Code:
 
 ```bash
 claude mcp add --scope user --transport stdio librus \
-  -- uvx --python 3.14 librus-mcp==2.10.1 --config /absolute/path/to/config.json
+  -- uvx --python 3.14 librus-mcp==2.10.2 --config /absolute/path/to/config.json
 ```
 
 Claude Desktop (Settings > Developer > Edit Config):
@@ -113,7 +113,7 @@ Claude Desktop (Settings > Developer > Edit Config):
   "mcpServers": {
     "librus": {
       "command": "uvx",
-      "args": ["--python", "3.14", "librus-mcp==2.10.1", "--config", "/absolute/path/to/config.json"]
+      "args": ["--python", "3.14", "librus-mcp==2.10.2", "--config", "/absolute/path/to/config.json"]
     }
   }
 }
@@ -123,21 +123,21 @@ Gemini CLI:
 
 ```bash
 gemini mcp add --scope user --transport stdio \
-  librus uvx --python 3.14 librus-mcp==2.10.1 --config /absolute/path/to/config.json
+  librus uvx --python 3.14 librus-mcp==2.10.2 --config /absolute/path/to/config.json
 ```
 
 OpenAI Codex CLI:
 
 ```bash
 codex mcp add librus \
-  -- uvx --python 3.14 librus-mcp==2.10.1 --config /absolute/path/to/config.json
+  -- uvx --python 3.14 librus-mcp==2.10.2 --config /absolute/path/to/config.json
 ```
 
 OpenCode:
 
 ```bash
 opencode mcp add librus --global -- \
-  uvx --python 3.14 librus-mcp==2.10.1 --config /absolute/path/to/config.json
+  uvx --python 3.14 librus-mcp==2.10.2 --config /absolute/path/to/config.json
 ```
 
 Hermes Agent (`~/.hermes/config.yaml`):
@@ -146,13 +146,13 @@ Hermes Agent (`~/.hermes/config.yaml`):
 mcp_servers:
   librus:
     command: "uvx"
-    args: ["--python", "3.14", "librus-mcp==2.10.1", "--config", "/absolute/path/to/config.json"]
+    args: ["--python", "3.14", "librus-mcp==2.10.2", "--config", "/absolute/path/to/config.json"]
 ```
 
 Check the setup without contacting Librus:
 
 ```bash
-uvx --python 3.14 librus-mcp==2.10.1 --config /absolute/path/to/config.json --check-config
+uvx --python 3.14 librus-mcp==2.10.2 --config /absolute/path/to/config.json --check-config
 ```
 
 If a GUI assistant cannot find `uvx`, use its absolute path (`which uvx` or
@@ -168,7 +168,7 @@ use this setup instead.
 
 ### Desktop bundle (preview)
 
-Each release attaches `librus-mcp-2.10.1.mcpb` to its
+Each release attaches `librus-mcp-2.10.2.mcpb` to its
 [GitHub release](https://github.com/krzysztofbury/librus-mcp/releases). Open it
 with an app that supports MCP Bundles, such as Claude Desktop. The app asks for
 the Librus login and password, keeps them in its settings, and installs Python
@@ -189,7 +189,7 @@ readable only by it:
 ```bash
 mkdir -p ~/librus-mcp/data && cd ~/librus-mcp
 # config.json: the same format as above, any number of logins
-docker run --rm ghcr.io/krzysztofbury/librus-mcp:2.10.1 --generate-token > token
+docker run --rm ghcr.io/krzysztofbury/librus-mcp:2.10.2 --generate-token > token
 chmod 600 config.json token
 ```
 
@@ -199,7 +199,7 @@ of `id -u` and `id -g`:
 ```yaml
 services:
   librus-mcp:
-    image: ghcr.io/krzysztofbury/librus-mcp:2.10.1
+    image: ghcr.io/krzysztofbury/librus-mcp:2.10.2
     command: ["--transport", "http", "--allowed-host", "librus-mcp.example.lan:*"]
     user: "1000:1000"
     environment:
@@ -261,7 +261,7 @@ Things to know about HTTP mode:
 
 The same image also runs over stdio for a client on the Docker host:
 `docker run -i --rm -v librus-mcp-data:/data -e LIBRUS_USERNAME -e LIBRUS_PASSWORD
-ghcr.io/krzysztofbury/librus-mcp:2.10.1`.
+ghcr.io/krzysztofbury/librus-mcp:2.10.2`.
 
 ### MCP Registry
 
@@ -273,7 +273,7 @@ and the desktop bundle. Clients that install from the registry ask for
 
 ## Upgrading from 1.x
 
-Change the version in your assistant's configuration to `librus-mcp==2.10.1`, add
+Change the version in your assistant's configuration to `librus-mcp==2.10.2`, add
 `--python 3.14` before it and keep your existing `--config` file. On first start
 2.0 adapts the old setup automatically: it creates the key, restricts shared
 1.x folders to your user, ignores the removed behaviour-notes setting and adopts
@@ -343,7 +343,7 @@ last month, and changes no filter. A student login gets
 ### What's new in 2.1
 
 Keep your existing 2.0 configuration, context key and durable state; reconnect
-your assistant to refresh its tool catalog. The server pins API 1.11.1.
+your assistant to refresh its tool catalog. The server pins API 1.11.2.
 
 - Ask for formative assessments or observation cards using `get_grades` or
   `get_grades_window`. `items` can now have `record_type="formative"` with an
@@ -398,70 +398,79 @@ reference. Downloading does not open the message body.
 Diagnostics never print school data, logins or aliases; review any output
 before sharing it anyway.
 
-| Situation | What to use | What you get |
-| --- | --- | --- |
-| A tool returns an error | the error result itself | `code`, `where` (code locations, the failure site last), `versions` |
-| You want to see failures in the logs | the server's standard error (`docker logs` for the image) | one line per failed call |
-| You want the page structure of a failure | `LIBRUS_MCP_DIAGNOSE_FAILURES=1` | the masked HTML structure around the failure, or a summary of the whole page (notices, table rows, known labels), on standard error |
-| A tool returns `CONSENT_REQUIRED` | ask the user, then call again with the input named in `requires` | for a received message, `allow_mark_read=true`: opening marks it read in Librus (only with `mark_read_consent`, or after `allow_mark_read=false`); for new calendar events in `get_new_notifications`, `allow_consume_events=true`: Librus reports them only once |
-| You want a trace of every Librus read | `LIBRUS_MCP_LOG_OPERATIONS=1` | one line per read: operation, outcome, time, requests, HTTP status, failure site |
-| The assistant says `Invalid structured content returned by tool ...` | reload the assistant's tool list, then `librus-mcp check-tools` | the failing result path and schema rule |
-| A page fails to parse and you want to report it | `librus-mcp inspect-page grades page.html` (or `final-grades`, `profile`) | counts, or code locations and the masked structure, offline |
+### When a tool fails
 
-With Docker, pass the variables with `-e NAME=1` and read `docker logs`. Run
-`check-tools` in the running container with
-`docker exec CONTAINER librus-mcp check-tools` (it uses the container's own
-configuration and signs every login in a second time, so the server's next
-read may have to sign in again). `inspect-page` needs the file inside the
-container; use the `docker run` form in step 2 below.
+1. **Copy the error result.** It is JSON with `code`, `where` (code
+   locations, the failure site last), `at` for a page the library could not
+   read (where in the page it failed, as masked structure and column counts,
+   such as `table.stretch.decorated[1] > tbody[1] > tr.bolded.line0[2] >
+   td.center[7]; cells 7, columns 11, width 10`) and `versions`. For `PARSE`
+   or `UNSUPPORTED_CAPABILITY`, your school's page has a layout the library
+   does not read yet: open an
+   [issue](https://github.com/krzysztofbury/librus-mcp/issues) with that
+   JSON. It is often enough to fix it. The server's standard error
+   (`docker logs` for the image) has the same line for every failed call.
+2. **If asked for more, run `inspect-page` on the saved page.** It reads the
+   page offline and prints counts, or the masked structure around the
+   failure:
+   - Save the failing page's source as `page.html` (UTF-8). On Windows and
+     Linux press Ctrl+U, then Ctrl+S. On macOS, in Safari use File > Save As
+     with format Page Source; in Chrome press Option+Cmd+U, then Cmd+S. Do not
+     paste the source into TextEdit: that saves a text document, which
+     `inspect-page` rejects.
 
-- **`Invalid structured content returned by tool ...`** comes from your
-  assistant, not the server: it checks each result against the tool list it
-  saved. After an upgrade, reload the tool list (Hermes: `/reload-mcp`;
-  otherwise restart the assistant or reconnect the server). If it persists,
-  run `uvx --python 3.14 librus-mcp==2.10.1 --config /path/to/config.json check-tools`.
-  It calls every read tool that needs no reference for every login (about 20
-  tool calls per login, each one or more normal Librus reads, which change
-  the views, week and month Librus remembers as the tools do), checks each result the way assistants do
-  and prints the failing path and schema rule, never school data. Modern-only
-  tools are skipped on legacy logins. Tools that need a reference or have an
-  effect are never called: the detail tools, `get_message_content`,
-  `get_recipient_choices`, `get_recipients`, `download_attachment`,
-  `get_new_notifications`, `acknowledge_notifications`, `preview_message`,
-  `send_message` and `get_send_outcome`. Repeat `--tool NAME` to check only
-  those tools; the ones above are refused.
-- **A tool returns `PARSE` or `UNSUPPORTED_CAPABILITY`**: the error lists
-  `where` it failed and the `versions`. Your school's page has a layout the
-  library does not read yet. To report it without sharing school data:
-  1. In the browser, open the failing page and save its source as
-     `page.html` (UTF-8):
-
-     | Tool | Page | `inspect-page` parser |
+     | Tool | Page | Parser |
      | --- | --- | --- |
      | `get_grades`, `get_grades_window` | `https://synergia.librus.pl/przegladaj_oceny/uczen` | `grades` |
      | `get_final_grades` | the same page | `final-grades` |
      | `get_student_information` | `https://synergia.librus.pl/informacja` | `profile` |
 
-     On Windows and Linux press Ctrl+U, then Ctrl+S. On macOS, in Safari use
-     File > Save As with format Page Source; in Chrome press Option+Cmd+U,
-     then Cmd+S. Do not paste the source into TextEdit: that saves a text
-     document, which `inspect-page` rejects. A copied table (Inspect, Copy
-     outer HTML) also works, but shows the page after its scripts ran.
-  2. Run `uvx --python 3.14 librus-mcp==2.10.1 inspect-page grades page.html`
-     (with the parser from the table). With Docker:
-     `docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/in:ro" ghcr.io/krzysztofbury/librus-mcp:2.10.1 inspect-page grades /in/page.html`
+   - Run `uvx --python 3.14 librus-mcp==2.10.2 inspect-page grades page.html`
+     with the parser from the table. With Docker:
+     `docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/in:ro" ghcr.io/krzysztofbury/librus-mcp:2.10.2 inspect-page grades /in/page.html`
      (add `:z` after `ro` on SELinux hosts).
-  3. Review the output and attach it to an
-     [issue](https://github.com/krzysztofbury/librus-mcp/issues), together
-     with the `where` and `versions` from the error.
+   - Review the output and attach it to the issue.
 
-  If your saved page passes `inspect-page` but the tool still fails, the
-  server received a different page than your browser (a notice, an error
-  page, or another login). Restart the server with
-  `LIBRUS_MCP_DIAGNOSE_FAILURES=1` and `LIBRUS_MCP_LOG_OPERATIONS=1`, repeat
-  the call, and attach the server's standard error: it summarizes the page
-  the server received (notices, tables, known labels, lengths) and the
-  response size, without its text.
+   If the saved page passes `inspect-page` but the tool still fails, the
+   server received a different page (a notice, an error page or another
+   login). Restart it with `LIBRUS_MCP_DIAGNOSE_FAILURES=1` and
+   `LIBRUS_MCP_LOG_OPERATIONS=1`, repeat the call and attach its standard
+   error: a summary of the page it received and one line per Librus read,
+   without page text. With Docker, pass them with `-e NAME=1`.
+
+A tool returning `CONSENT_REQUIRED` has not failed: ask the user, then call
+again with the input named in `requires` (`allow_mark_read=true` for a
+received message, which marks it read in Librus; `allow_consume_events=true`
+for new calendar events in `get_new_notifications`, which Librus reports only
+once).
+
+### When the assistant rejects a result
+
+`Invalid structured content returned by tool ...` (Python MCP SDK) or
+`Structured content does not match the tool's output schema` (TypeScript MCP
+SDK) comes from your assistant, not the server: it checks each result against
+the tool list it saved.
+
+- After an upgrade, reload the tool list (Hermes: `/reload-mcp`; otherwise
+  restart the assistant or reconnect the server).
+- Before 2.10.2, assistants on the TypeScript SDK 1.x showed this message
+  instead of every error result. Upgrade to see the error itself.
+- If it persists, run
+  `uvx --python 3.14 librus-mcp==2.10.2 --config /path/to/config.json check-tools`.
+  It checks each result the way assistants do and prints the failing path and
+  schema rule, never school data. It calls every read tool that needs no
+  reference for every login: about 20 calls per login, each one or more
+  normal Librus reads, which change the views, week and month Librus
+  remembers as the tools do. Modern-only tools are skipped on legacy logins.
+  Tools that need a reference or have an effect are never called: the detail
+  tools, `get_message_content`, `get_recipient_choices`, `get_recipients`,
+  `download_attachment`, `get_new_notifications`,
+  `acknowledge_notifications`, `preview_message`, `send_message` and
+  `get_send_outcome`. Repeat `--tool NAME` to check only those tools; the
+  ones above are refused. In a running container, use
+  `docker exec CONTAINER librus-mcp check-tools`: it uses the container's
+  configuration and signs every login in a second time, so the server's next
+  read may have to sign in again.
 
 ## Privacy
 

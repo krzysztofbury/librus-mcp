@@ -170,9 +170,7 @@ async def test_four_logins_share_traffic_but_not_sessions_and_catalog_does_not_l
                 bad = await session.call_tool(
                     "get_student_information", {"account_alias": "unknown"}
                 )
-                assert bad.is_error and closed(bad.structured_content) == {
-                    "error": {"code": "INVALID_INPUT"}
-                }
+                assert bad.is_error and closed(bad) == {"error": {"code": "INVALID_INPUT"}}
                 assert len(wire.calls) == calls
                 # One shared default token budget (API 1.0.2: burst 20, ten per
                 # second), not a burst per alias.
@@ -226,7 +224,7 @@ async def test_native_grade_attendance_contracts_and_effect_annotations():
                     {"account_alias": "account", "scope": "private-sensitive-value"},
                 )
                 assert invalid.is_error
-                assert closed(invalid.structured_content) == {"error": {"code": "INVALID_INPUT"}}
+                assert closed(invalid) == {"error": {"code": "INVALID_INPUT"}}
                 assert "private-sensitive-value" not in invalid.model_dump_json()
                 assert len(wire.calls) == before
 
@@ -243,9 +241,7 @@ async def test_rejected_account_and_parse_failure_are_classified_not_empty():
             ):
                 await session.initialize()
                 bad = await session.call_tool("get_student_information", {"account_alias": "bad"})
-                assert bad.is_error and closed(bad.structured_content) == {
-                    "error": {"code": "CREDENTIALS_REJECTED"}
-                }
+                assert bad.is_error and closed(bad) == {"error": {"code": "CREDENTIALS_REJECTED"}}
                 assert wire.logins["denied"] == 1
                 bad_again = await session.call_tool(
                     "get_student_information", {"account_alias": "bad"}
@@ -256,16 +252,14 @@ async def test_rejected_account_and_parse_failure_are_classified_not_empty():
                 parsed = await session.call_tool(
                     "get_student_information", {"account_alias": "good"}
                 )
-                assert parsed.is_error and closed(parsed.structured_content) == {
-                    "error": {"code": "PARSE"}
-                }
+                assert parsed.is_error and closed(parsed) == {"error": {"code": "PARSE"}}
                 assert "unrecognized sensitive page" not in parsed.model_dump_json()
                 wire.bad_profile = False
                 wire.unavailable_profile = True
                 unavailable = await session.call_tool(
                     "get_student_information", {"account_alias": "good"}
                 )
-                assert unavailable.is_error and closed(unavailable.structured_content) == {
+                assert unavailable.is_error and closed(unavailable) == {
                     "error": {"code": "MODULE_UNAVAILABLE"}
                 }
                 assert "/modul_niedostepny" not in unavailable.model_dump_json()
@@ -303,7 +297,7 @@ async def test_full_mcp_result_size_limit_returns_explicit_error(monkeypatch):
 
     monkeypatch.setattr(presentation, "MAX_RESULT_BYTES", 400)
     result = await server.call_tool("fixture_large_output", {})
-    assert result.is_error and closed(result.structured_content) == {"error": {"code": "LIMIT"}}
+    assert result.is_error and closed(result) == {"error": {"code": "LIMIT"}}
     assert "\u017c" not in result.model_dump_json()
 
 

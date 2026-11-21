@@ -11,6 +11,7 @@ from mcp.client import ClientSession
 from mcp.client.stdio import stdio_client
 
 from librus_mcp.cli import main
+from librus_mcp.server import error_detail
 from tests_native.errors import closed
 from tests_native.test_native_stdio import server_process
 from tests_native.wire import Wire
@@ -52,14 +53,19 @@ async def test_a_parse_failure_names_its_site_without_school_data(tmp_path, diag
                 await session.initialize()
                 result = await session.call_tool("get_grades", {"account_alias": ALIAS})
     assert result.is_error
-    assert closed(result.structured_content) == {"error": {"code": "PARSE"}}
-    where = result.structured_content["error"]["where"]
+    assert closed(result) == {"error": {"code": "PARSE"}}
+    detail = error_detail(result)
+    # Where in the page, masked, so a host shows it without a saved page.
+    at = "table.stretch.decorated[1] > tbody[1] > tr[1] > td[3] > span.grade-box[1] > a[1]"
+    assert detail["at"] == at
+    where = detail["where"]
     assert where[-1].startswith("markup:tooltip_fields:")
     assert where[-2].startswith("grade_records:_numeric:")
     payload = result.model_dump_json()
     assert SECRET not in payload and ALIAS not in payload
     stderr = stderr_path.read_text(encoding="utf-8")
     assert "librus-mcp: get_grades failed: PARSE at markup:tooltip_fields:" in stderr
+    assert f"; page {at} (mcp " in stderr
     assert SECRET not in stderr and ALIAS not in stderr
     assert ("failure structure" in stderr) is diagnose
     if diagnose:
@@ -139,7 +145,7 @@ async def test_an_unknown_tool_name_is_never_echoed_to_stderr(capsys):
         }
     )
     result = await create_server(config).call_tool(f"get_grades_{ALIAS}\nlibrus-mcp: forged", {})
-    assert closed(result.structured_content) == {"error": {"code": "INVALID_INPUT"}}
+    assert closed(result) == {"error": {"code": "INVALID_INPUT"}}
     stderr = capsys.readouterr().err
     assert stderr.count("\n") == 1
     assert ALIAS not in stderr and "forged" not in stderr

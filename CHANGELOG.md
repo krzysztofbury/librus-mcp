@@ -4,6 +4,45 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [2.10.2] - 2026-11-21
+
+Pins `librus-python-api==1.11.2`. The tool catalog is unchanged; error
+results changed shape, see below.
+
+Thank you, @emce, for librus-python-api#189 and the column count that located
+it.
+
+### Fixed
+
+- Grades: at one school the `Zachowanie` row ends with a cell that spans one
+  column past the grade table, so `get_grades`, `get_grades_window` and
+  `get_final_grades` failed with `PARSE` for those logins. API 1.11.2 reads
+  that exact layout (krzysztofbury/librus-python-api#189).
+- Error results are text only, without `structuredContent`. Hosts on the
+  TypeScript MCP SDK 1.x validate `structuredContent` against the tool's
+  output schema even on an error, so they showed `Structured content does not
+  match the tool's output schema` in place of every error and hid its `code`,
+  `where` and `versions`. The text block holds the same JSON as before. A
+  client that read the error from `structuredContent` now reads the text.
+
+### Added
+
+- An error for a page the library could not read (`PARSE`,
+  `UNSUPPORTED_CAPABILITY`, `INTERNAL_ERROR`) has `at`: where in the page it
+  failed, as the masked element path and the column counts compared, such as
+  `table.stretch.decorated[1] > tbody[1] > tr.bolded.line0[2] > td.center[7];
+  cells 7, columns 11, width 10`. No page text or values. The server's
+  standard error line and `check-tools` show it too.
+
+### Changed
+
+- README troubleshooting is one path: copy the error, then run
+  `inspect-page` if asked. It names both hosts' schema-error messages.
+- Release verification installs the locked dependencies from a PEP 751
+  `pylock.toml` with hashes, so a just-published API version no longer fails
+  while PyPI's index catches up (#128). Post-release checks go into the
+  release notes at once and into DISTRIBUTION.md with the next change (#130).
+
 ## [2.10.1] - 2026-11-21
 
 Pins `librus-python-api==1.11.1`. The tool catalog is unchanged.

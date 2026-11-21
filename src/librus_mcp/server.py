@@ -8,7 +8,7 @@ from typing import Any
 
 from librus_python_api import AttendanceView, ConnectionSettings, GradeView, RequestBudget
 from librus_python_api import __version__ as api_version
-from librus_python_api.diagnostics import describe_failure, failure_frames
+from librus_python_api.diagnostics import describe_failure, failure_frames, failure_locator
 from librus_python_api.exceptions import LibrusError
 from mcp.server.mcpserver import Context, MCPServer
 from mcp.server.mcpserver.exceptions import ToolError, UnexpectedToolError
@@ -59,24 +59,45 @@ def _error(
     where: tuple[str, ...] = (),
     exception: str | None = None,
     requires: str | None = None,
+    at: str | None = None,
 ) -> CallToolResult:
     # Closed codes, opaque code locations, an exception class name, an input
-    # name and versions only: no validation input, alias, message, cause text,
-    # login, token or HTML.
+    # name, a masked page location and versions only: no validation input,
+    # alias, message, cause text, login, token, HTML or page text.
     detail: dict[str, Any] = {"code": code}
     if requires is not None:
         detail["requires"] = requires
     if where:
         detail["where"] = list(where)
+    if at is not None:
+        detail["at"] = at
     if exception is not None:
         detail["exception"] = exception
     detail["versions"] = VERSIONS
     payload = {"error": detail}
+    # Text only, no structuredContent: hosts on the TypeScript SDK 1.x check
+    # structuredContent against the tool's output schema even on an error,
+    # which replaced this payload with a schema error (librus-python-api#189).
     return CallToolResult(
         is_error=True,
         content=[TextContent(type="text", text=json.dumps(payload, separators=(",", ":")))],
-        structured_content=payload,
     )
+
+
+def error_detail(result: CallToolResult) -> dict[str, Any]:
+    """The `error` object of an error result, read from its text; empty when
+    the result is not one of this server's error results."""
+    if not result.is_error or len(result.content) != 1:
+        return {}
+    block = result.content[0]
+    if not isinstance(block, TextContent):
+        return {}
+    try:
+        payload = json.loads(block.text)
+    except ValueError:
+        return {}
+    detail = payload.get("error") if isinstance(payload, dict) else None
+    return detail if isinstance(detail, dict) else {}
 
 
 # JSON Schema keywords whose values are schemas, maps of schemas or schema lists.
@@ -218,13 +239,15 @@ def _failure(tool: str, error: ToolError) -> CallToolResult:
     location = f" at {' < '.join(reversed(where))}" if where else ""
     versions = f"mcp {VERSIONS['mcp']}, api {VERSIONS['api']}"
     kind = f"{code} ({exception})" if exception else code
-    _notice(f"{tool} failed: {kind}{location} ({versions})")
+    at = failure_locator(cause) if code in _STRUCTURE_KINDS else None
+    page = f"; page {at}" if at else ""
+    _notice(f"{tool} failed: {kind}{location}{page} ({versions})")
     if code in _STRUCTURE_KINDS and os.environ.get(DIAGNOSE_FAILURES) == "1":
         report = describe_failure(cause)
         if report is not None:
             _notice(f"{tool} failure structure (no page text or values):\n{report}")
     requires = _CONSENT_INPUTS.get(tool) if code == "CONSENT_REQUIRED" else None
-    return _error(code, where=where, exception=exception, requires=requires)
+    return _error(code, where=where, exception=exception, requires=requires, at=at)
 
 
 def _notice(message: str) -> None:
