@@ -26,6 +26,10 @@ from release_verification.verify_release import (  # noqa: E402
     read_project_version,
 )
 
+# Locked dependencies install from a PEP 751 pylock (uv preview in 0.13.5).
+# After a uv bump, recheck that the install never queries an index and still
+# rejects a changed hash (#128).
+PYLOCK = ("--preview-features", "pylock")
 HANDSHAKE_TIMEOUT_SECONDS = 30
 
 
@@ -242,9 +246,21 @@ def run_cli_checks(executable: Path, working_directory: Path, expected_version: 
 
 def run_consumer_tests(repository: Path, python: Path, working_directory: Path) -> None:
     """Run copied offline consumer tests against the installed wheel, never source."""
-    requirements = working_directory / "test-requirements.txt"
+    # PEP 751 names; a pylock records each file's URL, so installing it needs
+    # no package index, which can lag a release by minutes after upload.
+    # Installing a pylock is a uv preview feature, opted into by PYLOCK.
+    requirements = working_directory / "pylock.consumer-tests.toml"
     subprocess.run(
-        ["uv", "export", "--frozen", "--no-emit-project", "--output-file", str(requirements)],
+        [
+            "uv",
+            "export",
+            "--frozen",
+            "--no-emit-project",
+            "--format",
+            "pylock.toml",
+            "--output-file",
+            str(requirements),
+        ],
         cwd=repository,
         check=True,
         stdout=subprocess.DEVNULL,
@@ -254,6 +270,7 @@ def run_consumer_tests(repository: Path, python: Path, working_directory: Path) 
             "uv",
             "pip",
             "install",
+            *PYLOCK,
             "--python",
             str(python),
             "--require-hashes",
@@ -331,7 +348,7 @@ def verify_wheel(repository: Path, wheel: Path, *, consumer_tests: bool = False)
             check=True,
         )
         python = virtual_environment / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
-        requirements = temporary_directory / "runtime-requirements.txt"
+        requirements = temporary_directory / "pylock.runtime.toml"
         subprocess.run(
             [
                 "uv",
@@ -340,7 +357,7 @@ def verify_wheel(repository: Path, wheel: Path, *, consumer_tests: bool = False)
                 "--no-dev",
                 "--no-emit-project",
                 "--format",
-                "requirements.txt",
+                "pylock.toml",
                 "--output-file",
                 str(requirements),
             ],
@@ -353,6 +370,7 @@ def verify_wheel(repository: Path, wheel: Path, *, consumer_tests: bool = False)
                 "uv",
                 "pip",
                 "install",
+                *PYLOCK,
                 "--python",
                 str(python),
                 "--require-hashes",
