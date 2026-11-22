@@ -292,7 +292,16 @@ def run_consumer_tests(repository: Path, python: Path, working_directory: Path) 
         encoding="utf-8",
     )
     subprocess.run(
-        [str(python), "-m", "pytest", "-q", "--basetemp", str(working_directory / "pytest")],
+        [
+            str(python),
+            "-m",
+            "pytest",
+            "-q",
+            # The slowest tests per runner, to compare platforms (#129).
+            "--durations=25",
+            "--basetemp",
+            str(working_directory / "pytest"),
+        ],
         cwd=tests,
         env={
             key: value
