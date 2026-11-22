@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [2.10.3] - 2026-11-22
+
+Pins `librus-python-api==1.11.3`. The tool catalog is unchanged.
+
+### Fixed
+
+- `get_final_grades` never returns behaviour points as a final grade. When a
+  merged `Zachowanie` cell also covers a current-grades column, it holds the
+  behaviour points, and API 1.11.3 now fails with `PARSE` (with `at` naming
+  the cell) instead of reading it as the midterm, predicted or annual grade
+  (librus-python-api#192). Layouts seen live read as before; `get_grades` and
+  `get_grades_window` are unchanged.
+
 ## [2.10.2] - 2026-11-21
 
 Pins `librus-python-api==1.11.2`. The tool catalog is unchanged; error

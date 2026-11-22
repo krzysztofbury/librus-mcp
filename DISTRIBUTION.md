@@ -259,6 +259,19 @@ archive) on all four, and `get_justifications` `UNSUPPORTED_CAPABILITY` on the
 two student logins, all reported as unavailable; 82 operation lines with
 `status=200`. The image was not run locally; CI ran it over stdio and HTTP.
 
+After the 2.10.2 publication on 2026-11-21, on Linux: the wheel and sdist match
+`SHA256SUMS` and PyPI's digests, and the downloaded `librus-mcp-2.10.2.mcpb`
+has the SHA-256 the MCP Registry lists for it; `verify_mcpb.py` on it passed
+(32 tools, host login loaded). ghcr serves
+`ghcr.io/krzysztofbury/librus-mcp:2.10.2` for amd64 and arm64, `latest` points
+at it, and the MCP Registry lists 2.10.2 as latest with its PyPI, image and
+bundle packages. `uvx --refresh --python 3.14 librus-mcp==2.10.2 --config FILE
+check-tools` with `LIBRUS_MCP_LOG_OPERATIONS=1` ran as written on four logins
+with the same results as 2.10.1: exit 0, 79 results OK, the same unavailable
+results, 82 operation lines with `status=200`. A first attempt minutes after
+upload could not resolve 2.10.2 until PyPI's index listed it. The image was
+not run locally; CI ran it over stdio and HTTP.
+
 After the 2.10.1 publication on 2026-11-21, on Linux: the wheel and sdist match
 `SHA256SUMS` and PyPI's digests, and the downloaded `librus-mcp-2.10.1.mcpb`
 has the SHA-256 the MCP Registry lists for it; `verify_mcpb.py` on it passed
