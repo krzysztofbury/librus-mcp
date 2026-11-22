@@ -1,5 +1,14 @@
 # Native migration verification ownership
 
+## 2.10.3 No behaviour points as a final grade
+
+2.10.3 pins API 1.11.3, whose `final_grades()` fails with `PARSE` instead of
+reading a merged `Zachowanie` cell that covers a current-grades column as a
+summary value (krzysztofbury/librus-python-api#192). No MCP code changed;
+`get_final_grades` reports the failure through the existing error path with
+`at`. `release_verification/measure_tools.py`: 133519 bytes for 32 default
+tools and 146860 bytes for 36 tools, unchanged.
+
 ## 2.10.2 Error results as text; a behaviour row wider than the grade table
 
 2.10.2 pins API 1.11.2, which reads a `Zachowanie` row whose last cell spans
