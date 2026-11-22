@@ -9,6 +9,17 @@ summary value (krzysztofbury/librus-python-api#192). No MCP code changed;
 `at`. `release_verification/measure_tools.py`: 133519 bytes for 32 default
 tools and 146860 bytes for 36 tools, unchanged.
 
+## 2.10.3 release live check
+
+Authorized by the owner's release request, on the tagged checkout (v2.10.3,
+API 1.11.3) on 2026-11-22, `qualify_native.py --live` on the four owner
+logins gave the same status counts as 2.10.2: academic 58 passed, 4
+`VIEW_DISABLED`, 6 without a reference, with `get_final_grades`, `get_grades`
+and `get_grades_window` passing with data on all four; communication 22
+passed, 2 without a sent reference, 4 expected unsupported; homework_history
+10 passed, 2 without a reference; v21 81 passed, `get_school_year_archive`
+`TEMPORARILY_UNAVAILABLE` on all four, 2 expected unsupported.
+
 ## 2.10.2 Error results as text; a behaviour row wider than the grade table
 
 2.10.2 pins API 1.11.2, which reads a `Zachowanie` row whose last cell spans
