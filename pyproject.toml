@@ -54,6 +54,7 @@ dev = [
     "pytest-asyncio>=0.24.0",
     "mypy>=1.19,<3",
     "pytest-timeout>=2.3",
+    "pytest-xdist>=3.6",
 ]
 mutation = [
     # mutmut's fork-based runner is POSIX-only; normal platform CI stays offline
