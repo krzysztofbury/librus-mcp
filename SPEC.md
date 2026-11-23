@@ -20,7 +20,7 @@ unshipped 1.x references retain their scoped GPL license. See
 
 ## Safety boundaries
 
-2.10.4 uses API 1.11.4. Native history, class-free-day, e-Justifications and directory collections are
+2.10.5 uses API 1.11.5. Native history, class-free-day, e-Justifications and directory collections are
 paged in MCP without duplicating upstream traversal. Grade presentation includes
 formative records and their mirror IDs, point records with their period
 results, grade IDs with the all view's correction links (2.7), and behaviour points beside grades (2.8). Modern message query/reference/cursor
