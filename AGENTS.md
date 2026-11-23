@@ -103,6 +103,12 @@ evidence available, in this order:
    and `LIBRUS_MCP_DIAGNOSE_FAILURES=1` (masked page structure of a failure),
    both on standard error.
 
+Before shipping a release that only adds diagnostics and asking the reporter
+for another run, search public Librus client repositories for the failing page,
+field or label and how they handle it. A variation they already absorb is a
+likely cause and can ship as a fix in the same release (#136: a non-numeric
+attendance ID cost one extra round).
+
 Diagnostic output is built from allowlists in the library
 (`diagnostics.describe_failure`, `diagnostics.failure_locator`,
 `config.TOOLTIP_LABELS`): extend those lists
