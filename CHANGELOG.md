@@ -4,6 +4,22 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [2.10.5] - 2026-11-23
+
+Pins `librus-python-api==1.11.5`. The tool catalog is unchanged.
+
+Thank you again, @mpietson, for rerunning #136 on 2.10.4: the `wire` line and
+the `LIMIT` site named both of these.
+
+### Fixed
+
+- `get_attendance_frequency` and `get_subject_frequency` no longer fail with
+  `PARSE` when the attendance gateway returns records whose ID is not a number.
+  The ID is now read as an opaque token; it only detects duplicate records.
+- `get_grades` and `get_grades_window` no longer fail with `LIMIT` on a grade
+  whose tooltip has more than 32 lines. The bound of 32 now counts fields, and
+  blank lines count toward nothing; non-blank lines have a bound of 256.
+
 ## [2.10.4] - 2026-11-23
 
 Pins `librus-python-api==1.11.4`. The tool catalog is unchanged.

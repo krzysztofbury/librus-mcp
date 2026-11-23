@@ -1,5 +1,14 @@
 # Native migration verification ownership
 
+## 2.10.5 Parent-login attendance frequency and long grade tooltips
+
+2.10.5 pins API 1.11.5 for the two failures left in #136 on 2.10.4: gateway
+attendance records whose ID is not a number failed `get_attendance_frequency`
+and `get_subject_frequency` with `PARSE`, and a grade tooltip of more than 32
+lines failed `get_grades` and `get_grades_window` with `LIMIT`. No MCP code
+changed. `release_verification/measure_tools.py`: 133519
+bytes for 32 default tools and 146860 bytes for 36 tools, unchanged.
+
 ## 2.10.4 release live check
 
 Authorized by the owner's release request, on the tagged checkout (v2.10.4,
