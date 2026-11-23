@@ -1,5 +1,17 @@
 # Native migration verification ownership
 
+## 2.10.4 Parent-login fixes and audit fixes
+
+2.10.4 pins API 1.11.4 (krzysztofbury/librus-python-api#201, #195, #196,
+#199), for the parent login in #136. After a call that ended the Synergia
+session, the messages sign-in recovers. `get_justifications` returns
+`VIEW_DISABLED` where the module is off for a parent login. A descriptive
+grade's skill or area may wrap onto a second tooltip line. A gateway envelope
+that fails validation names its field in `at`. `get_subject_frequency` covers
+more than 256 lessons, and `get_completed_lessons` rejects contradictory item
+ranges. No MCP code changed. `release_verification/measure_tools.py`: 133519
+bytes for 32 default tools and 146860 bytes for 36 tools, unchanged.
+
 ## 2.10.3 No behaviour points as a final grade
 
 2.10.3 pins API 1.11.3, whose `final_grades()` fails with `PARSE` instead of

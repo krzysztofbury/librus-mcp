@@ -4,6 +4,38 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [2.10.4] - 2026-11-23
+
+Pins `librus-python-api==1.11.4`. The tool catalog is unchanged.
+
+Thank you, @mpietson, for #136: the `check-tools` output with both diagnostic
+variables pointed at every one of these.
+
+### Fixed
+
+- The message tools (`get_messages`, `get_recipient_types`,
+  `get_message_correspondents`, `get_teacher_subjects`,
+  `get_message_unread_counts`) no longer fail with `UNSUPPORTED_CAPABILITY`
+  after a call that ended the Synergia session, such as `get_justifications`.
+  Librus answered the messages sign-in with its logged-out page; the server
+  now signs in again once and continues (librus-python-api#201). Sending is
+  unchanged and never signs in again by itself.
+- `get_justifications` returns `VIEW_DISABLED` instead of `PARSE` on a parent
+  login whose school has e-Justifications switched off.
+- `get_grades` and `get_grades_window` read a descriptive grade whose skill
+  (`Umiejętność`) or area (`Obszar oceniania`) wraps onto a second tooltip line.
+- `get_subject_frequency` no longer fails with `LIMIT` above 256 distinct
+  lessons in a window (librus-python-api#199).
+- `get_completed_lessons` fails with `PARSE` instead of returning a partial
+  list when the page's item range contradicts its page count
+  (librus-python-api#196).
+
+### Changed
+
+- When the attendance gateway's answer fails validation, the error's `at` names
+  the field and rule, such as `wire Attendances[3].Lesson missing`, with no
+  values. `get_attendance_frequency` and `get_subject_frequency` use it.
+
 ## [2.10.3] - 2026-11-22
 
 Pins `librus-python-api==1.11.3`. The tool catalog is unchanged.
