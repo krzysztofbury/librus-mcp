@@ -1,5 +1,17 @@
 # Native migration verification ownership
 
+## 2.10.4 Parent-login fixes and audit fixes
+
+2.10.4 pins API 1.11.4 (krzysztofbury/librus-python-api#201, #195, #196,
+#199), for the parent login in #136. After a call that ended the Synergia
+session, the messages sign-in recovers. `get_justifications` returns
+`VIEW_DISABLED` where the module is off for a parent login. A descriptive
+grade's skill or area may wrap onto a second tooltip line. A gateway envelope
+that fails validation names its field in `at`. `get_subject_frequency` covers
+more than 256 lessons, and `get_completed_lessons` rejects contradictory item
+ranges. No MCP code changed. `release_verification/measure_tools.py`: 133519
+bytes for 32 default tools and 146860 bytes for 36 tools, unchanged.
+
 ## 2.10.3 No behaviour points as a final grade
 
 2.10.3 pins API 1.11.3, whose `final_grades()` fails with `PARSE` instead of
@@ -8,6 +20,17 @@ summary value (krzysztofbury/librus-python-api#192). No MCP code changed;
 `get_final_grades` reports the failure through the existing error path with
 `at`. `release_verification/measure_tools.py`: 133519 bytes for 32 default
 tools and 146860 bytes for 36 tools, unchanged.
+
+## 2.10.3 release live check
+
+Authorized by the owner's release request, on the tagged checkout (v2.10.3,
+API 1.11.3) on 2026-11-22, `qualify_native.py --live` on the four owner
+logins gave the same status counts as 2.10.2: academic 58 passed, 4
+`VIEW_DISABLED`, 6 without a reference, with `get_final_grades`, `get_grades`
+and `get_grades_window` passing with data on all four; communication 22
+passed, 2 without a sent reference, 4 expected unsupported; homework_history
+10 passed, 2 without a reference; v21 81 passed, `get_school_year_archive`
+`TEMPORARILY_UNAVAILABLE` on all four, 2 expected unsupported.
 
 ## 2.10.2 Error results as text; a behaviour row wider than the grade table
 
