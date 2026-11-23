@@ -11,6 +11,11 @@ project rules. [CONTRIBUTING.md](CONTRIBUTING.md) lists the checks CI runs.
   scope; ordinary tests and CI stay offline.
 - The API owns every upstream request, parser and retry. Do not add scraping
   paths here; coordinate consumer-visible API changes with `librus-python-api`.
+- When triaging a report, scoping a fix or reviewing a change, search public
+  Librus client repositories for the same page, route, field or tool and say in
+  the issue or pull request how they handle it, or that none does. A check
+  stricter than all of them (a pattern, an allowed set, a count bound) needs a
+  stated reason: two such checks failed a tester's login (#136).
 - Tool definitions are what agents choose by. A description starts with what
   the tool returns, names the tool to use instead where two overlap, and says
   when a call changes the view, week, month or range Librus remembers for the
