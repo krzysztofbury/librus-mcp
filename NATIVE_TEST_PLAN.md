@@ -1,5 +1,16 @@
 # Native migration verification ownership
 
+## 2.10.4 release live check
+
+Authorized by the owner's release request, on the tagged checkout (v2.10.4,
+API 1.11.4) on 2026-11-23, `qualify_native.py --live` on the four owner
+logins: academic 60 passed, 4 `VIEW_DISABLED`, 4 without a reference (two
+more checks had a reference than on 2.10.3; none that passed then fails);
+communication 22 passed, 2 without a sent reference, 4 expected unsupported;
+homework_history 10 passed, 2 without a reference; v21 81 passed,
+`get_school_year_archive` `TEMPORARILY_UNAVAILABLE` on all four, 2 expected
+unsupported.
+
 ## 2.10.4 Parent-login fixes and audit fixes
 
 2.10.4 pins API 1.11.4 (krzysztofbury/librus-python-api#201, #195, #196,
