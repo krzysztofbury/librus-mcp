@@ -31,7 +31,7 @@ from librus_mcp.config import AppConfig, read_config_file
 from librus_mcp.runtime import Runtime
 from librus_mcp.server import create_server, error_detail
 
-MAX_REQUESTS = 160
+MAX_REQUESTS = 240
 MAX_SECONDS = 360.0
 MAX_BYTES = 16 * 1024 * 1024
 STOP_CODES = frozenset(

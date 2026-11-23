@@ -336,7 +336,7 @@ uv run python scripts/qualify_native.py --live --phase communication --config /a
 uv run python scripts/qualify_native.py --live --phase homework_history --config /absolute/private/config.json
 ```
 
-Each invocation shares an API budget across accounts/calls: 160 upstream
+Each invocation shares an API budget across accounts/calls: 240 upstream
 requests, 360 seconds and 16 MiB total response bytes, in addition to the shared
 native scheduler limits. Authentication can advance last-login baselines and
 read filters can change. Qualification never sends, consumes read-once events,

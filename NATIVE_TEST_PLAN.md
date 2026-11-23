@@ -9,6 +9,22 @@ lines failed `get_grades` and `get_grades_window` with `LIMIT`. No MCP code
 changed. `release_verification/measure_tools.py`: 133519
 bytes for 32 default tools and 146860 bytes for 36 tools, unchanged.
 
+## 2.10.5 release live check
+
+Authorized by the owner's release request, on the tagged checkout (v2.10.5,
+API 1.11.5) on 2026-11-23, `qualify_native.py --live` on the four owner
+logins: academic 60 passed, 4 `VIEW_DISABLED`, 4 without a reference, with
+`get_grades`, `get_grades_window`, `get_attendance_frequency` and
+`get_subject_frequency` passing on all four; communication 22 passed, 2
+without a sent reference, 4 expected unsupported; homework_history 10 passed,
+2 without a reference. v21 on all four logins at once stopped with `LIMIT` at
+the script's own 160-request budget: the mailboxes had grown to one more
+continuation page, 161 requests in all. Run as two pairs of logins it
+completed: 83 passed, `get_school_year_archive` `TEMPORARILY_UNAVAILABLE` on
+all four, 2 expected unsupported. The budget is 240 requests since; with it
+v21 on all four logins at once completed with the same results in 161
+requests.
+
 ## 2.10.4 release live check
 
 Authorized by the owner's release request, on the tagged checkout (v2.10.4,
@@ -744,7 +760,7 @@ uv run python scripts/qualify_native.py --live --phase v21 --config /private/pat
 This profile checks both grade tools, school-year history, class-free days,
 modern discovery/counters, current/archive inbox/outbox lists, unread filtering,
 one continuation per available cursor and one filter per available correspondent
-list. The shared invocation budget is 160 requests, 360 seconds and 16 MiB.
+list. The shared invocation budget is 240 requests, 360 seconds and 16 MiB.
 Outputs contain slot numbers, tool/status/coverage and counts, never account
 aliases, school text or references. Optional stores, sends and files are explicitly
 disabled. No received/sent body open, download, notification poll, read-once
