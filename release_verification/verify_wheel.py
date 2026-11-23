@@ -288,19 +288,36 @@ def run_consumer_tests(repository: Path, python: Path, working_directory: Path) 
         ignore=shutil.ignore_patterns("__pycache__"),
     )
     (tests / "pytest.ini").write_text(
-        "[pytest]\nasyncio_mode = strict\ntestpaths = tests_native\n",
+        # timeout as in pyproject.toml: a hung test fails with its id, not
+        # only through the whole-suite cap below, which names no test.
+        "[pytest]\nasyncio_mode = strict\ntestpaths = tests_native\ntimeout = 120\n",
         encoding="utf-8",
     )
     subprocess.run(
-        [str(python), "-m", "pytest", "-q", "--basetemp", str(working_directory / "pytest")],
+        [
+            str(python),
+            "-m",
+            "pytest",
+            "-q",
+            # One worker per CPU. Every test is about 1.7 times slower under
+            # the x64 Python of the windows-11-arm job, which the README setup
+            # uses there, and most of the time is in server subprocesses (#129).
+            "--numprocesses",
+            "auto",
+            # The slowest tests per runner, to compare platforms (#129).
+            "--durations=25",
+            "--basetemp",
+            str(working_directory / "pytest"),
+        ],
         cwd=tests,
         env={
             key: value
             for key, value in synthetic_environment(working_directory).items()
             if not key.startswith("LIBRUS_")
         },
-        # Hosted Windows runs the suite in ~155-165s; a whole-suite cap is a hang
-        # guard, not a performance gate, so leave headroom for runner variance.
+        # Hosted Windows runs the suite in ~80-105s in parallel (~200s on x64
+        # and ~340s on ARM serially); a whole-suite cap is a hang guard, not a
+        # performance gate, so leave headroom for runner variance.
         timeout=600,
         check=True,
     )
