@@ -1,7 +1,6 @@
 """Self-hosted streamable HTTP: bearer token on every request, real runtime behind it."""
 
 import os
-import socket
 import sys
 
 import anyio
@@ -155,32 +154,52 @@ def test_http_serving_refuses_to_start_without_a_token(monkeypatch, tmp_path, ca
     assert not (tmp_path / "state").exists()
 
 
-def free_port() -> int:
-    with socket.socket() as probe:
-        probe.bind(("127.0.0.1", 0))
-        return probe.getsockname()[1]
+# Run inside the server process: the server binds port 0 itself and writes the
+# port it got to `port_file`, so no other process can take it in between (#135).
+# Only this report is added; serve_http and uvicorn bind as they do for users.
+REPORT_PORT = """import os, pathlib, uvicorn
+_startup = uvicorn.Server.startup
+async def _reporting_startup(self, sockets=None):
+    await _startup(self, sockets=sockets)
+    if self.started:
+        port_file = pathlib.Path({port_file!r})
+        partial = port_file.with_suffix(".partial")
+        partial.write_text(str(self.servers[0].sockets[0].getsockname()[1]))
+        os.replace(partial, port_file)
+uvicorn.Server.startup = _reporting_startup
+"""
+
+
+async def bound_port(process, port_file) -> int:
+    """The port the server reports once it listens; fails if it exits first."""
+    while not port_file.exists():
+        if process.returncode is not None:
+            pytest.fail(f"server exited with {process.returncode} before listening")
+        await anyio.sleep(0.05)
+    return int(port_file.read_text())
 
 
 @pytest.mark.asyncio
 async def test_http_serves_every_login_with_the_token_and_nothing_without(tmp_path):
     accounts = [("first", "login-1"), ("second", "login-2")]
-    port = free_port()
+    port_file = tmp_path / "port"
     async with Wire().serve() as wire:
         parameters = server_process(
             wire.origin,
             accounts,
             state_dir=tmp_path / "state",
-            serve="from librus_mcp.http_transport import serve_http\n"
-            f"serve_http(server, load_config(), host='127.0.0.1', port={port}, "
+            serve=REPORT_PORT.format(port_file=str(port_file))
+            + "from librus_mcp.http_transport import serve_http\n"
+            "serve_http(server, load_config(), host='127.0.0.1', port=0, "
             f"token={TOKEN.encode()!r}, allowed_hosts=['127.0.0.1:*', 'librus.test:*'])",
         )
         script = parameters.args[1]
-        url = f"http://127.0.0.1:{port}/mcp"
         async with await anyio.open_process(
             [sys.executable, "-c", script], cwd=REPOSITORY, env=parameters.env
         ) as process:
             try:
                 with anyio.fail_after(30):
+                    url = f"http://127.0.0.1:{await bound_port(process, port_file)}/mcp"
                     # The consumer suite points proxy variables at a dead port.
                     async with httpx2.AsyncClient(trust_env=False) as probe:
                         while True:
