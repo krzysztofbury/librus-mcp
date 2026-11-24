@@ -10,6 +10,12 @@ history, class-free days and student information. It supports
 several logins at once, built on the independent
 [`librus-python-api`](https://github.com/krzysztofbury/librus-python-api).
 
+> **Unofficial project.** This is an independent, private open-source project.
+> It is not affiliated with, endorsed by or sponsored by Librus or its owner.
+> "Librus" and "Librus Synergia" are trademarks of their owner, named here only
+> to say which service this software works with. See
+> [Trademarks and affiliation](#trademarks-and-affiliation).
+
 <!-- mcp-name: io.github.krzysztofbury/librus-mcp -->
 
 Version 2.0 replaces the `librus-apix` backend used by every earlier version.
@@ -502,6 +508,17 @@ and dependency review; dependencies keep their own terms. Unshipped 1.x
 references in `legacy_reference/` remain GPL-3.0-only, and earlier releases keep
 their original licenses.
 
-This is an unofficial integration, not affiliated with Librus. Upstream changes
+This is an unofficial integration; see
+[Trademarks and affiliation](#trademarks-and-affiliation). Upstream changes
 can break supported features. Report security issues privately as described in
 [SECURITY.md](SECURITY.md).
+
+## Trademarks and affiliation
+
+This is an independent, private open-source project. It is not affiliated with,
+endorsed by, sponsored by or otherwise connected to Librus or its owner, and it
+is not an official Librus product. "Librus", "Librus Synergia" and related
+names and logos are trademarks of their owner. They are used here only to
+describe which service this software works with; the author claims no rights to
+them. Use of the service through this software remains subject to the
+service's own terms.
