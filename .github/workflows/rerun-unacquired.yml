@@ -32,15 +32,19 @@ jobs:
           ATTEMPT: ${{ github.event.workflow_run.run_attempt }}
         run: |
           set -euo pipefail
-          jobs=$(gh api "repos/$REPO/actions/runs/$RUN_ID/attempts/$ATTEMPT/jobs?per_page=100" \
-            --jq '[.jobs[] | select(.conclusion == "failure" or .conclusion == "cancelled"
-                    or .conclusion == "timed_out")]')
+          # Every failed, cancelled or timed-out job of the attempt, on all pages.
+          jobs=$(gh api --paginate "repos/$REPO/actions/runs/$RUN_ID/attempts/$ATTEMPT/jobs?per_page=100" \
+            --jq '.jobs[] | select(.conclusion == "failure" or .conclusion == "cancelled"
+                    or .conclusion == "timed_out")
+                  | {id, unstarted: ((.runner_name // "") == "" and (.steps | length) == 0)}' \
+            | jq -s '.')
           failed=$(jq 'length' <<<"$jobs")
-          unstarted=$(jq -r '.[] | select((.runner_name // "") == "" and (.steps | length) == 0) | .id' <<<"$jobs")
           unacquired=0
-          for id in $unstarted; do
-            if gh api "repos/$REPO/check-runs/$id/annotations" \
-              --jq 'any(.[]; .message | test("not acquired by Runner"))' | grep -qx true; then
+          for id in $(jq -r '.[] | select(.unstarted) | .id' <<<"$jobs"); do
+            # A failed lookup fails this job, so the automation is never off silently.
+            found=$(gh api "repos/$REPO/check-runs/$id/annotations" \
+              --jq 'any(.[]; .message | test("not acquired by Runner"))')
+            if [ "$found" = true ]; then
               unacquired=$((unacquired + 1))
             fi
           done
