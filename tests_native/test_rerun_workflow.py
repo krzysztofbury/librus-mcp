@@ -14,6 +14,8 @@ import yaml
 ROOT = Path(__file__).resolve().parents[1]
 WORKFLOWS = ROOT / ".github/workflows"
 RERUN = WORKFLOWS / "rerun-unacquired.yml"
+# Installed-artifact jobs run a copy of the tests without `.github/`.
+pytestmark = pytest.mark.skipif(not RERUN.exists(), reason="source checkout only")
 WATCHED = ["CI"]
 NOT_ACQUIRED = "The job was not acquired by Runner of type hosted even after multiple attempts"
 # Answers `gh api URL --jq FILTER` from GH_FIXTURE through the real jq, and
