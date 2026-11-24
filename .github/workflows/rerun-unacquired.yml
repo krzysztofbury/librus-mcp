@@ -1,0 +1,53 @@
+name: Rerun jobs GitHub never started
+
+# A hosted macOS arm64 job can be cancelled after 15 minutes without ever
+# getting a runner: no runner, no steps, annotated "was not acquired by Runner"
+# (GitHub capacity; seen 2026-11-23 and 2026-11-24). That is no test result.
+# When every failed job of a run is such a job, rerun the failed jobs, at most
+# twice per run. A run with any job that really failed is left alone.
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+
+permissions: {}
+
+jobs:
+  rerun:
+    if: >-
+      github.event.workflow_run.conclusion == 'failure'
+      && github.event.workflow_run.run_attempt < 3
+      && github.event.workflow_run.head_repository.full_name == github.repository
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      actions: write
+      checks: read
+    steps:
+      - name: Rerun when only unacquired jobs failed
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          RUN_ID: ${{ github.event.workflow_run.id }}
+          ATTEMPT: ${{ github.event.workflow_run.run_attempt }}
+        run: |
+          set -euo pipefail
+          jobs=$(gh api "repos/$REPO/actions/runs/$RUN_ID/attempts/$ATTEMPT/jobs?per_page=100" \
+            --jq '[.jobs[] | select(.conclusion == "failure" or .conclusion == "cancelled"
+                    or .conclusion == "timed_out")]')
+          failed=$(jq 'length' <<<"$jobs")
+          unstarted=$(jq -r '.[] | select((.runner_name // "") == "" and (.steps | length) == 0) | .id' <<<"$jobs")
+          unacquired=0
+          for id in $unstarted; do
+            if gh api "repos/$REPO/check-runs/$id/annotations" \
+              --jq 'any(.[]; .message | test("not acquired by Runner"))' | grep -qx true; then
+              unacquired=$((unacquired + 1))
+            fi
+          done
+          echo "Attempt $ATTEMPT: $failed failed jobs, $unacquired never got a runner."
+          if [ "$failed" -gt 0 ] && [ "$unacquired" -eq "$failed" ]; then
+            gh run rerun "$RUN_ID" --failed --repo "$REPO"
+            echo "Reran the failed jobs of run $RUN_ID."
+          else
+            echo "Nothing to rerun: a job that ran failed, or none was left unstarted."
+          fi

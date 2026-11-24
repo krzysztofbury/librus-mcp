@@ -95,12 +95,15 @@ and re-run the job; attaching the files is idempotent.
 
 ## Failures and recovery
 
-A job that failed on a flake reruns with `gh run rerun ID --failed`, which keeps
-that run's verified files for 7 days. Before upload, fix a real failure and do not
-waive a gate. To stop a release, reject the waiting approval first, since a later
-approval would publish with no release to attach to, then `gh release delete` it;
-the tag stays. A fault in the tag's own source or workflow needs a new version,
-because a release run uses the files at the tag.
+A CI job GitHub never started (no runner, no steps, annotated "not acquired by
+Runner") is rerun automatically by `rerun-unacquired.yml`, at most twice per
+run, when it is the only kind of failure in the run. A job that failed on a
+flake reruns with `gh run rerun ID --failed`, which keeps that run's verified
+files for 7 days. Before upload, fix a real failure and do not waive a gate. To
+stop a release, reject the waiting approval first, since a later approval would
+publish with no release to attach to, then `gh release delete` it; the tag
+stays. A fault in the tag's own source or workflow needs a new version, because
+a release run uses the files at the tag.
 
 For a few minutes after the library or this package is uploaded, uv may
 report that the new version does not exist although PyPI's JSON API lists it:
