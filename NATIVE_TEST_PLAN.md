@@ -16,6 +16,22 @@ checks (`tests_native/test_academic_stdio.py`, a lesson with no route).
 `release_verification/measure_tools.py`: 133689 bytes for 32 default tools and
 147030 bytes for 36 tools (+170 each, within 132 and 144 KiB).
 
+## 2.11.0 release live check
+
+Authorized by the owner's release request, on the tagged checkout (v2.11.0,
+API 1.12.0) on 2026-11-24, `qualify_native.py --live` on the four owner
+logins, with the same results as 2.10.5: academic 60 passed (including
+`get_grades`, `get_grades_window`, `get_attendance_frequency` and
+`get_subject_frequency` on all four), 4 `VIEW_DISABLED`, 4 without a reference;
+communication 22 passed, 2 without a sent reference, 4 expected unsupported;
+homework_history 10 passed, 2 without a reference; v21 83 passed,
+`get_school_year_archive` `TEMPORARILY_UNAVAILABLE` on all four, 2 expected
+unsupported. A first attempt at 13:49 UTC stopped at sign-in with
+`CONNECTION` and `TIMEOUT`: Librus Synergia answered no HTTP request, from this
+machine or from an outside fetch, until 13:59 UTC. None of these logins has a
+school's own attendance type or a lesson Librus does not give; those changes
+are verified offline only.
+
 ## 2.10.5 Parent-login attendance frequency and long grade tooltips
 
 2.10.5 pins API 1.11.5 for the two failures left in #136 on 2.10.4: gateway
