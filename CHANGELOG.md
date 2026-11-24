@@ -4,6 +4,32 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [2.11.0] - 2026-11-24
+
+Pins `librus-python-api==1.12.0`. `get_subject_frequency` gains one output
+field, `unresolved`; reconnect the assistant to refresh its tool catalog.
+
+These come from checking each tool in #136 against public Librus clients
+before the next run on that login, not from a new report.
+
+### Added
+
+- `get_subject_frequency` returns `unresolved`, a frequency measure of the
+  records whose lesson or subject Librus does not give, or `null` when every
+  record resolved. Such a lesson or subject used to fail the whole call.
+
+### Fixed
+
+- `get_attendance_frequency` and `get_subject_frequency` count a school's own
+  attendance types as the standard type the school's type list names for them.
+  Before, any such type was `unknown`, and every ratio was `null`.
+- `get_grades` and `get_grades_window` no longer fail with `PARSE` when a
+  grade's comment, skill or grading-area text holds a line such as
+  `Word: text`; the line stays part of the text.
+- A gateway validation failure in the diagnostics groups errors that repeat
+  across records, such as `Attendances[*].Id string_pattern_mismatch x4`, so a
+  different failing field is no longer hidden.
+
 ## [2.10.5] - 2026-11-23
 
 Pins `librus-python-api==1.11.5`. The tool catalog is unchanged.

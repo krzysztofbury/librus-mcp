@@ -191,7 +191,7 @@ async def get_subject_frequency(
     date_from: FirstDay[ISODate | None] = None,
     date_to: LastDay[ISODate | None] = None,
 ) -> SubjectFrequencyResult:
-    """Get attendance counts and ratios per subject, optionally within a window of up to 371 days. For overall totals use get_attendance_frequency."""
+    """Get attendance counts and ratios per subject, optionally within a window of up to 371 days; records whose lesson or subject Librus does not give are counted in unresolved. For overall totals use get_attendance_frequency."""
     runtime = ctx.request_context.lifespan_context
     result = await runtime.account(account_alias).subject_frequency(
         start=date_from,
@@ -202,6 +202,7 @@ async def get_subject_frequency(
         items=result.items,
         date_from=result.start,
         date_to=result.end,
+        unresolved=result.unresolved,
         identity=result.identity,
         observation=result.observation,
     )
