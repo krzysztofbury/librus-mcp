@@ -38,8 +38,8 @@ async def test_remaining_academic_families_preserve_native_values_and_bound_refe
                 assert window["items"][0]["symbol"] == "nb"
                 frequency = await call("get_attendance_frequency")
                 assert frequency["data"]["overall"] == {
-                    "attended_count": 2,
-                    "total_count": 4,
+                    "attended_count": 3,
+                    "total_count": 5,
                     "ratio": None,
                     "excluded_count": 0,
                     "unknown_count": 1,
@@ -55,6 +55,14 @@ async def test_remaining_academic_families_preserve_native_values_and_bound_refe
                     "excluded_count": 1,
                     "unknown_count": 1,
                     "ratio": None,
+                    "policy": "subject",
+                }
+                assert subjects["unresolved"] == {
+                    "attended_count": 1,
+                    "total_count": 1,
+                    "excluded_count": 0,
+                    "unknown_count": 0,
+                    "ratio": 1.0,
                     "policy": "subject",
                 }
                 # A Thursday selects its week.

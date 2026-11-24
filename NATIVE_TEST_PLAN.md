@@ -1,5 +1,21 @@
 # Native migration verification ownership
 
+## 2.11.0 School attendance types, unresolved subjects and grade comments
+
+2.11.0 pins API 1.12.0. Found by comparing each tool in #136 with public Librus
+clients before the tester's run of 2.10.5:
+
+- A school's own attendance types are resolved through the gateway type list,
+  read only when a record has a type outside the fixed policy.
+- `get_subject_frequency` counts the records of a lesson or subject Librus does
+  not give in the new `unresolved` output field instead of failing.
+- Grade comment, skill and grading-area lines holding a colon stay text.
+
+The MCP change is the `unresolved` field, which the native academic test
+checks (`tests_native/test_academic_stdio.py`, a lesson with no route).
+`release_verification/measure_tools.py`: 133689 bytes for 32 default tools and
+147030 bytes for 36 tools (+170 each, within 132 and 144 KiB).
+
 ## 2.10.5 Parent-login attendance frequency and long grade tooltips
 
 2.10.5 pins API 1.11.5 for the two failures left in #136 on 2.10.4: gateway

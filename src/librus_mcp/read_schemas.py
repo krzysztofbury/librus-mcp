@@ -151,6 +151,8 @@ class TimetableResult(CollectionResult[TimetableDay]):
 class SubjectFrequencyResult(CollectionResult[SubjectFrequency]):
     date_from: date | None
     date_to: date | None
+    # Records whose lesson or subject Librus does not give; null when all resolved.
+    unresolved: FrequencyMeasure | None
 
 
 class AgendaEventOutput(WireModel):

@@ -31,6 +31,16 @@ async def academic_response(request):
                     }
                     for index, kind in enumerate(("100", "1", "1266", "999"), start=1)
                 ]
+                # Lesson 62 has no route here: Librus does not give it.
+                + [
+                    {
+                        "Id": "5",
+                        "Date": "2026-09-24",
+                        "Semester": 1,
+                        "Type": {"Id": "100"},
+                        "Lesson": {"Id": "62"},
+                    }
+                ]
             }
         )
     if path == "/gateway/api/2.0/Lessons/61":
