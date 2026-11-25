@@ -31,10 +31,12 @@ import subprocess
 import sys
 import tokenize
 from pathlib import Path
+from typing import Any
 
 VERSION = 1
 DEFAULT_BASELINE = ".agents/audit-baseline.json"
 KINDS = ("comments", "to_delete")
+Counts = dict[str, dict[str, int]]
 PRAGMA = re.compile(
     r"^#\s*(noqa\b|type:\s*ignore|pragma:|pyright:|mypy:|fmt:|isort:|ruff:|nosec\b|pylint:)"
 )
@@ -64,7 +66,7 @@ def count_comments(source: str) -> int:
     return total
 
 
-def dotted(node) -> str:
+def dotted(node: ast.AST) -> str:
     parts = []
     while isinstance(node, ast.Attribute):
         parts.append(node.attr)
@@ -101,7 +103,7 @@ def count_to_delete(source: str, path: str) -> int:
     return total
 
 
-def tracked_files(roots):
+def tracked_files(roots: list[str]) -> list[str]:
     try:
         out = subprocess.run(
             ["git", "ls-files", "-z", "--", *roots], capture_output=True, check=True
@@ -112,36 +114,39 @@ def tracked_files(roots):
     return sorted(f for f in files if Path(f).is_file())
 
 
-def measure(roots):
-    counts = {kind: {} for kind in KINDS}
+def measure(roots: list[str]) -> Counts:
+    counts: Counts = {kind: {} for kind in KINDS}
     for path in tracked_files(roots):
         source = Path(path).read_text(encoding="utf-8")
-        found = {"comments": count_comments(source), "to_delete": count_to_delete(source, path)}
+        found = {
+            "comments": count_comments(source),
+            "to_delete": count_to_delete(source, path),
+        }
         for kind in KINDS:
             if found[kind]:
                 counts[kind][path] = found[kind]
     return counts
 
 
-def load(path):
+def load(path: str) -> dict[str, Any]:
     try:
-        data = json.loads(Path(path).read_text(encoding="utf-8"))
+        data: dict[str, Any] = json.loads(Path(path).read_text(encoding="utf-8"))
     except FileNotFoundError:
-        raise RatchetError(f"no baseline at {path}; run init first")
+        raise RatchetError(f"no baseline at {path}; run init first") from None
     if data.get("version") != VERSION or not data.get("roots"):
         raise RatchetError(f"{path}: unsupported baseline (version {VERSION} with roots)")
     return data
 
 
-def save(path, roots, counts):
-    data = {"version": VERSION, "roots": roots}
+def save(path: str, roots: list[str], counts: Counts) -> None:
+    data: dict[str, Any] = {"version": VERSION, "roots": roots}
     data.update({kind: dict(sorted(counts[kind].items())) for kind in KINDS})
     Path(path).parent.mkdir(parents=True, exist_ok=True)
     Path(path).write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
 
 
-def rises(baseline, counts):
-    out = []
+def rises(baseline: dict[str, Any], counts: Counts) -> list[str]:
+    out: list[str] = []
     for kind in KINDS:
         old = baseline.get(kind, {})
         for path, n in counts[kind].items():
@@ -150,7 +155,7 @@ def rises(baseline, counts):
     return out
 
 
-def falls(baseline, counts):
+def falls(baseline: dict[str, Any], counts: Counts) -> int:
     return sum(
         1
         for kind in KINDS
@@ -159,7 +164,7 @@ def falls(baseline, counts):
     )
 
 
-def main(argv=None):
+def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("command", choices=("init", "check", "update", "report"))
     parser.add_argument("--baseline", default=DEFAULT_BASELINE)
