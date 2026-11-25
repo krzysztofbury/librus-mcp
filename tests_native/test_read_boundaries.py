@@ -77,7 +77,6 @@ async def test_reference_backend_context_and_mark_read_guards_are_preflight_only
                 ClientSession(*streams) as session,
             ):
                 await session.initialize()
-                # Obtain an actual context from a bound presentation cursor.
                 window = await session.call_tool(
                     "get_grades_window", {"account_alias": "account", "limit": 1}
                 )
@@ -221,7 +220,6 @@ async def test_whole_grade_and_attendance_reads_are_paged_with_bound_cursors():
                             break
                         assert content["pagination"]["reason"] == "item_limit"
                     assert seen == total
-                # A cursor is bound to its tool query, not reusable elsewhere.
                 first = await session.call_tool(
                     "get_grades", {"account_alias": "first", "limit": 1}
                 )
@@ -276,7 +274,6 @@ async def test_announcements_at_the_api_text_maximum_are_returned_page_by_page()
                     assert len(wire.calls) == calls
                 assert contents == [content for _, content in notices]
                 assert reasons == ["size_limit", None]
-                # Short texts page by limit; a changed collection is stale.
                 wire.announcements = [(f"Short {i}", f"Short text {i}") for i in range(3)]
                 first = await session.call_tool("get_announcements", query | {"limit": 2})
                 page = first.structured_content
@@ -324,7 +321,6 @@ def test_sized_page_edges_an_empty_collection_and_an_oversized_first_item():
     _, window = window_page(items, context=context, query=("q",), cursor=None, limit=1)
     assert window.next_cursor is not None
     assert window.next_cursor.source == pagination.next_cursor.source
-    # The cap is read when a page is built, as the server reads it.
     original = presentation.MAX_RESULT_BYTES
     try:
         presentation.MAX_RESULT_BYTES = presentation._ENVELOPE_RESERVE + 10

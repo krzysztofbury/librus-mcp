@@ -164,7 +164,6 @@ def test_missing_context_key_is_created_once_and_reused(tmp_path, capsys):
     if os.name == "posix":
         assert (state / KEY_FILENAME).stat().st_mode & 0o777 == 0o600
         assert state.stat().st_mode & 0o777 == 0o700
-    # An explicit key always wins over the stored one.
     write_config(path, data | {"context_key": bytes(range(32)).hex()})
     assert load_config(path).key_bytes() == bytes(range(32))
 
@@ -252,7 +251,6 @@ def test_environment_login_fails_closed_when_partial_or_competing(
         monkeypatch.setenv(name, value)
     with pytest.raises(ConfigError, match=message):
         load_config()
-    # An explicit CLI file still wins over every environment source.
     path = tmp_path / "explicit.json"
     write_config(path)
     assert load_config(path).accounts[0].alias == "fixture"
@@ -298,7 +296,6 @@ def test_shared_own_credential_file_is_restricted_and_special_files_rejected(tmp
     path = tmp_path / "config.json"
     write_config(path)
     path.chmod(0o644)
-    # The user's own file is restricted in place instead of refusing to start.
     assert load_config(path).accounts[0].alias == "fixture"
     assert path.stat().st_mode & 0o777 == 0o600
     fifo = tmp_path / "pipe"
@@ -391,7 +388,6 @@ def test_enabled_features_create_missing_private_ancestors_on_a_fresh_host(tmp_p
         home / ".librus-mcp" / "downloads" / "native-v2",
     ):
         assert directory.stat().st_mode & 0o777 == 0o700
-    # Existing ancestors are used as found, never chmodded.
     assert home.stat().st_mode & 0o777 == 0o755
 
 
@@ -436,7 +432,6 @@ def test_unusable_directory_fails_startup_with_one_line(tmp_path, capsys):
 def test_configuration_ownership_follows_the_effective_user(
     tmp_path, monkeypatch, differs, accepted
 ):
-    # Opening and restricting the file act as the effective user.
     path = tmp_path / "config.json"
     path.write_bytes(b"{}")
     path.chmod(0o600)

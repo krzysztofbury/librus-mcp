@@ -19,7 +19,6 @@ from jsonschema.validators import validator_for
 from mcp.client import ClientSession
 from mcp.client.stdio import StdioServerParameters, stdio_client
 
-# Direct script execution puts this directory, not the repository root, on sys.path.
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 from release_verification.verify_release import (  # noqa: E402
     VerificationError,
@@ -81,7 +80,6 @@ def synthetic_environment(
                 ]
             ),
             "LIBRUS_CONTEXT_KEY": secrets.token_hex(32),
-            # The default profile uses the shipped feature defaults.
             "LIBRUS_FEATURES": json.dumps({"send_message": True} if all_features else {}),
             "LIBRUS_STATE_DIR": str(temporary_directory / "state"),
             "LIBRUS_DOWNLOAD_DIR": str(temporary_directory / "downloads"),

@@ -233,7 +233,6 @@ PersistenceStore.execute_send = unavailable
 
 @pytest.mark.asyncio
 async def test_failed_outcome_read_after_send_still_reports_delivery(tmp_path):
-    # The first post-send read fails once; the durable record stays authoritative.
     setup = """from librus_python_api.persistence import PersistenceStore
 from librus_python_api.exceptions import LibrusError, ErrorKind
 original = PersistenceStore.send_outcome

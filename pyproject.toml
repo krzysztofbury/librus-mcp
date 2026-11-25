@@ -110,6 +110,7 @@ line-ending = "auto"
 asyncio_mode = "strict"
 asyncio_default_fixture_loop_scope = "function"
 testpaths = ["tests_native", "release_verification"]
+markers = ["to_delete(issue): marked by a test audit for replacement; see the issue"]
 # A hung test fails with its id after two minutes instead of holding a CI job
 # until the job timeout; the slowest test takes about five seconds.
 timeout = 120
