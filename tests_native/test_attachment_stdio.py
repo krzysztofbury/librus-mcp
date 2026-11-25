@@ -71,7 +71,6 @@ async def test_download_namespace_follows_the_reference_unless_the_file_flag_is_
                 calls = len(wire.calls)
                 result = await download(False)
                 if archived:
-                    # An archive message's files are never in the current namespace.
                     assert result.is_error
                     assert closed(result) == {"error": {"code": "INVALID_INPUT"}}
                     assert len(wire.calls) == calls
@@ -87,7 +86,6 @@ async def test_download_namespace_follows_the_reference_unless_the_file_flag_is_
 @pytest.mark.asyncio
 async def test_download_uses_the_archive_namespace_reported_by_message_content(tmp_path):
     async with Wire().serve() as wire:
-        # A current-mailbox message whose detail places its file in the archive.
         wire.detail_archive = True
         process = server_process(
             wire.origin,
@@ -175,7 +173,6 @@ async def test_native_publication_binding_resource_restart_and_failed_download(t
                 uri = saved["resource_uri"]
                 if os.name == "posix":
                     assert uri and saved["resource_ttl_seconds"] == 900
-                    # Resources are immutable snapshots, not repeated filesystem reads.
                     path.write_bytes(b"Replacement data")
                     resource = await session.read_resource(uri)
                     assert base64.b64decode(resource.contents[0].blob) == wire.attachment_body
@@ -185,7 +182,6 @@ async def test_native_publication_binding_resource_restart_and_failed_download(t
                 else:
                     assert uri is None
                 assert len(wire.calls) == calls
-                # A fresh failed stream publishes no partial or empty file.
                 files = set(path.parent.iterdir())
                 limited = await session.call_tool(
                     "download_attachment", arguments | {"max_bytes": 1}
@@ -224,7 +220,7 @@ def test_resource_capacity_expiry_and_nofollow_boundary(tmp_path, monkeypatch):
     resources = AttachmentResources(directory)
     uris = [resources.snapshot(saved) for _ in range(32)]
     assert all(uris) and resources.snapshot(saved) is None
-    assert path.read_bytes() == body  # Capacity falls back to the complete native file.
+    assert path.read_bytes() == body
     clock[0] += 901
     with pytest.raises(LibrusError) as expired:
         resources.read(uris[0].rsplit("/", 1)[1])

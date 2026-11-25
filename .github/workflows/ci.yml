@@ -52,6 +52,9 @@ jobs:
       - name: Run tests
         run: uv run pytest -q
 
+      - name: Comment and marked-test ratchet
+        run: uv run python scripts/audit_ratchet.py check
+
       - name: Build package
         run: uv build --no-build-isolation
 

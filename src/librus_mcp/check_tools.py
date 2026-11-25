@@ -81,7 +81,6 @@ CATALOG_TOOLS = ("list_accounts",)
 MODERN_ONLY = frozenset(
     {"get_message_correspondents", "get_teacher_subjects", "get_message_unread_counts"}
 )
-# Tools the check never calls, and why.
 REFUSED: Mapping[str, str] = {
     "get_attendance_detail": "needs attendance_id from get_attendance",
     "get_agenda_detail": "needs event_ref from get_agenda",

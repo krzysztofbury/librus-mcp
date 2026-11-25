@@ -49,7 +49,6 @@ async def test_every_catalog_tool_is_either_checked_or_refused_with_a_reason(fea
             continue
         for day in DAYS:
             arguments = {"account_alias": "fixture"} | CHECKS[tool.name](day)
-            # The derived arguments are what the published input schema accepts.
             Draft202012Validator(tool.input_schema).validate(arguments)
         required = set(tool.input_schema.get("required", ())) - {"account_alias"}
         assert required <= set(CHECKS[tool.name](DAYS[0])), tool.name
@@ -108,7 +107,6 @@ async def test_the_default_run_reads_every_safe_tool_without_effects(tmp_path, b
             if method == effect_method and route.fullmatch(path)
         ]
         assert effects == []
-        # The guard itself recognises an effect route.
         assert any(route.fullmatch("/wiadomosci/1/5/123") for _, route in EFFECT_ROUTES)
         assert not any(route.fullmatch("/api/inbox/messages/senders") for _, route in EFFECT_ROUTES)
         assert ALIAS not in "\n".join(lines)
@@ -137,7 +135,6 @@ async def test_a_student_login_reports_parent_only_justifications_as_unavailable
     assert (
         lines[1] == "login 1 get_justifications: unavailable on this login (UNSUPPORTED_CAPABILITY)"
     )
-    # The run goes on to the next tool.
     assert lines[2].startswith("login 1 get_grades: OK")
 
 

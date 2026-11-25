@@ -113,7 +113,6 @@ async def test_behaviour_points_tally_is_the_number_shown_and_nothing_more():
         tool.name: tool
         for tool in await create_server(AppConfig.model_validate(config_data())).list_tools()
     }
-    # The rule is stated once, on the tally field both grade tools publish.
     for name in ("get_grades", "get_grades_window"):
         tool = tools[name]
         item = tool.output_schema["$defs"]["BehaviourPointsItem"]

@@ -43,8 +43,7 @@ class Wire:
         # leaves it out. The API reads justifications for group 5 only.
         self.account_group: int | None = 5
         self.justifications_empty = False
-        # (title, content) pairs served as the announcements page, when set.
-        self.announcements = None
+        self.announcements: list[tuple[str, str]] | None = None
         self.formative = False
         self.points = False
         # Librus may list one cell's grades in a different order on each read.
@@ -56,7 +55,6 @@ class Wire:
         self.formative_text = "Fixture formative assessment"
         # Add a Zachowanie row: tally 50 with entries +5 and -3, then -7 alone.
         self.behaviour_points = False
-        # Add a new-schema descriptive table that shows one grade as a box.
         self.descriptive_boxes = False
         self.sent_payloads = []
         self.send_unknown = False

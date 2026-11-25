@@ -128,7 +128,6 @@ async def test_grade_ids_and_the_all_views_correction_links():
                             ("301", None, None),
                             ("302", None, None),
                         ]
-                # A window keeps each link whole, in both directions.
                 assert await links("get_grades_window", date_from="2026-09-25") == [
                     ("302", ["301"], [])
                 ]
@@ -156,8 +155,6 @@ def _behaviour_entry(points, detail_id, day):
 
 @pytest.mark.asyncio
 async def test_behaviour_points_sit_beside_grades_without_changing_them():
-    # #103: the Zachowanie row's points (librus-python-api#138) are reported
-    # next to the grade items, uninterpreted, and never become a grade item.
     plus = _behaviour_entry(5, "11", "2026-09-21")
     minus = _behaviour_entry(-3, "12", "2026-09-25")
     async with Wire().serve() as wire:
@@ -180,8 +177,6 @@ async def test_behaviour_points_sit_beside_grades_without_changing_them():
                     assert plain["behaviour_points"] == []
                     wire.behaviour_points = True
                     first = await read(tool, limit=1)
-                    # Grade items and their cursor do not depend on the points:
-                    # a cursor from the page without them continues this one.
                     for key in ("items", "pagination"):
                         assert first[key] == plain[key]
                     cursor = plain["pagination"]["next_cursor"]
@@ -190,7 +185,6 @@ async def test_behaviour_points_sit_beside_grades_without_changing_them():
                         "4+",
                         "3",
                     ]
-                    # Every page carries the points, like get_grades' averages.
                     for page in (first, last):
                         assert page["behaviour_points"][0] == {
                             "semester": 1,
@@ -204,8 +198,6 @@ async def test_behaviour_points_sit_beside_grades_without_changing_them():
                     "entries": [],
                 }
                 assert all(item["subject"] != "Zachowanie" for item in whole["items"])
-                # A window keeps each item's tally with only the entries in it;
-                # an item without such entries is left out.
                 window = await read("get_grades_window")
                 assert [item["tally"] for item in window["behaviour_points"]] == [50]
                 dated = await read("get_grades_window", date_from="2026-09-25")
@@ -252,8 +244,6 @@ async def test_descriptive_grades_shown_as_boxes_reach_both_grade_tools():
                         None,
                     )
                     assert ["Umiejętność", "Fixture counts to ten"] in box["metadata"]
-                # The page shows the grades; the descriptive gateway routes
-                # (librus-python-api contracts/grades.md) are never requested.
                 assert not any("/Auth/" in path for _, path, _ in wire.calls)
 
 
@@ -586,7 +576,6 @@ async def test_justifications_page_in_librus_order_with_the_default_window():
                 assert not empty.is_error, empty
                 await assert_matches_published_schema(session, "get_justifications", empty)
                 assert empty.structured_content["items"] == []
-                # The list is only read, never filtered by a form POST.
                 assert {
                     method for method, path, _ in wire.calls if path == "/eusprawiedliwienia"
                 } == {"GET"}

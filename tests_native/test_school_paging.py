@@ -183,7 +183,6 @@ async def test_a_large_result_is_returned_page_by_page(name, query, other, attri
     assert values == [f"{index}{LONG}" for index in range(40)]
     assert reasons[-1] is None and set(reasons[:-1]) == {"size_limit"} and len(reasons) >= 2
 
-    # A cursor is bound to its month or range and is checked before any read.
     first = await server.call_tool(name, query, context)
     cursor = first.structured_content["pagination"]["next_cursor"]
     reads = client.reads
@@ -191,7 +190,6 @@ async def test_a_large_result_is_returned_page_by_page(name, query, other, attri
         moved = await server.call_tool(name, query | change | {"cursor": cursor}, context)
         assert moved.is_error and closed(moved) == {"error": {"code": "INVALID_INPUT"}}
     assert client.reads == reads
-    # A changed month or range is stale, not a page of the new collection.
     setattr(client, attribute, getattr(client, attribute)[1:])
     stale = await server.call_tool(name, query | {"cursor": cursor}, context)
     assert stale.is_error and closed(stale) == {"error": {"code": "STALE_CURSOR"}}
@@ -217,7 +215,6 @@ async def test_a_small_result_is_one_page_and_limit_pages_by_count(
     values, reasons, _ = await read_all(server, context, name, query | {"limit": 2}, field)
     assert values == [f"{index} short" for index in range(3)]
     assert reasons == ["item_limit", None]
-    # An empty month or range is one empty page.
     setattr(client, attribute, [])
     empty = await server.call_tool(name, query, context)
     assert not empty.is_error

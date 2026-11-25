@@ -125,7 +125,6 @@ def build(wheel: Path, out_dir: Path) -> Path:
             bundle_pyproject(version, wheel.name, project["tool"]["uv"], qualified_pins())
         )
         subprocess.run(["uv", "lock", "--quiet", "--directory", str(stage)], check=True)
-        # Every shared dependency must resolve exactly as the qualified project lock.
         project_versions = locked_versions(ROOT / "uv.lock")
         drift = sorted(
             name

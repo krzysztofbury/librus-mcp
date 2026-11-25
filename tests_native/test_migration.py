@@ -202,7 +202,6 @@ async def test_reviewed_bootstrap_preserves_originals_and_history_replays_offlin
             "NO_PROXY": "",
         }
     )
-    # Each of these fails at the mapping/approval boundary before target creation.
     for change in (
         {"context": "0" * 64},
         {"source_files": {}},
@@ -243,7 +242,6 @@ async def test_reviewed_bootstrap_preserves_originals_and_history_replays_offlin
         assert json.loads(completed.stdout)["imported"] is (mode == "--apply")
     assert {path.name: path.read_bytes() for path in source.iterdir()} == originals
     assert len(list((state / "native-v2").glob("migration-*.json"))) == 2
-    # Repeat cannot overwrite an initialized target or its durable pending receipt.
     repeated = subprocess.run(
         [sys.executable, "-m", "librus_mcp.cli", *cli_args(config, source, "--apply", mapping)],
         capture_output=True,

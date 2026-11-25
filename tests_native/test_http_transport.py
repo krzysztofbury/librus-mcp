@@ -76,7 +76,6 @@ async def test_only_one_matching_bearer_token_reaches_the_server(headers, allowe
         start, body = sent
         assert start["status"] == 401 and (b"www-authenticate", b"Bearer") in start["headers"]
         assert TOKEN.encode() not in body["body"]
-    # Lifespan starts the runtime and must never need a token.
     await call(middleware, {"type": "lifespan"})
     assert reached[-1] == "lifespan"
 
@@ -125,6 +124,7 @@ def test_http_token_file_is_private_and_ignores_a_trailing_newline(tmp_path, mon
         load_token()
 
 
+@pytest.mark.to_delete(issue=146)
 @pytest.mark.parametrize(
     "arguments",
     [

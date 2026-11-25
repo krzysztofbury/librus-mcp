@@ -25,7 +25,6 @@ from mcp.client import ClientSession
 from mcp.client.stdio import StdioServerParameters, stdio_client
 from mcp.client.streamable_http import streamable_http_client
 
-# Direct script execution puts this directory, not the repository root, on sys.path.
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 from release_verification.verify_release import (  # noqa: E402
     VerificationError,
