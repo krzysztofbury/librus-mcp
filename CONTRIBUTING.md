@@ -39,6 +39,7 @@ uv run ruff format --check src/librus_mcp/ tests_native/ release_verification/ s
 uv run bandit -c pyproject.toml -r src/librus_mcp/
 uv run mypy
 uv run pytest -q
+uv run python scripts/audit_ratchet.py check
 uv build --no-build-isolation
 ```
 

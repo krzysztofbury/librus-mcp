@@ -244,6 +244,7 @@ async def test_descriptive_grades_shown_as_boxes_reach_both_grade_tools():
                         None,
                     )
                     assert ["Umiejętność", "Fixture counts to ten"] in box["metadata"]
+                # Why: /Auth/ paths are the descriptive gateway routes (librus-python-api contracts/grades.md).
                 assert not any("/Auth/" in path for _, path, _ in wire.calls)
 
 
