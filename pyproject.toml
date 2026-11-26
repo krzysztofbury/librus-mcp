@@ -98,6 +98,9 @@ select = [
     "UP045",
     "PYI036",
     "BLE001",
+    # Why: shortcuts and dead code go to issues, not comments (AGENTS.md, Comments).
+    "FIX",
+    "ERA001",
 ]
 
 [tool.ruff.format]

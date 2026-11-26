@@ -58,7 +58,8 @@ project rules. [CONTRIBUTING.md](CONTRIBUTING.md) lists the checks CI runs.
 - Let names and structure carry the meaning. A comment is a tool pragma or
   one line starting `# Why: ` that records a non-obvious reason; a reason
   that spans modules goes in `docs/adr/`.
-- Name a shortcut in an issue, not a comment.
+- Name a shortcut in an issue, not a comment; Ruff's `FIX` (TODO, FIXME,
+  XXX, HACK) and `ERA001` (commented-out code) rules enforce it.
 - `scripts/audit_ratchet.py check` runs in CI and counts both comments and
   `to_delete` markers per file; neither may rise. After a change that lowers
   a count, run `uv run python scripts/audit_ratchet.py update` and commit
