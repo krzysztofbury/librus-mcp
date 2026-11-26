@@ -118,8 +118,8 @@ def python_comments(source: str) -> Iterator[tuple[int, str]]:
 def lexed_comments(source: str, lexer_name: str) -> Iterator[tuple[int, str]]:
     """(line, text) of each counted comment line, read with Pygments."""
     try:
-        from pygments.lexers import get_lexer_by_name
-        from pygments.token import Comment
+        from pygments.lexers import get_lexer_by_name  # type: ignore[import-untyped, unused-ignore]
+        from pygments.token import Comment  # type: ignore[import-untyped, unused-ignore]
     except ImportError:
         raise RatchetError(
             "Pygments is needed to count comments outside Python; add it to the "
@@ -331,8 +331,8 @@ def main(argv: list[str] | None = None) -> int:
             for line in up:
                 print(f"  {line}", file=sys.stderr)
             print(
-                "Remove the new comment or marker (`report --explain PATH` lists what "
-                "counts). A one-line `Why: ...` comment and tool pragmas are not counted.",
+                "Remove the new comment or marker; `report --explain PATH` lists "
+                "what counts. One-line `Why: ...` comments and pragmas do not count.",
                 file=sys.stderr,
             )
             return 1
