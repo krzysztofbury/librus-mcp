@@ -1,11 +1,14 @@
 {
-  "version": 1,
+  "version": 2,
   "roots": [
     "src",
     "tests_native",
     "release_verification",
     "scripts",
     "mcpb"
+  ],
+  "languages": [
+    "py"
   ],
   "comments": {
     "release_verification/verify_image.py": 3,
