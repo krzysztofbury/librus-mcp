@@ -98,7 +98,7 @@ jobs:
       - name: Verify installed wheel and MCP stdio
         run: |
           uv run python -m release_verification.verify_sdist --sdist dist --out-dir dist/from-sdist
-          uv run python release_verification/verify_wheel.py dist/from-sdist --consumer-tests
+          uv run python -m release_verification.verify_wheel dist/from-sdist --consumer-tests
 
       - name: Verify the MCP Bundle installs and starts as a host runs it
         # A host starts the bundle with uv's default Python, ARM64 there.
@@ -106,7 +106,7 @@ jobs:
         shell: bash
         run: |
           uv run python scripts/build_mcpb.py --wheel dist/from-sdist/*.whl --out-dir dist/mcpb
-          uv run python release_verification/verify_mcpb.py dist/mcpb
+          uv run python -m release_verification.verify_mcpb dist/mcpb
 
   container:
     name: Container image
@@ -132,7 +132,7 @@ jobs:
         run: docker build --tag librus-mcp:ci .
 
       - name: Verify the image over stdio and HTTP
-        run: uv run python release_verification/verify_image.py librus-mcp:ci
+        run: uv run python -m release_verification.verify_image librus-mcp:ci
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0

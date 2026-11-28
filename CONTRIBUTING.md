@@ -43,6 +43,18 @@ uv run python scripts/audit_ratchet.py check
 uv build --no-build-isolation
 ```
 
+CI then runs the release checks on the built package. Run them as modules from
+the checkout root, as CI does; they import `release_verification.verify_release`
+and fail with `ModuleNotFoundError` when run by file path:
+
+```bash
+uv run python -m release_verification.verify_sdist --sdist dist --out-dir dist/from-sdist
+uv run python -m release_verification.verify_wheel dist/from-sdist --consumer-tests
+uv run python scripts/build_mcpb.py --wheel dist/from-sdist/*.whl --out-dir dist/mcpb
+uv run python -m release_verification.verify_mcpb dist/mcpb
+docker build --tag librus-mcp:ci . && uv run python -m release_verification.verify_image librus-mcp:ci
+```
+
 To apply formatting before rerunning the format check:
 
 ```bash
