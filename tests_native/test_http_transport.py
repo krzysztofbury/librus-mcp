@@ -138,6 +138,10 @@ def test_http_token_file_is_private_and_ignores_a_trailing_newline(tmp_path, mon
         (["--check-config", "--transport", "http"], "transport options apply only to serving"),
         (["--doctor", "--transport", "http"], "transport options apply only to serving"),
         (
+            ["--transport", "http", "notification-state", "--account-alias", "a", "--status"],
+            "transport options apply only to serving",
+        ),
+        (
             ["--generate-token", "--transport", "http"],
             "--generate-token cannot be combined with other options",
         ),
