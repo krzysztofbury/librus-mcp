@@ -12,9 +12,9 @@ from librus_mcp.schemas import PresentationCursor, SizedWindowPagination, Window
 
 T = TypeVar("T")
 
-# The server rejects a whole CallToolResult above this size with LIMIT.
+# Why: see docs/adr/0002-results-fit-the-cap-in-both-copies.md
 MAX_RESULT_BYTES = 512 * 1024
-# Identity, observation, pagination and the result envelope, in both copies.
+# Why: identity, observation, pagination and the envelope appear in both copies.
 _ENVELOPE_RESERVE = 16 * 1024
 
 
@@ -66,7 +66,7 @@ def sized_page(
     """
     if max_bytes is None:
         max_bytes = MAX_RESULT_BYTES - _ENVELOPE_RESERVE
-    # 3: encode each item once, for both the source digest and its size.
+    # Why: one encoding per item serves both the source digest and the size budget.
     adapter: TypeAdapter[Sequence[T]] = TypeAdapter(Sequence[T])
     encodings = [adapter.dump_json([item])[1:-1] for item in items]
     source = hashlib.sha256(b"[" + b",".join(encodings) + b"]").hexdigest()
@@ -100,8 +100,7 @@ def _start(
     *,
     source: str | None = None,
 ) -> tuple[str, str, int]:
-    # Whole native collections are already bounded. Presentation cursors bind the
-    # selected query and full source, not timestamps/generations that change on read.
+    # Why: cursors bind query and full source, not timestamps that change on every read.
     if source is None:
         adapter: TypeAdapter[Sequence[T]] = TypeAdapter(Sequence[T])
         source = hashlib.sha256(adapter.dump_json(items)).hexdigest()

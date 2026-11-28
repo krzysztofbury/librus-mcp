@@ -17,7 +17,7 @@ from tests_native.test_config import config_data
 @pytest.mark.parametrize(
     ("features", "count"),
     [
-        (None, 32),  # defaults: notifications and attachments on, sending off
+        (None, 32),  # Why: defaults have notifications and attachments on, sending off
         ({"notifications": False, "attachments": False}, 28),
         ({"send_message": True}, 36),
     ],
@@ -30,14 +30,12 @@ async def test_every_tool_has_a_title_effect_hints_described_inputs_and_compilin
     tools = await server.list_tools()
     assert len(tools) == count
     for tool in tools:
-        # Directories and clients show the title and warn on effects; an unset
-        # destructive hint on a write is read as destructive.
+        # Why: clients show the title; an unset destructive hint on a write reads as destructive.
         assert tool.title, tool.name
         assert tool.annotations is not None and tool.annotations.read_only_hint is not None
         if not tool.annotations.read_only_hint:
             assert tool.annotations.destructive_hint is not None, tool.name
-        # Agents choose arguments from these; a second, undescribed alias type
-        # once left account_alias bare on most tools.
+        # Why: an undescribed alias type once left account_alias bare on most tools.
         for name, schema in tool.input_schema.get("properties", {}).items():
             assert schema.get("description"), (tool.name, name)
         validator_for(tool.input_schema).check_schema(tool.input_schema)
@@ -87,12 +85,11 @@ def _closed_objects(schema):
 
 @pytest.mark.asyncio
 async def test_output_schemas_accept_fields_a_later_release_adds():
-    # Hosts validate results against the catalog they cached. A closed output
-    # object made 2.4's new grade field fail every host holding the 2.3 catalog.
+    # Why: a closed output object made 2.4's new field fail hosts holding the 2.3 catalog.
     data = config_data() | {"features": {"send_message": True}}
     tools = await create_server(AppConfig.model_validate(data)).list_tools()
     assert all(_closed_objects(tool.output_schema) == 0 for tool in tools)
-    # Input schemas stay closed for hosts that validate arguments.
+    # Why: closed input schemas let hosts reject wrong arguments.
     assert any(_closed_objects(tool.input_schema) for tool in tools)
     grades = next(tool for tool in tools if tool.name == "get_final_grades").output_schema
     result = {
@@ -107,8 +104,7 @@ async def test_output_schemas_accept_fields_a_later_release_adds():
 
 @pytest.mark.asyncio
 async def test_behaviour_points_tally_is_the_number_shown_and_nothing_more():
-    # #103: whether the tally is starting points or a running total is not
-    # established (librus-python-api#138), so the catalog must not say either.
+    # Why: whether the tally starts or runs is unknown (#103, librus-python-api#138).
     tools = {
         tool.name: tool
         for tool in await create_server(AppConfig.model_validate(config_data())).list_tools()
@@ -143,14 +139,14 @@ async def test_trimmed_schemas_keep_wall_times_and_the_facts_they_repeated():
         tool.name: tool
         for tool in await create_server(AppConfig.model_validate(config_data())).list_tools()
     }
-    # Librus wall times carry no offset; the shorter pattern must still take them.
+    # Why: Librus wall times carry no offset, so the pattern must accept them.
     observed_at = tools["get_grades"].output_schema["$defs"]["Observation"]["properties"][
         "observed_at"
     ]["pattern"]
     for wall_time in ("2026-11-14T08:05:00", "2026-11-14T08:05:00.5Z", "2026-11-14T08:05:00+01:00"):
         assert re.fullmatch(observed_at, wall_time), wall_time
     assert not re.fullmatch(observed_at, "2026-11-14 08:05:00")
-    # The dropped API docstrings only repeated these tool descriptions.
+    # Why: the dropped API docstrings only repeated these tool descriptions.
     final = tools["get_final_grades"]
     assert "description" not in final.output_schema["$defs"]["GradeSummaryValue"]
     assert "unavailable" in final.description and "- raw value" in final.description

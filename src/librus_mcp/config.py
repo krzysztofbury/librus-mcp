@@ -15,10 +15,7 @@ from pydantic import BaseModel, ConfigDict, Field, SecretStr, ValidationError, f
 MAX_CONFIG_BYTES = 1024 * 1024
 MAX_ACCOUNTS = 16
 DEFAULT_ENVIRONMENT_ALIAS = "librus"
-# Portable JSON Schema regex; Unicode printability is additionally checked below.
-# Rust-only Unicode properties cannot be compiled by common MCP JSON validators.
-# Printable characters with single or repeated inner spaces, none at either end;
-# the same language as 2.3.0's longer form, shorter in every published schema.
+# Why: common MCP validators cannot compile Unicode properties; printability is checked below.
 ALIAS_PATTERN = r"^[^\s\x00-\x1f\x7f](?: *[^\s\x00-\x1f\x7f])*$"
 
 
@@ -55,14 +52,12 @@ class AccountConfig(BaseModel):
 class FeaturesConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True, strict=True)
 
-    # Notifications and attachments are on by default, as in 1.x; sending writes
-    # to the school and stays opt-in. Each can be switched off explicitly.
+    # Why: defaults match 1.x; sending writes to the school, so it stays opt-in.
     notifications: bool = True
     attachments: bool = True
     send_message: bool = False
     behaviour_notes: bool = False
-    # Opening a received message marks it read in Librus, as the app does.
-    # When true, each open needs allow_mark_read=true given with consent.
+    # Why: opening marks a message read, as the app does; true makes each open need consent.
     mark_read_consent: bool = False
 
 
@@ -70,7 +65,7 @@ class AppConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True, hide_input_in_errors=True)
 
     accounts: tuple[AccountConfig, ...] = Field(min_length=1, max_length=MAX_ACCOUNTS)
-    # Optional: when absent, serving creates and reuses state_dir/context.key.
+    # Why: when absent, serving creates and reuses state_dir/context.key.
     context_key: SecretStr | None = Field(default=None, repr=False)
     features: FeaturesConfig = Field(default_factory=FeaturesConfig)
     state_dir: Path = Field(default_factory=lambda: Path.home() / ".librus-mcp" / "state")
@@ -88,7 +83,7 @@ class AppConfig(BaseModel):
     def distinct_accounts(cls, value: tuple[AccountConfig, ...]) -> tuple[AccountConfig, ...]:
         if len({account.alias for account in value}) != len(value):
             raise ValueError("duplicate account alias")
-        # Use the library's supported credential validation, not a second policy.
+        # Why: the library's credential validation is the one policy; no second one here.
         for account in value:
             account.credentials()
         return value
@@ -107,8 +102,7 @@ class AppConfig(BaseModel):
         return bytes.fromhex(self.context_key.get_secret_value())
 
     def require_supported_features(self) -> None:
-        # Behaviour notes are not registered in 2.x. A 1.x configuration that
-        # enabled them keeps working without the tool instead of failing startup.
+        # Why: a 1.x configuration enabling behaviour notes keeps working, without the tool.
         if self.features.behaviour_notes:
             notice("behaviour notes are unavailable; the setting is ignored")
 
@@ -143,7 +137,7 @@ def read_private_file(
         from librus_mcp.windows_config import read_private_config
 
         return read_private_config(path, maximum, label)
-    # Bound special-file reads and reject symlinks on platforms with O_NOFOLLOW.
+    # Why: special files need a read bound; O_NOFOLLOW rejects symlinks where it exists.
     descriptor = -1
     try:
         if path.is_symlink():
@@ -160,12 +154,11 @@ def read_private_file(
             if os.name == "posix" and status.st_uid != os.geteuid():
                 raise ConfigError(f"{label} must be owned by the current user")
             if os.name == "posix" and stat.S_IMODE(status.st_mode) & 0o077:
-                # Restrict the user's own file in place, through the opened
-                # descriptor, rather than refusing to start.
+                # Why: restricting the user's own file beats refusing to start.
                 try:
                     os.fchmod(file.fileno(), 0o600)
                 except OSError:
-                    # A read-only mount, as in a container, cannot be repaired.
+                    # Why: a read-only mount, as in a container, cannot be repaired.
                     raise ConfigError(
                         f"{label} is readable by others and cannot be restricted; "
                         "set its mode to 0600 before mounting it"
@@ -227,8 +220,7 @@ def load_config(config_path: Path | None = None) -> AppConfig:
         if not root.is_absolute():
             raise ConfigError("XDG_CONFIG_HOME must be absolute")
         directory = root / "librus-mcp"
-        # 1.x documented secrets.json in this directory; accept it when the 2.0
-        # name is absent so an upgrade needs no file rename.
+        # Why: 1.x documented secrets.json here; an upgrade needs no rename.
         default = directory / "config.json"
         if not os.path.lexists(default) and os.path.lexists(directory / "secrets.json"):
             default = directory / "secrets.json"
@@ -238,7 +230,7 @@ def load_config(config_path: Path | None = None) -> AppConfig:
                 f"or LIBRUS_USERNAME and LIBRUS_PASSWORD, or create {default}"
             )
         data = read_config_file(default)
-    # Only these explicit operator overrides apply to a selected credential source.
+    # Why: only these operator overrides apply over a selected credential source.
     for name, field in (
         ("LIBRUS_CONTEXT_KEY", "context_key"),
         ("LIBRUS_STATE_DIR", "state_dir"),

@@ -32,7 +32,7 @@ def load_context_key(config: AppConfig) -> AppConfig:
     data = read_config_file(path)
     value = data.get("context_key")
     if set(data) != {"context_key"} or not isinstance(value, str) or not valid_key_text(value):
-        # Never regenerate over an unreadable key: that would orphan durable state.
+        # Why: regenerating over an unreadable key would orphan durable state.
         raise ConfigError("context key file is invalid; restore it from backup")
     return config.model_copy(update={"context_key": SecretStr(value)})
 
@@ -48,9 +48,7 @@ def _publish_key(directory: Path) -> None:
             file.flush()
             os.fsync(file.fileno())
         try:
-            # Neither call replaces an existing key: POSIX link and Windows
-            # rename both fail when the target exists, so concurrent first
-            # starts converge on whichever key was published first.
+            # Why: link and Windows rename fail on an existing key, so concurrent starts converge.
             if os.name == "posix":
                 os.link(temporary, directory / KEY_FILENAME, follow_symlinks=False)
             else:

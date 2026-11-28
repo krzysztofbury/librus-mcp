@@ -18,7 +18,7 @@ from pathlib import Path
 from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
-# A fixed timestamp keeps the archive byte-identical for the same inputs.
+# Why: a fixed timestamp keeps the archive byte-identical for the same inputs.
 EPOCH = (2026, 1, 1, 0, 0, 0)
 
 
@@ -119,7 +119,7 @@ def build(wheel: Path, out_dir: Path) -> Path:
         shutil.copytree(ROOT / "mcpb" / "src", stage / "src")
         (stage / "wheels").mkdir()
         shutil.copy(wheel, stage / "wheels" / wheel.name)
-        # The locked closure has 3.14 wheels; a newer host Python would build from source.
+        # Why: the locked closure has 3.14 wheels; a newer host Python would build from source.
         (stage / ".python-version").write_text("3.14\n")
         (stage / "pyproject.toml").write_text(
             bundle_pyproject(version, wheel.name, project["tool"]["uv"], qualified_pins())

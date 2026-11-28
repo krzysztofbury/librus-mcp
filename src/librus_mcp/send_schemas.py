@@ -80,7 +80,7 @@ class MessagePreviewResult(WireModel):
 
 class MessageSendResult(WireModel):
     data: SendResult
-    # Null only when the post-send outcome read failed; use get_send_outcome.
+    # Why: null only when the post-send outcome read failed; use get_send_outcome.
     durable: DurableSendOutcome | None
 
 
@@ -89,7 +89,7 @@ class SendOutcomeResult(WireModel):
 
 
 class SendHistoryResult(WireModel):
-    # The store returns every retained record (bounded) or fails; never a partial page.
+    # Why: the store returns every retained record (bounded) or fails, so no partial page.
     items: tuple[DurableSendRecord, ...]
     context: HexDigest
     pagination: Pagination = Field(default_factory=Pagination)

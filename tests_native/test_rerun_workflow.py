@@ -14,7 +14,7 @@ import yaml
 ROOT = Path(__file__).resolve().parents[1]
 WORKFLOWS = ROOT / ".github/workflows"
 RERUN = WORKFLOWS / "rerun-unacquired.yml"
-# Installed-artifact jobs run a copy of the tests without `.github/`.
+# Why: installed-artifact jobs run a copy of the tests without `.github/`.
 pytestmark = pytest.mark.skipif(not RERUN.exists(), reason="source checkout only")
 WATCHED = ["CI"]
 NOT_ACQUIRED = "The job was not acquired by Runner of type hosted even after multiple attempts"
@@ -56,9 +56,7 @@ def job(number: int, conclusion: str, *, ran: bool) -> dict[str, Any]:
 
 
 def test_the_watched_workflows_are_exactly_the_macos_ones() -> None:
-    # Hosted macOS arm64 jobs are the ones GitHub left without a runner
-    # (2026-11-23 and 2026-11-24). The weekly live check calls live Librus and
-    # must never be rerun without the owner.
+    # Why: GitHub left only macOS arm64 jobs without a runner; live checks need the owner.
     watched = load(RERUN)["on"]["workflow_run"]["workflows"]
     assert watched == WATCHED
     macos = {
@@ -116,8 +114,7 @@ LOST = [job(1, "success", ran=True), job(2, "cancelled", ran=False)]
         ),
         pytest.param(LOST, {"2": "Fixture other notice"}, [], False, 0, id="no-notice"),
         pytest.param(
-            # A job that ran can write any annotation itself, such as a test
-            # printing `::error::`; only a job with no runner and no steps counts.
+            # Why: a job that ran may print `::error::` itself; only one with no runner counts.
             [job(1, "failure", ran=True)],
             {"1": NOT_ACQUIRED},
             [],

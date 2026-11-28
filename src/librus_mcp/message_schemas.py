@@ -203,7 +203,7 @@ class RecipientTypesResult(WireModel):
 
 
 class RecipientChoicesResult(WireModel):
-    # Choices are accompanied by the same context/backend needed for next selection.
+    # Why: the next selection needs the same context and backend as these choices.
     context: HexDigest
     backend: Literal["legacy"] = "legacy"
     items: tuple[RecipientGroupChoice, ...]

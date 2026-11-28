@@ -26,8 +26,7 @@ class AttachmentResources:
         self._entries = {key: item for key, item in self._entries.items() if item[0] > now}
 
     def snapshot(self, saved: PublishedAttachment) -> str | None:
-        # Windows publication is native/NTFS-qualified. Resource snapshots remain
-        # POSIX-only until a public Windows no-follow read boundary is qualified.
+        # Why: see docs/adr/0003-old-state-and-snapshot-reads-are-posix-only.md
         if (
             os.name != "posix"
             or not hasattr(os, "O_NOFOLLOW")

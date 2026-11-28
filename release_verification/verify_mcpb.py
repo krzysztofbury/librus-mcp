@@ -68,8 +68,7 @@ async def check_server(directory: Path, private: Path, version: str) -> int:
         for name, value in os.environ.items()
         if not name.startswith("LIBRUS_") and name not in {"VIRTUAL_ENV", "UV_PROJECT_ENVIRONMENT"}
     }
-    # Keep the server's state away from the verifying user's, in directories the
-    # server creates itself, as verify_wheel does; uv keeps its usual cache.
+    # Why: server state stays out of the verifying user's, in directories the server creates.
     environment |= {
         "LIBRUS_STATE_DIR": str(private / "state"),
         "LIBRUS_DOWNLOAD_DIR": str(private / "downloads"),
@@ -103,7 +102,7 @@ def main() -> None:
     try:
         bundle = resolve_bundle(arguments.bundle)
         with tempfile.TemporaryDirectory() as temporary:
-            # Resolve the Windows short (8.3) temp name; storage rejects aliased paths.
+            # Why: storage rejects aliased paths, and Windows temp names may be 8.3 short names.
             private = Path(temporary).resolve()
             directory = private / "extension"
             with zipfile.ZipFile(bundle) as archive:

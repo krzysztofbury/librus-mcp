@@ -9,8 +9,7 @@ def prepare_mutation_child(environment):
         return ""
     import librus_mcp
 
-    # sys.path changes in mutmut's pytest process do not propagate to `python -c`.
-    # The child must import the same instrumented package, not the editable install.
+    # Why: a `python -c` child misses mutmut's sys.path, so it must import the mutants.
     source = Path(librus_mcp.__file__).resolve().parents[1]
     if source.parent.name != "mutants":
         raise RuntimeError("mutation child must use the disposable instrumented source")

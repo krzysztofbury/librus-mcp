@@ -7,8 +7,7 @@ from jsonschema.validators import validator_for
 from mcp.client import ClientSession
 from mcp.types import CallToolResult
 
-# jsonschema skips "date-time" unless the optional rfc3339-validator is installed,
-# while hosts using ajv-formats enforce RFC 3339, which requires a UTC offset.
+# Why: jsonschema skips "date-time" without rfc3339-validator; ajv-formats enforces it.
 RFC3339_DATE_TIME = re.compile(
     r"\d{4}-[01]\d-[0-3]\d[t\s](?:[0-2]\d:[0-5]\d:[0-6]\d|23:59:60)(?:\.\d+)?"
     r"(?:z|[+-]\d\d(?::?\d\d)?)",
@@ -19,7 +18,7 @@ STRICT_FORMATS = FormatChecker()
 
 @STRICT_FORMATS.checks("time")
 def rfc3339_time(value: object) -> bool:
-    # jsonschema's built-in checker accepts offset-free time, unlike ajv-formats.
+    # Why: jsonschema's built-in checker accepts offset-free time, unlike ajv-formats.
     return (
         not isinstance(value, str)
         or re.fullmatch(

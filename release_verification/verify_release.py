@@ -39,8 +39,7 @@ def verify_registry_metadata(repository: Path, version: str) -> None:
     images = [p.get("identifier", "") for p in server["packages"] if p.get("registryType") == "oci"]
     if not images or any(not image.endswith(f":{version}") for image in images):
         raise VerificationError(f"server.json container images must be tagged {version}")
-    # The registry proves PyPI ownership from this marker in the published README
-    # and image ownership from this label.
+    # Why: the registry proves PyPI ownership by this README marker, the image's by a label.
     marker = f"<!-- mcp-name: {server.get('name')} -->"
     if marker not in (repository / "README.md").read_text(encoding="utf-8"):
         raise VerificationError(f"README.md must contain {marker}")

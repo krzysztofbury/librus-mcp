@@ -36,8 +36,7 @@ def load_token() -> bytes:
     if "LIBRUS_MCP_TOKEN_FILE" in os.environ:
         path = Path(os.environ["LIBRUS_MCP_TOKEN_FILE"]).expanduser()
         try:
-            # A trailing newline from an editor or `echo` (CRLF on Windows) is
-            # not part of the token.
+            # Why: an editor or `echo` adds a newline (CRLF on Windows) not in the token.
             token = (
                 read_private_file(path, maximum=1024, label="token file")
                 .removesuffix(b"\n")
@@ -74,7 +73,7 @@ class BearerTokenMiddleware:
             await self.app(scope, receive, send)
             return
         if scope["type"] != "http":
-            # The MCP app serves no WebSocket route; refuse rather than route it.
+            # Why: the MCP app serves no WebSocket route; refuse rather than route it.
             await send({"type": "websocket.close", "code": 1008})
             return
         if self._authorized(scope["headers"]):
@@ -98,21 +97,20 @@ class BearerTokenMiddleware:
         if len(values) != 1:
             return False
         scheme, _, credential = values[0].partition(b" ")
-        # Compare bytes: str comparison raises on non-ASCII input.
+        # Why: compare bytes, since str comparison raises on non-ASCII input.
         return scheme.lower() == b"bearer" and hmac.compare_digest(credential, self.token)
 
 
 def transport_security(host: str, allowed_hosts: Sequence[str]) -> TransportSecuritySettings | None:
     """Host and Origin checks; the SDK applies its loopback defaults when None."""
     if allowed_hosts:
-        # The SDK matches HOST:* only with an explicit port, but HTTPS clients and
-        # proxies send the bare name for the default port.
+        # Why: HTTPS clients and proxies send a bare name, which the SDK's HOST:* misses.
         hosts = list(
             dict.fromkeys(
                 name for entry in allowed_hosts for name in (entry, entry.removesuffix(":*"))
             )
         )
-        # No browser origin is expected: MCP clients send no Origin header.
+        # Why: MCP clients send no Origin header, so no browser origin is allowed.
         return TransportSecuritySettings(allowed_hosts=hosts, allowed_origins=[])
     if host not in LOOPBACK_HOSTS:
         notice(
@@ -145,7 +143,7 @@ def serve_http(
         transport_security=transport_security(host, allowed_hosts),
         host=host,
     )
-    # The SDK logs every stateless request at INFO; operators need warnings only.
+    # Why: the SDK logs every stateless request at INFO; operators need warnings only.
     logging.getLogger("mcp").setLevel(logging.WARNING)
     notice(f"serving MCP over HTTP at http://{host}:{port}/mcp; requests need the bearer token")
     uvicorn.run(

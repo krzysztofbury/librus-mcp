@@ -55,7 +55,7 @@ async def test_a_parse_failure_names_its_site_without_school_data(tmp_path, diag
     assert result.is_error
     assert closed(result) == {"error": {"code": "PARSE"}}
     detail = error_detail(result)
-    # Where in the page, masked, so a host shows it without a saved page.
+    # Why: a masked page location lets a host show where without a saved page.
     at = "table.stretch.decorated[1] > tbody[1] > tr[1] > td[3] > span.grade-box[1] > a[1]"
     assert detail["at"] == at
     where = detail["where"]
@@ -109,8 +109,7 @@ def test_inspect_page_needs_no_configuration(tmp_path, monkeypatch, capsys):
 
 
 def test_inspect_page_reads_a_page_with_browser_repairs(tmp_path, capsys):
-    # #121: lxml's Windows wheels bundle libxml2 2.11.9, which reports each of
-    # these repairs; every page read failed there. The Windows CI job runs this.
+    # Why: lxml's Windows wheels report these repairs, which failed every read (#121).
     page = tmp_path / "page.html"
     page.write_text(
         '<html><body><table class="decorated" class="decorated">'
@@ -204,7 +203,7 @@ async def test_check_tools_reports_a_schema_mismatch_without_values(tmp_path, mo
             "OK, 4 items",
             "OK, 2 items",
         ]
-        # A host holding the 2.3 catalog: no point record type.
+        # Why: a host holding the 2.3 catalog has no point record type.
         listed = module.NativeServer.list_tools
 
         async def stale(self):

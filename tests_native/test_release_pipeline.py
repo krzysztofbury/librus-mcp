@@ -16,7 +16,7 @@ RELEASE_FILES = ("pyproject.toml", "server.json", "README.md", "Dockerfile")
 
 @pytest.fixture
 def jobs():
-    # The installed-wheel run has neither the workflow nor a YAML parser.
+    # Why: the installed-wheel run has neither the workflow nor a YAML parser.
     yaml = pytest.importorskip("yaml")
     if not WORKFLOW.exists():
         pytest.skip("source checkout only")
@@ -92,7 +92,7 @@ def test_a_release_must_be_on_main(tmp_path, monkeypatch, merged):
     if not merged:
         git(checkout, "switch", "-c", "unmerged")
         git(checkout, "commit", "--allow-empty", "-m", "Unmerged")
-        # Resolves before the remote branch if the check uses the short name.
+        # Why: a tag named origin/main resolves first if the check uses the short name.
         git(checkout, "tag", "origin/main")
     version = read_project_version(checkout / "pyproject.toml")
     git(checkout, "tag", f"v{version}")

@@ -93,8 +93,7 @@ def _unique_object(pairs: list[tuple[str, object]]) -> dict[str, object]:
 
 
 def private_bytes(path: Path, maximum: int) -> bytes:
-    # This consumer-owned old-file boundary is intentionally POSIX-only. Do not
-    # pretend that lstat plus a Windows path open provides no-follow/ACL proof.
+    # Why: see docs/adr/0003-old-state-and-snapshot-reads-are-posix-only.md
     if os.name != "posix":
         raise ConfigError("old-state migration requires a qualified POSIX host")
     directory = descriptor = -1
@@ -142,8 +141,7 @@ def migration_json(body: bytes) -> object:
 
     try:
         result = json.loads(body, object_pairs_hook=_unique_object)
-        # JSON permits escaped lone surrogates, but native canonical UTF-8 does
-        # not. Reject them before digests/manifests can expose exception inputs.
+        # Why: JSON allows lone surrogates, native UTF-8 does not; reject them before digests.
         validate_text(result)
         return result
     except ValueError, RecursionError:

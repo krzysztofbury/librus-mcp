@@ -110,7 +110,7 @@ def test_http_token_fails_closed(environment, message, monkeypatch):
 
 def test_http_token_file_is_private_and_ignores_a_trailing_newline(tmp_path, monkeypatch):
     path = tmp_path / "token"
-    # Text mode writes CRLF on Windows, as Notepad does.
+    # Why: text mode writes CRLF on Windows, as Notepad does.
     path.write_text(TOKEN + "\n")
     path.chmod(0o600)
     if os.name == "nt":
@@ -154,9 +154,7 @@ def test_http_serving_refuses_to_start_without_a_token(monkeypatch, tmp_path, ca
     assert not (tmp_path / "state").exists()
 
 
-# Run inside the server process: the server binds port 0 itself and writes the
-# port it got to `port_file`, so no other process can take it in between (#135).
-# Only this report is added; serve_http and uvicorn bind as they do for users.
+# Why: the server binds port 0 and reports it, so no process takes it between (#135).
 REPORT_PORT = """import os, pathlib, uvicorn
 _startup = uvicorn.Server.startup
 async def _reporting_startup(self, sockets=None):
@@ -200,7 +198,7 @@ async def test_http_serves_every_login_with_the_token_and_nothing_without(tmp_pa
             try:
                 with anyio.fail_after(30):
                     url = f"http://127.0.0.1:{await bound_port(process, port_file)}/mcp"
-                    # The consumer suite points proxy variables at a dead port.
+                    # Why: the consumer suite points proxy variables at a dead port.
                     async with httpx2.AsyncClient(trust_env=False) as probe:
                         while True:
                             try:
@@ -210,7 +208,7 @@ async def test_http_serves_every_login_with_the_token_and_nothing_without(tmp_pa
                                 await anyio.sleep(0.1)
                         assert refused.status_code == 401
                         authorized = {"Authorization": f"Bearer {TOKEN}"} | ACCEPT
-                        # A proxy forwarding the HTTPS name sends no port; HOST:* allows it.
+                        # Why: a proxy forwarding the HTTPS name sends no port; HOST:* allows it.
                         for host, status in (("librus.test", 200), ("evil.test", 421)):
                             response = await probe.post(
                                 url, json=INITIALIZE, headers=authorized | {"Host": host}

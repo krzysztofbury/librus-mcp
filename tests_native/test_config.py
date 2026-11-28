@@ -30,7 +30,7 @@ def config_data():
                 "password": "fixture-only",  # pragma: allowlist secret - fixture only
             }
         ],
-        # Public deterministic test value, never a deployment key.
+        # Why: a public deterministic test value, never a deployment key.
         "context_key": bytes(range(32)).hex(),
     }
 
@@ -372,7 +372,7 @@ def test_enabled_features_create_missing_private_ancestors_on_a_fresh_host(tmp_p
 
     home = tmp_path / "home"
     home.mkdir(mode=0o755)
-    home.chmod(0o755)  # Establish the ancestor boundary even under a private umask.
+    home.chmod(0o755)  # Why: a private umask masks mkdir's mode.
     config = AppConfig.model_validate(
         config_data()
         | {
@@ -398,7 +398,7 @@ def test_own_shared_1x_directory_is_restricted_instead_of_failing(tmp_path, caps
 
     downloads = tmp_path / "downloads"
     downloads.mkdir(mode=0o755)
-    downloads.chmod(0o755)  # Exercise actual shared-directory repair under any umask.
+    downloads.chmod(0o755)  # Why: a private umask masks mkdir's mode.
     (downloads / "old.pdf").write_bytes(b"kept")
     config = AppConfig.model_validate(
         config_data() | {"features": {"attachments": True}, "download_dir": str(downloads)}

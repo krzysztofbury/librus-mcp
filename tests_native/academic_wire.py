@@ -31,7 +31,7 @@ async def academic_response(request):
                     }
                     for index, kind in enumerate(("100", "1", "1266", "999"), start=1)
                 ]
-                # Lesson 62 has no route here: Librus does not give it.
+                # Why: Librus gives no route for lesson 62.
                 + [
                     {
                         "Id": "5",

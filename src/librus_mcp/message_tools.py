@@ -42,7 +42,7 @@ from librus_mcp.schemas import PresentationCursor
 
 
 def register_message_tools(server: MCPServer[Runtime]) -> None:
-    # Changes Librus's remembered view, never school data.
+    # Why: selecting a view changes what Librus remembers, never school data.
     selection = ToolAnnotations(read_only_hint=False, destructive_hint=False, open_world_hint=True)
     ordinary = ToolAnnotations(read_only_hint=True, open_world_hint=True)
     server.tool(title="Messages", annotations=selection)(get_messages)
@@ -52,7 +52,7 @@ def register_message_tools(server: MCPServer[Runtime]) -> None:
             read_only_hint=False, destructive_hint=True, open_world_hint=True
         ),
     )(get_message_content)
-    # Legacy accounts select a Librus messaging view for these lookups (#66).
+    # Why: legacy accounts select a Librus messaging view for these lookups (#66).
     server.tool(title="Recipient types", annotations=selection)(get_recipient_types)
     server.tool(title="Recipient choices", annotations=selection)(get_recipient_choices)
     server.tool(title="Recipients", annotations=selection)(get_recipients)

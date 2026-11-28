@@ -41,12 +41,12 @@ from librus_mcp.send_tools import register_send_tools
 
 VERSIONS = {"mcp": __version__, "api": api_version}
 _OWN_PACKAGES = ("librus_python_api", "librus_mcp")
-# Opt-in: also print the redacted page structure of a failure to stderr.
+# Why: opt-in, as it also prints the redacted page structure of a failure to stderr.
 DIAGNOSE_FAILURES = "LIBRUS_MCP_DIAGNOSE_FAILURES"
 _STRUCTURE_KINDS = frozenset({"PARSE", "UNSUPPORTED_CAPABILITY", "INTERNAL_ERROR"})
 
 
-# The input that grants the consent a CONSENT_REQUIRED tool is missing.
+# Why: a CONSENT_REQUIRED error names the input that grants the consent.
 _CONSENT_INPUTS = {
     "get_message_content": "allow_mark_read",
     "get_new_notifications": "allow_consume_events",
@@ -61,9 +61,7 @@ def _error(
     requires: str | None = None,
     at: str | None = None,
 ) -> CallToolResult:
-    # Closed codes, opaque code locations, an exception class name, an input
-    # name, a masked page location and versions only: no validation input,
-    # alias, message, cause text, login, token, HTML or page text.
+    # Why: closed codes and masked locations only; no input, alias, message, login or page.
     detail: dict[str, Any] = {"code": code}
     if requires is not None:
         detail["requires"] = requires
@@ -75,9 +73,7 @@ def _error(
         detail["exception"] = exception
     detail["versions"] = VERSIONS
     payload = {"error": detail}
-    # Text only, no structuredContent: hosts on the TypeScript SDK 1.x check
-    # structuredContent against the tool's output schema even on an error,
-    # which replaced this payload with a schema error (librus-python-api#189).
+    # Why: text only; TS SDK 1.x hosts check structuredContent on errors (librus-python-api#189).
     return CallToolResult(
         is_error=True,
         content=[TextContent(type="text", text=json.dumps(payload, separators=(",", ":")))],
@@ -100,19 +96,13 @@ def error_detail(result: CallToolResult) -> dict[str, Any]:
     return detail if isinstance(detail, dict) else {}
 
 
-# JSON Schema keywords whose values are schemas, maps of schemas or schema lists.
-# Only these are descended, so a property or default value named "title" is kept.
+# Why: descending only schema-valued keywords keeps a property named "title".
 _SCHEMA_VALUE = frozenset(
     {"items", "additionalProperties", "not", "if", "then", "else", "contains", "propertyNames"}
 )
 _SCHEMA_MAP = frozenset({"properties", "$defs", "patternProperties", "dependentSchemas"})
 _SCHEMA_LIST = frozenset({"anyOf", "oneOf", "allOf", "prefixItems"})
-# The API keeps school wall times without an offset rather than guessing a DST
-# fold, so Pydantic emits them without one. RFC 3339 "date-time" and "time"
-# require an offset and strict hosts reject such results; publish
-# the ISO 8601 shape Pydantic actually emits, with the offset optional.
-# Plain groups, not `(?:`, keep it in JSON Schema's recommended regex subset
-# and save bytes in every tool that returns a timestamp.
+# Why: see docs/adr/0001-offset-free-school-time-in-schemas.md
 _ISO_DATE_TIME = (
     r"^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\.[0-9]{1,6})?"
     r"(Z|[+-][0-9]{2}:[0-9]{2})?$"
@@ -121,8 +111,7 @@ _ISO_TIME = (
     r"^([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9](\.[0-9]{1,6})?"
     r"(Z|[+-][0-9]{2}:[0-9]{2})?$"
 )
-# API model docstrings that only repeat the description of every tool that
-# returns them (get_grades, get_final_grades), published once per such tool.
+# Why: these API docstrings repeat the description of each tool returning them.
 _REPEATED_MODEL_DOCS = frozenset({"FormativeGrade", "GradeSummaryValue"})
 
 
@@ -180,7 +169,7 @@ class NativeServer(MCPServer[Runtime]):
         try:
             result = await super().call_tool(name, arguments, context)
         except ToolError as error:
-            # A client-sent name is shown only when it is a registered tool.
+            # Why: a client-sent name is shown only when it is a registered tool.
             known = self._tool_manager.get_tool(name) is not None
             return _failure(name if known else "unknown tool", error)
         if (
@@ -189,8 +178,7 @@ class NativeServer(MCPServer[Runtime]):
             and len(result.content) == 1
             and isinstance(result.content[0], TextContent)
         ):
-            # The SDK duplicates structured output as indent=2 text, which many
-            # hosts place in model context. Keep the same JSON value, compactly.
+            # Why: hosts put the SDK's indent=2 text in model context; compact is the same JSON.
             result = result.model_copy(
                 update={
                     "content": [
@@ -216,8 +204,7 @@ def _failure(tool: str, error: ToolError) -> CallToolResult:
     """Report a failed call by type, kind and code location, never by message."""
     cause: BaseException = error
     root: BaseException = error
-    # SDK wraps anticipated and unexpected tool failures. Inspect only type
-    # and canonical kind, never concatenate exception messages.
+    # Why: the SDK wraps tool failures; read type and kind, never exception messages.
     for _ in range(8):
         if isinstance(cause, LibrusError):
             break
@@ -251,7 +238,7 @@ def _failure(tool: str, error: ToolError) -> CallToolResult:
 
 
 def _notice(message: str) -> None:
-    # A closed or full stderr must not turn an error result into a protocol error.
+    # Why: a closed or full stderr must not turn an error result into a protocol error.
     try:
         notice(message)
     except OSError, ValueError:
@@ -282,11 +269,10 @@ def create_server(
     connection: ConnectionSettings | None = None,
     budget: RequestBudget | None = None,
 ) -> NativeServer:
-    # Connection injection is application-only and validated by the API. It is
-    # never a tool argument or an environment-controlled upstream URL.
+    # Why: connection injection is application-only, never a tool argument or environment.
     @asynccontextmanager
     async def lifespan(server: MCPServer[Runtime]) -> AsyncIterator[Runtime]:
-        # Idempotent; the CLI already ran it before serving for a clean error.
+        # Why: idempotent; the CLI already ran it before serving for a clean error.
         prepared = await prepare_runtime(config)
         async with Runtime(prepared, connection=connection, budget=budget) as runtime:
             yield runtime
@@ -309,7 +295,7 @@ def create_server(
         ),
     )
     ordinary = ToolAnnotations(read_only_hint=True, open_world_hint=True)
-    # Changes Librus's remembered view, never school data.
+    # Why: selecting a view changes what Librus remembers, never school data.
     session_selection = ToolAnnotations(
         read_only_hint=False, destructive_hint=False, open_world_hint=True
     )

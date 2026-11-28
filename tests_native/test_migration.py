@@ -313,8 +313,7 @@ async def test_reviewed_bootstrap_preserves_originals_and_history_replays_offlin
         )
         pending = await store.pending_batch(context=account_context)
         assert pending is not None and pending.items[0].value == RecentScheduleEvent(**event)
-    # Account context binds source origins as well as login/key. Use the real
-    # CLI's default origins for offline replay, with all socket connects denied.
+    # Why: context binds source origins too, so offline replay uses the CLI's defaults.
     script = """from unittest.mock import patch
 from librus_mcp.cli import main
 with patch('socket.socket.connect', side_effect=AssertionError('offline recovery attempted network')):
@@ -511,8 +510,7 @@ async def test_import_over_consumer_capacity_retains_all_original_events_without
 def test_cross_account_filename_collision_is_rejected_before_target_creation(tmp_path, capsys):
     source, state, config, _ = migration_files(tmp_path)
     data = json.loads(config.read_bytes())
-    # Independently found synthetic aliases: both sanitize to a___ and their
-    # historical eight-hex SHA256 mirrors collide at b1cfc064.
+    # Why: both sanitize to a___ and their old eight-hex SHA256 mirrors collide at b1cfc064.
     data["accounts"][0]["alias"] = "a/Эӆ"
     data["accounts"].append(data["accounts"][0] | {"alias": "a/ГЎ"})
     write_config(config, data)

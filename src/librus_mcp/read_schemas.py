@@ -31,8 +31,7 @@ from librus_mcp.schemas import (
 )
 
 ReferenceAccount = Annotated[str, Field(min_length=1, max_length=80, pattern=ALIAS_PATTERN)]
-# Tool parameters are described for the agent choosing arguments. Fields nested
-# in references stay bare: they are copied back unchanged and cost catalog bytes.
+# Why: nested reference fields are copied back unchanged; descriptions only cost bytes.
 AccountAliasInput = Annotated[
     ReferenceAccount, Field(description="Login alias from list_accounts.")
 ]
@@ -151,7 +150,7 @@ class TimetableResult(CollectionResult[TimetableDay]):
 class SubjectFrequencyResult(CollectionResult[SubjectFrequency]):
     date_from: date | None
     date_to: date | None
-    # Records whose lesson or subject Librus does not give; null when all resolved.
+    # Why: Librus gives no lesson or subject for some records; null when all resolved.
     unresolved: FrequencyMeasure | None
 
 
@@ -161,7 +160,7 @@ class AgendaEventOutput(WireModel):
     subject: str | None
     text: str
     lesson_number: int | None
-    # Civil time is presented verbatim in the native ISO format, never as UTC.
+    # Why: see docs/adr/0001-offset-free-school-time-in-schemas.md
     at_time: str | None
     metadata_text: str
     metadata: tuple[tuple[str, str], ...]

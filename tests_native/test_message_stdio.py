@@ -54,8 +54,7 @@ async def test_paging_content_consent_directory_and_context_binding(backend):
                 assert continued.structured_content["items"][0]["reference"]["identifier"] == "82"
                 reference = payload["items"][0]["reference"]
                 calls = len(wire.calls)
-                # Consent is present, so a malformed binding cannot pass at
-                # the separate received-body consent gate instead of this one.
+                # Why: with consent given, a bad binding cannot fail at the body consent gate.
                 for change in ({"context": "0" * 64}, {"account": "second"}):
                     invalid = await session.call_tool(
                         "get_message_content",
@@ -73,7 +72,7 @@ async def test_paging_content_consent_directory_and_context_binding(backend):
                     "error": {"code": "CONSENT_REQUIRED", "requires": "allow_mark_read"}
                 }
                 assert len(wire.calls) == calls
-                # By default a received message opens, and is marked read, as in the app.
+                # Why: by default a received message opens, and is marked read, as in the app.
                 opened = await session.call_tool(
                     "get_message_content", base | {"message_ref": reference}
                 )

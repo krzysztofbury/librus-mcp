@@ -47,7 +47,7 @@ def validate_acl(handle: Any, label: str = "configuration") -> None:
 
 
 def read_private_config(path: Path, maximum: int, label: str = "configuration") -> bytes:
-    # This module is loaded only by the Windows configuration read boundary.
+    # Why: only the Windows configuration read boundary loads this module.
     path = path.absolute()
     if (
         len(path.drive) != 2
@@ -63,8 +63,7 @@ def read_private_config(path: Path, maximum: int, label: str = "configuration") 
         volume = win32api.GetVolumeInformation(path.anchor)
         if volume[4].upper() != "NTFS" or not volume[3] & win32con.FILE_PERSISTENT_ACLS:
             raise ConfigError(f"{label} requires a local fixed NTFS path")
-        # Deny rename/deletion while traversing. Reparse points in any component
-        # are not credential sources, even if their final target appears private.
+        # Why: no rename or deletion while traversing; reparse points are never credentials.
         for parent in reversed(path.parents):
             handle = win32file.CreateFile(
                 str(parent),
