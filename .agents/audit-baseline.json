@@ -68,7 +68,6 @@
     "tests_native/wire.py": 9
   },
   "to_delete": {
-    "tests_native/test_http_transport.py": 1,
     "tests_native/test_version_references.py": 1
   }
 }

@@ -124,23 +124,48 @@ def test_http_token_file_is_private_and_ignores_a_trailing_newline(tmp_path, mon
         load_token()
 
 
-@pytest.mark.to_delete(issue=146)
 @pytest.mark.parametrize(
-    "arguments",
+    ("arguments", "message"),
     [
-        ["--generate-token", "--transport", "http"],
-        ["--generate-token", "--generate-context-key"],
-        ["--check-config", "--transport", "http"],
-        ["--doctor", "--transport", "http"],
-        ["--host", "0.0.0.0"],
-        ["--transport", "http", "--port", "0"],
+        (["--host", "0.0.0.0"], "--host, --port and --allowed-host require --transport http"),
+        (["--port", "8000"], "--host, --port and --allowed-host require --transport http"),
+        (
+            ["--allowed-host", "mcp.example"],
+            "--host, --port and --allowed-host require --transport http",
+        ),
+        (["--transport", "http", "--port", "0"], "--port must be between 1 and 65535"),
+        (["--transport", "http", "--port", "65536"], "--port must be between 1 and 65535"),
+        (["--check-config", "--transport", "http"], "transport options apply only to serving"),
+        (["--doctor", "--transport", "http"], "transport options apply only to serving"),
+        (
+            ["--transport", "http", "notification-state", "--account-alias", "a", "--status"],
+            "transport options apply only to serving",
+        ),
+        (
+            ["--generate-token", "--transport", "http"],
+            "--generate-token cannot be combined with other options",
+        ),
+        (
+            ["--generate-token", "--generate-context-key"],
+            "--generate-context-key cannot be combined with other options",
+        ),
     ],
 )
-def test_transport_options_apply_only_to_serving(arguments, capsys):
+def test_wrong_serving_options_name_the_fix_instead_of_running(
+    arguments, message, monkeypatch, tmp_path, capsys
+):
+    monkeypatch.setenv("LIBRUS_USERNAME", "fixture-login")
+    monkeypatch.setenv("LIBRUS_PASSWORD", "fixture-only")  # pragma: allowlist secret
+    monkeypatch.setenv("LIBRUS_STATE_DIR", str(tmp_path / "state"))
+    # Why: without a token a dropped refusal exits 1 instead of starting a server.
+    monkeypatch.delenv("LIBRUS_MCP_TOKEN", raising=False)
     with pytest.raises(SystemExit) as error:
         main(arguments)
+    captured = capsys.readouterr()
     assert error.value.code == 2
-    assert "error:" in capsys.readouterr().err
+    assert captured.err.splitlines()[-1] == f"librus-mcp: error: {message}"
+    assert captured.out == ""
+    assert not (tmp_path / "state").exists()
 
 
 def test_http_serving_refuses_to_start_without_a_token(monkeypatch, tmp_path, capsys):
