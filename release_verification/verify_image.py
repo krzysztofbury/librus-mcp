@@ -14,7 +14,6 @@ import os
 import secrets
 import socket
 import subprocess
-import sys
 import tempfile
 import time
 from pathlib import Path
@@ -25,8 +24,7 @@ from mcp.client import ClientSession
 from mcp.client.stdio import StdioServerParameters, stdio_client
 from mcp.client.streamable_http import streamable_http_client
 
-sys.path.append(str(Path(__file__).resolve().parents[1]))
-from release_verification.verify_release import (  # noqa: E402
+from release_verification.verify_release import (
     VerificationError,
     read_project_version,
 )
