@@ -15,7 +15,7 @@ from librus_mcp.schemas import grade_items
 from tests_native.errors import closed
 from tests_native.published_schema import assert_matches_published_schema
 from tests_native.test_native_stdio import server_process
-from tests_native.wire import Wire
+from tests_native.wire import PARENT_GROUP, STUDENT_GROUP, Wire
 
 
 @pytest.mark.asyncio
@@ -73,8 +73,7 @@ async def test_formative_grades_share_paging_dates_and_source_binding():
 
 @pytest.mark.asyncio
 async def test_grade_cursors_survive_librus_reordering_a_cell():
-    # Observed live on 2026-11-06: one cell's grades came back in a different
-    # order on each read, so every continuation was STALE_CURSOR.
+    # Why: live on 2026-11-06 a cell's order changed per read, so continuations went stale.
     async with Wire().serve() as wire:
         wire.shuffle_grades = True
         with anyio.fail_after(30):
@@ -101,8 +100,7 @@ async def test_grade_cursors_survive_librus_reordering_a_cell():
 
 @pytest.mark.asyncio
 async def test_grade_ids_and_the_all_views_correction_links():
-    # #88: the all view brackets a corrected grade with its correction; the
-    # week view shows both unbracketed, so links there are unknown, not none.
+    # Why: only the all view brackets corrections (#88); week view links are unknown.
     async with Wire().serve() as wire:
         wire.corrections = True
         with anyio.fail_after(30):
@@ -211,8 +209,7 @@ async def test_behaviour_points_sit_beside_grades_without_changing_them():
 
 @pytest.mark.asyncio
 async def test_descriptive_grades_shown_as_boxes_reach_both_grade_tools():
-    # API 1.10.1 (librus-python-api#173): a new-schema table whose semester cells
-    # hold grade boxes failed every grade read; its grades are descriptive items.
+    # Why: before API 1.10.1 (librus-python-api#173) these boxes failed every grade read.
     async with Wire().serve() as wire:
         wire.descriptive_boxes = True
         with anyio.fail_after(30):
@@ -274,7 +271,7 @@ def test_each_grade_of_a_chain_links_to_the_grades_before_and_after_it():
 
 
 def test_a_grade_without_an_id_has_unknown_correction_links():
-    # A gateway descriptive grade has no detail link, so no bracket names it.
+    # Why: a gateway descriptive grade has no detail link, so no bracket names it.
     unlinked = DescriptiveGrade(
         "Fixture Subject", "Fixture text", date(2026, 9, 24), 1, None, None, ()
     )
@@ -301,8 +298,7 @@ async def test_point_grades_are_scores_with_their_period_result(tmp_path):
                     await assert_matches_published_schema(session, tool, grades)
                     items = grades.structured_content["items"]
                     points = [item for item in items if item["record_type"] == "point"]
-                    # Same-day items follow their content, not the page order,
-                    # which Librus does not keep stable.
+                    # Why: Librus does not keep same-day page order stable, so content orders them.
                     assert [(item["subject"], item["raw"]) for item in points] == [
                         ("Point Subject", "44"),
                         ("Point Subject", "90"),
@@ -311,7 +307,7 @@ async def test_point_grades_are_scores_with_their_period_result(tmp_path):
                     assert points[0]["counts_toward_average"] is None
                     assert ["Licz do wyniku", "TAK"] in points[0]["metadata"]
                     assert {item["record_type"] for item in items} == {"numeric", "point"}
-                # The period result is a score, kept out of the grade-scale averages.
+                # Why: the period result is a score, kept out of the grade-scale averages.
                 assert grades.structured_content.get("point_results") is None
                 grades = await session.call_tool("get_grades", {"account_alias": "first"})
                 assert grades.structured_content["point_results"][0] == {
@@ -585,7 +581,7 @@ async def test_justifications_page_in_librus_order_with_the_default_window():
 @pytest.mark.asyncio
 async def test_a_student_login_gets_unsupported_justifications_without_a_request():
     async with Wire().serve() as wire:
-        wire.account_group = 8  # a student login's group
+        wire.account_group = STUDENT_GROUP
         with anyio.fail_after(30):
             async with (
                 stdio_client(server_process(wire.origin, [("first", "71")])) as streams,
@@ -612,9 +608,9 @@ def _qualifier():
 @pytest.mark.parametrize(
     ("group", "empty", "record"),
     [
-        (5, False, {"status": "passed", "coverage": "populated", "item_count": 2}),
-        (5, True, {"status": "passed", "coverage": "empty", "item_count": 0}),
-        (8, False, {"status": "expected_unsupported"}),
+        (PARENT_GROUP, False, {"status": "passed", "coverage": "populated", "item_count": 2}),
+        (PARENT_GROUP, True, {"status": "passed", "coverage": "empty", "item_count": 0}),
+        (STUDENT_GROUP, False, {"status": "expected_unsupported"}),
         (None, False, {"status": "expected_unsupported"}),
     ],
 )
@@ -646,7 +642,7 @@ async def test_the_live_qualifier_accepts_any_parent_coverage_and_the_student_re
     [(200, "TEMPORARILY_UNAVAILABLE", False), (503, "MAINTENANCE", True)],
 )
 async def test_the_live_qualifier_goes_on_past_a_view_unavailable_for_now(status, code, stops):
-    # 2.10.0: as MAINTENANCE, the archive's loading notice ended every login.
+    # Why: in 2.10.0 the archive's loading notice, read as MAINTENANCE, ended every login.
     from tests_native.test_check_tools import ArchiveLoadingWire
 
     qualifier = _qualifier()

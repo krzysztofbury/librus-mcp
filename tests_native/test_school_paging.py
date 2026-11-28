@@ -23,8 +23,7 @@ from tests_native.errors import closed
 from tests_native.published_schema import STRICT_FORMATS
 
 CONTEXT = "c" * 64
-# A quote costs 2 bytes in structuredContent and 4 in the escaped text copy,
-# so about 200 KB of this text is over the 512 KiB result cap when returned whole.
+# Why: escaped twice (docs/adr/0002), about 200 KB of this text is over the 512 KiB cap.
 LONG = 'a"' * 2500
 
 
@@ -176,7 +175,7 @@ TOOLS = (
 @pytest.mark.parametrize(("name", "query", "other", "attribute", "make", "field"), TOOLS)
 async def test_a_large_result_is_returned_page_by_page(name, query, other, attribute, make, field):
     client = StubClient()
-    # 40 items of 5 KB: about 200 KB of school text in one month or range.
+    # Why: 40 items of 5 KB put about 200 KB of school text in one month or range.
     setattr(client, attribute, [make(index, LONG) for index in range(40)])
     server, context = server_with(client)
     values, reasons, _ = await read_all(server, context, name, query, field)

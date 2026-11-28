@@ -55,7 +55,7 @@ from librus_mcp.schemas import (
 
 def register_read_tools(server: MCPServer[Runtime]) -> None:
     ordinary = ToolAnnotations(read_only_hint=True, open_world_hint=True)
-    # Changes Librus's remembered view, never school data.
+    # Why: selecting a view changes what Librus remembers, never school data.
     selection = ToolAnnotations(read_only_hint=False, destructive_hint=False, open_world_hint=True)
     server.tool(title="Grades by date", annotations=selection)(get_grades_window)
     server.tool(title="Attendance by date", annotations=selection)(get_attendance_window)
@@ -217,7 +217,7 @@ async def get_timetable(
 ) -> TimetableResult:
     """Get the lesson plan for one week, with substitutions and cancellations, in school local time. Selecting the week also changes the week this login's Librus session remembers."""
     runtime = ctx.request_context.lifespan_context
-    # Agents pass "today"; the week is what they mean. The result names its Monday.
+    # Why: agents pass today when they mean its week; the result names the Monday.
     week = monday - timedelta(days=monday.weekday())
     result = await runtime.account(account_alias).timetable(week, budget=runtime.budget)
     return TimetableResult(

@@ -68,7 +68,7 @@ def check_identity(image: str, version: str) -> None:
         raise VerificationError(f"image does not run librus-mcp {version}")
     if docker("image", "inspect", image, "--format", "{{.Config.User}}") in {"", "0", "root"}:
         raise VerificationError("image must run as an unprivileged user")
-    # Root only for this listing, so no unreadable directory hides a match.
+    # Why: as root, no unreadable directory can hide a match from this listing.
     found = docker(
         "run",
         "--rm",
@@ -137,7 +137,7 @@ def free_port() -> int:
 async def check_http(image: str) -> None:
     token = secrets.token_urlsafe(32)
     port = free_port()
-    # The image's own user and listen address, with state in a fresh named volume.
+    # Why: test the image's own user and listen address; a fresh volume isolates state.
     volume = docker("volume", "create")
     container = docker(
         "run",
@@ -196,7 +196,7 @@ async def check_http(image: str) -> None:
         if result.structured_content != {"items": [{"account_alias": "librus"}]}:
             raise VerificationError("HTTP image did not load the environment login")
     finally:
-        # rm -f returns once the container is gone, so the volume is free.
+        # Why: rm -f returns once the container is gone, so the volume can go next.
         subprocess.run(["docker", "rm", "-f", container], check=False, capture_output=True)
         subprocess.run(["docker", "volume", "rm", volume], check=False, capture_output=True)
 

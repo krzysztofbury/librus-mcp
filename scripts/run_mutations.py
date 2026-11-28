@@ -26,8 +26,7 @@ TARGETS = (
 @contextmanager
 def scratch_directory():
     if root := os.environ.get("AGENT_SCRATCH_DIR"):
-        # The shell wrapper owns the entire group and waits before cleanup.
-        # Do not detach descendants or delete their files during signal unwind.
+        # Why: the shell wrapper owns the group and its cleanup; never detach or delete here.
         yield Path(tempfile.mkdtemp(prefix="librus-native-mutations-", dir=root))
     else:
         with tempfile.TemporaryDirectory(prefix="librus-native-mutations-") as temporary:
@@ -35,8 +34,7 @@ def scratch_directory():
 
 
 def command(arguments, *, directory, environment, capture=False):
-    # A failed/interrupted runner can leave pytest and stdio children alive.
-    # Stop its process group before TemporaryDirectory removes their files.
+    # Why: a failed runner can leave children; stop its group before their files go.
     wrapper_owned = "AGENT_SCRATCH_DIR" in environment
     with subprocess.Popen(
         arguments,

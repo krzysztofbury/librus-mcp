@@ -42,8 +42,7 @@ def verify_sdist(repository: Path, archive: Path, output: Path) -> None:
             if original.is_file() and original.read_bytes() != body:
                 raise VerificationError("source distribution differs from the reviewed source")
         required = {"LICENSE", "LICENSE_REVIEW.md", "src/librus_mcp/cli.py", "tests_native/wire.py"}
-        # Git can check text out with CRLF on Windows. Keep the exact header
-        # requirement while accepting either platform's newline bytes.
+        # Why: Git may check LICENSE out with CRLF on Windows; the header must stay exact.
         if not required <= files.keys() or not files["LICENSE"].startswith(
             (b"MIT License\n", b"MIT License\r\n")
         ):

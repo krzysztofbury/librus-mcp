@@ -126,7 +126,7 @@ async def test_four_logins_share_traffic_but_not_sessions_and_catalog_does_not_l
                     "get_recipient_types",
                     "get_recipient_choices",
                     "get_recipients",
-                    # Default-on features; sending stays opt-in.
+                    # Why: default-on features; sending stays opt-in.
                     "download_attachment",
                     "get_new_notifications",
                     "get_notification_status",
@@ -157,7 +157,7 @@ async def test_four_logins_share_traffic_but_not_sessions_and_catalog_does_not_l
                     assert data["data"]["identity"]["student"]["id"] == "shared-pupil"
                     assert data["observation"]["account"] == alias
                 assert wire.logins == {login: 1 for _, login in accounts}
-                # API 1.0.2 shares four active requests across all logins.
+                # Why: API 1.0.2 shares four active requests across all logins.
                 assert 1 <= wire.peak <= 4
                 calls = len(wire.calls)
                 cached = await session.call_tool(
@@ -172,11 +172,7 @@ async def test_four_logins_share_traffic_but_not_sessions_and_catalog_does_not_l
                 )
                 assert bad.is_error and closed(bad) == {"error": {"code": "INVALID_INPUT"}}
                 assert len(wire.calls) == calls
-                # One shared default token budget (API 1.0.2: burst 20, ten per
-                # second), not a burst per alias.
-                # Include connection establishment in the client workload
-                # clock. Arrival timestamps can be compressed by DNS/TCP
-                # delays and are not exact scheduler dispatch timestamps.
+                # Why: API 1.0.2 shares burst 20 at 10/s; the clock includes connecting.
                 for index, dispatched_at in enumerate(wire.dispatch_times, start=1):
                     assert index <= 21 + 10 * (dispatched_at - workload_started)
 
@@ -196,7 +192,7 @@ async def test_native_grade_attendance_contracts_and_effect_annotations():
                     properties = tools[name].input_schema["properties"]
                     assert "account_alias" in properties and "scope" in properties
                     assert "student_alias" not in properties and "sort_by" not in properties
-                # Legacy recipient lookups select a Librus view (#66).
+                # Why: legacy recipient lookups select a Librus view (#66).
                 for name in ("get_recipient_types", "get_recipient_choices", "get_recipients"):
                     assert tools[name].annotations.read_only_hint is False
                     assert tools[name].annotations.destructive_hint is False
@@ -264,8 +260,7 @@ async def test_rejected_account_and_parse_failure_are_classified_not_empty():
                 }
                 assert "/modul_niedostepny" not in unavailable.model_dump_json()
                 assert not any(path == "/modul_niedostepny" for _, path, _ in wire.calls)
-                # An unavailable module must not poison the login or be
-                # confused with expiry requiring another authentication.
+                # Why: an unavailable module must not poison the login or look like expiry.
                 grades = await session.call_tool("get_grades", {"account_alias": "good"})
                 assert not grades.is_error
                 assert wire.logins["login"] == 1
@@ -374,4 +369,4 @@ async def test_four_account_cold_and_warm_mixed_workload_remains_bounded_and_iso
                                 for item in items
                             )
                     assert wire.logins == {login: 1 for _, login in accounts}
-                assert wire.peak <= 4  # shared API limit, one per login
+                assert wire.peak <= 4  # Why: the API's shared limit, one request per login.

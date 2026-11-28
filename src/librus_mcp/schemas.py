@@ -47,7 +47,7 @@ class WindowPagination(WireModel):
 
 
 class SizedWindowPagination(WireModel):
-    # Only tools whose single items can be large also end a page by size.
+    # Why: only tools whose single items can be large also end a page by size.
     next_cursor: PresentationCursor | None
     truncated: bool
     reason: Literal["item_limit", "size_limit"] | None
@@ -91,7 +91,7 @@ class FinalGradesResult(WireModel):
 
 
 class GradeItem(WireModel):
-    # Suppress inert HTML hrefs; no grade-detail tool accepts raw routes in 2.0.
+    # Why: no grade-detail tool accepts raw routes, so inert HTML hrefs are left out.
     record_type: Literal["numeric", "point", "descriptive"]
     subject: str
     raw: str
@@ -127,8 +127,7 @@ class BehaviourPointEntryItem(WireModel):
 
 
 class BehaviourPointsItem(WireModel):
-    # The API does not establish whether the tally is the starting points or a
-    # running total (librus-python-api#138), so it is passed on uninterpreted.
+    # Why: whether the tally starts or runs is unknown (librus-python-api#138); pass it on.
     semester: Literal[1, 2]
     tally: Annotated[
         int,

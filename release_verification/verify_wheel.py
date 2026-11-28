@@ -25,9 +25,7 @@ from release_verification.verify_release import (  # noqa: E402
     read_project_version,
 )
 
-# Locked dependencies install from a PEP 751 pylock (uv preview in 0.13.5).
-# After a uv bump, recheck that the install never queries an index and still
-# rejects a changed hash (#128).
+# Why: pylock install is a uv preview; on a uv bump recheck no index use, hash check (#128).
 PYLOCK = ("--preview-features", "pylock")
 HANDSHAKE_TIMEOUT_SECONDS = 30
 
@@ -244,9 +242,7 @@ def run_cli_checks(executable: Path, working_directory: Path, expected_version: 
 
 def run_consumer_tests(repository: Path, python: Path, working_directory: Path) -> None:
     """Run copied offline consumer tests against the installed wheel, never source."""
-    # PEP 751 names; a pylock records each file's URL, so installing it needs
-    # no package index, which can lag a release by minutes after upload.
-    # Installing a pylock is a uv preview feature, opted into by PYLOCK.
+    # Why: a pylock records each file's URL, so no package index, which lags uploads, is used.
     requirements = working_directory / "pylock.consumer-tests.toml"
     subprocess.run(
         [
@@ -286,8 +282,7 @@ def run_consumer_tests(repository: Path, python: Path, working_directory: Path) 
         ignore=shutil.ignore_patterns("__pycache__"),
     )
     (tests / "pytest.ini").write_text(
-        # timeout as in pyproject.toml: a hung test fails with its id, not
-        # only through the whole-suite cap below, which names no test.
+        # Why: a per-test timeout names the hung test; the whole-suite cap below names none.
         "[pytest]\nasyncio_mode = strict\ntestpaths = tests_native\ntimeout = 120\n",
         encoding="utf-8",
     )
@@ -297,12 +292,10 @@ def run_consumer_tests(repository: Path, python: Path, working_directory: Path) 
             "-m",
             "pytest",
             "-q",
-            # One worker per CPU. Every test is about 1.7 times slower under
-            # the x64 Python of the windows-11-arm job, which the README setup
-            # uses there, and most of the time is in server subprocesses (#129).
+            # Why: windows-11-arm's x64 Python runs tests ~1.7x slower, mostly subprocesses (#129).
             "--numprocesses",
             "auto",
-            # The slowest tests per runner, to compare platforms (#129).
+            # Why: the slowest tests per runner let platforms be compared (#129).
             "--durations=25",
             "--basetemp",
             str(working_directory / "pytest"),
@@ -313,9 +306,7 @@ def run_consumer_tests(repository: Path, python: Path, working_directory: Path) 
             for key, value in synthetic_environment(working_directory).items()
             if not key.startswith("LIBRUS_")
         },
-        # Hosted Windows runs the suite in ~80-105s in parallel (~200s on x64
-        # and ~340s on ARM serially); a whole-suite cap is a hang guard, not a
-        # performance gate, so leave headroom for runner variance.
+        # Why: a hang guard, not a gate; Windows takes ~80-105s parallel, up to ~340s serially.
         timeout=600,
         check=True,
     )
@@ -350,8 +341,7 @@ def verify_wheel(repository: Path, wheel: Path, *, consumer_tests: bool = False)
             raise VerificationError("temporary environment must be outside the checkout")
         virtual_environment = temporary_directory / "venv"
         subprocess.run(
-            # UV_PYTHON names an exact interpreter where 3.14 alone is not one
-            # (x64 Python on Windows on ARM, see README).
+            # Why: on Windows on ARM, 3.14 alone does not name the x64 Python the README uses.
             [
                 "uv",
                 "venv",

@@ -27,7 +27,7 @@ def _none(_: date) -> dict[str, Any]:
 
 
 def _week(today: date) -> dict[str, Any]:
-    # Any day selects its week; the tool uses the Monday.
+    # Why: any day selects its week, so today serves; the tool uses its Monday.
     return {"monday": today.isoformat()}
 
 
@@ -47,9 +47,7 @@ def _one_page(_: date) -> dict[str, Any]:
     return {"max_pages": 1}
 
 
-# Every tool callable with the login alone, plus arguments derived from today,
-# whose calls neither consume, mark read, write files nor send. Selecting a
-# view, week or month changes what Librus remembers, as the tools do.
+# Why: none of these consume, mark read, write files or send; they may select a view.
 CHECKS: Mapping[str, Arguments] = {
     "get_student_information": _none,
     "get_final_grades": _none,
@@ -76,7 +74,7 @@ CHECKS: Mapping[str, Arguments] = {
     "get_send_history": _none,
 }
 DEFAULT_TOOLS = tuple(CHECKS)
-# Called once, without a login.
+# Why: list_accounts needs no login, so it is called once.
 CATALOG_TOOLS = ("list_accounts",)
 MODERN_ONLY = frozenset(
     {"get_message_correspondents", "get_teacher_subjects", "get_message_unread_counts"}
@@ -95,11 +93,9 @@ REFUSED: Mapping[str, str] = {
     "send_message": "sends a message",
     "get_send_outcome": "needs confirmation_token from preview_message",
 }
-# The login cannot use the tool; that is not a schema failure.
-# TEMPORARILY_UNAVAILABLE: only this view answers later, such as the archive
-# while Synergia fills it (2.10.0); MAINTENANCE stays a failed check.
+# Why: the login cannot use the view, for now or at all; MAINTENANCE still fails.
 UNAVAILABLE = frozenset({"VIEW_DISABLED", "MODULE_UNAVAILABLE", "TEMPORARILY_UNAVAILABLE"})
-# Parent-only modules: a student login gets UNSUPPORTED_CAPABILITY before any request.
+# Why: a student login gets UNSUPPORTED_CAPABILITY here before any request.
 PARENT_ONLY = frozenset({"get_justifications"})
 
 

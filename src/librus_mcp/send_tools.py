@@ -114,8 +114,7 @@ async def send_message(
             confirmation_token, context=runtime.account(account_alias).context
         )
     except LibrusError:
-        # The send completed and its outcome was durably recorded by execute_send.
-        # A failed follow-up read must not present a delivered message as failed.
+        # Why: execute_send recorded the outcome; a failed reread must not show it as failed.
         durable = None
     return MessageSendResult(data=result, durable=durable)
 

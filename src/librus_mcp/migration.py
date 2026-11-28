@@ -28,8 +28,7 @@ class BaselineMappingInput(WireModel):
     category: NotificationCategory
     source_identifier: Annotated[str, Field(min_length=1, max_length=256)]
     native_identifier: HexDigest | None
-    # A consumer/operator records how the native ID was independently established;
-    # this is not cryptographic proof or permission to hash an old opaque ID.
+    # Why: records how the native ID was found; not proof, nor leave to hash an old ID.
     evidence: Annotated[str, Field(min_length=1, max_length=2048)]
 
 
@@ -41,8 +40,7 @@ class MigrationMappingInput(WireModel):
 
 
 def _publish_manifest(path: Path, payload: object) -> None:
-    # Exclusive, private and fsynced. A partial manifest is retained on error;
-    # native state must be inspected, not blindly bootstrapped again.
+    # Why: a partial manifest is kept on error; native state needs inspection, not a rerun.
     descriptor = -1
     try:
         descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
@@ -134,7 +132,7 @@ async def migrate_state(
             )
         await prepare_private_directory(config.state_dir)
         target = config.state_dir / "native-v2"
-        # Same bounds as serving; no private SQL, codec or native archive parsing.
+        # Why: serving's bounds apply; no private SQL, codec or archive parsing here.
         async with NotificationStore(target, limits=notification_limits()) as store:
             status = await store.recovery_status(context=context)
             if status.initialized or status.has_pending_work:

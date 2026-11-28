@@ -15,17 +15,16 @@ from librus_mcp.config import AppConfig
 from librus_mcp.server import create_server
 from tests_native.test_config import config_data
 from tests_native.test_failure_stdio import ALIAS, SECRET, BrokenTooltipWire, _wire_server
-from tests_native.wire import Wire
+from tests_native.wire import STUDENT_GROUP, Wire
 
 PROFILES = [
     None,
     {"notifications": False, "attachments": False},
     {"send_message": True},
 ]
-# Sunday, the year's last and first day, a leap day.
+# Why: a Sunday, the year's last and first day and a leap day are week edge cases.
 DAYS = [date(2026, 11, 8), date(2026, 12, 31), date(2027, 1, 1), date(2028, 2, 29)]
-# The API's routes that consume calendar events, mark a message read or send one.
-# Every `{id}` on them is numeric.
+# Why: these routes consume events, mark read or send; every `{id}` on them is numeric.
 EFFECTS = frozenset({SideEffect.CONSUME_EVENTS, SideEffect.MARK_READ, SideEffect.SEND_MESSAGE})
 EFFECT_ROUTES = [
     (
@@ -92,7 +91,7 @@ async def test_the_default_run_reads_every_safe_tool_without_effects(tmp_path, b
         report = dict(line.split(": ", 1) for line in lines[1:])
         assert report.pop("catalog list_accounts").startswith("OK")
         listed = {name.removeprefix("login 1 ") for name in report}
-        # Default features: notifications and attachments on, sending off.
+        # Why: default features have sending off, so get_send_history is not listed.
         assert listed == set(CHECKS) - {"get_send_history"}
         for name, outcome in report.items():
             tool = name.removeprefix("login 1 ")
@@ -123,7 +122,7 @@ async def test_the_default_run_reads_every_safe_tool_without_effects(tmp_path, b
 async def test_a_student_login_reports_parent_only_justifications_as_unavailable(tmp_path):
     lines: list[str] = []
     async with Wire().serve() as wire:
-        wire.account_group = 8  # a student login's group
+        wire.account_group = STUDENT_GROUP
         with anyio.fail_after(30):
             assert await check_tools(
                 _wire_server(wire.origin, tmp_path),
@@ -146,7 +145,7 @@ class ArchiveLoadingWire(Wire):
             self.calls.append((request.method, request.path, None))
             if self.status != 200:
                 return web.Response(status=self.status)
-            # Observed live (2026-11-20) while Synergia fills the archive.
+            # Why: Librus showed this notice live (2026-11-20) while filling the archive.
             return web.Response(
                 text='<html><body><div class="warning-box information">'
                 '<div class="warning-content">Opcja chwilowo niedostępna. Aktualnie '
@@ -163,7 +162,7 @@ class ArchiveLoadingWire(Wire):
     "status,passed,line",
     [
         (200, True, "unavailable on this login (TEMPORARILY_UNAVAILABLE)"),
-        # 2.10.0: Synergia being down is a failed check again, as before 2.9.1.
+        # Why: since 2.10.0, Synergia being down is a failed check again, as before 2.9.1.
         (503, False, "tool error MAINTENANCE"),
     ],
 )

@@ -26,16 +26,14 @@ from librus_mcp.schemas import HexDigest, WireModel
 class AttachmentInput(WireModel):
     message: MessageReferenceInput
     identifier: NumericID
-    # The attachment's own namespace, as get_message_content reports it. A current
-    # message's detail can place its files in the archive; omitted, it follows
-    # the message reference.
+    # Why: a current message's files may sit in the archive; None follows the message.
     archived: Annotated[bool | None, Field(strict=True)] = None
 
     def native(self) -> MessageAttachmentReference | ModernMessageAttachmentReference:
         message = self.message.native()
         if isinstance(message, ModernMessageReference):
             archived = message.archived if self.archived is None else self.archived
-            # Files of an archive-mailbox message are never in the current namespace.
+            # Why: an archive-mailbox message's files are never in the current namespace.
             if message.archived and not archived:
                 raise LibrusError(ErrorKind.INVALID_INPUT)
             return ModernMessageAttachmentReference(
@@ -60,7 +58,7 @@ def register_attachment_tools(server: MCPServer[Runtime]) -> None:
     server.tool(
         title="Download attachment",
         annotations=ToolAnnotations(
-            # Writes a new file and never overwrites one.
+            # Why: not destructive, as it writes a new file and never overwrites one.
             read_only_hint=False,
             destructive_hint=False,
             open_world_hint=True,
@@ -106,10 +104,7 @@ async def download_attachment(
     saved = await publish_attachment(
         stream, runtime.attachment_resources.directory, filename=filename, max_bytes=max_bytes
     )
-    # Publication is the native commit point. Optional resource hosting must
-    # not turn an already committed download into an apparent failed transfer.
-    # A rejected snapshot never creates a URI; the published digest remains the
-    # caller's integrity check for subsequent local-file use.
+    # Why: publication commits the download; a failed resource snapshot must not undo it.
     try:
         uri = runtime.attachment_resources.snapshot(saved)
     except LibrusError as error:
@@ -127,9 +122,7 @@ async def download_attachment(
     )
 
 
-# Resource templates use pydantic.validate_call, unlike tools. Specializing
-# Context here revalidates the SDK's base instance and drops its private request
-# state. Accept the SDK's exact public Context class at this injection boundary.
+# Why: pydantic.validate_call revalidates a parametrized Context, dropping request state.
 async def read_attachment(token: str, ctx: Context) -> bytes:
     try:
         runtime = cast(Runtime, ctx.request_context.lifespan_context)

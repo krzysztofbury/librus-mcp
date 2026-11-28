@@ -100,7 +100,7 @@ def main(argv: Sequence[str] | None = None) -> None:
     )
     arguments = parser.parse_args(argv)
     if arguments.command == "inspect-page":
-        # Offline and credential-free: no configuration, state or network.
+        # Why: inspect-page stays offline and credential-free: no configuration, state or network.
         if (
             arguments.config
             or arguments.check_config
@@ -189,7 +189,7 @@ def main(argv: Sequence[str] | None = None) -> None:
         from librus_mcp.migration import migrate_state, notification_state
 
         try:
-            # Operator commands bind the same persistent key that serving uses.
+            # Why: operator commands must bind the same persistent key that serving uses.
             config = asyncio.run(provision_context_key(config))
             if arguments.command == "migrate-state":
                 report = asyncio.run(
@@ -257,8 +257,7 @@ def main(argv: Sequence[str] | None = None) -> None:
         except ConfigError as error:
             print(f"librus-mcp: {error}", file=sys.stderr)
             raise SystemExit(1) from None
-    # Fail before the protocol starts with one actionable line, not a lifespan
-    # traceback. The lifespan repeats this idempotent preparation.
+    # Why: one actionable line before the protocol starts beats a lifespan traceback.
     try:
         config = asyncio.run(prepare_runtime(config))
     except ConfigError as error:

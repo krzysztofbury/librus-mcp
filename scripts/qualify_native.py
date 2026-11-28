@@ -53,8 +53,7 @@ STOP_CODES = frozenset(
 
 def qualification_config(path: Path) -> AppConfig:
     data = read_config_file(path)
-    # Scope selection is explicit to this read-only qualification process. It
-    # neither edits the original file nor starts a fresh durable notification store.
+    # Why: a read-only run takes only accounts and key from the file; optional stores stay off.
     return AppConfig.model_validate(
         {
             "accounts": data.get("accounts"),
@@ -182,10 +181,10 @@ async def call(
     if result.is_error:
         code = error_detail(result).get("code", "INTERNAL_ERROR")
         if name in PARENT_ONLY and code == "UNSUPPORTED_CAPABILITY":
-            # A student login is refused before any request; that is the defined outcome.
+            # Why: a student login is refused before any request, which is the defined outcome.
             records.append({"account_index": index, "tool": name, "status": "expected_unsupported"})
             return None, False
-        # A failed upstream response is never echoed, including raw ToolError text.
+        # Why: only the code is kept; upstream text, including ToolError's, is never echoed.
         records.append({"account_index": index, "tool": name, "status": code})
         return None, code in STOP_CODES
     records.append(
@@ -331,8 +330,7 @@ async def communication_details(
     if stop:
         return False
     if selected["backend"] == "modern" and records[-1]["status"] == "UNSUPPORTED_CAPABILITY":
-        # The catalog deliberately retains a legacy-only choice operation. Its
-        # explicit unsupported result is expected here, not a successful lookup.
+        # Why: the catalog keeps this legacy-only operation, so a modern refusal is expected.
         records[-1]["status"] = "expected_unsupported"
     if choices and choices.get("items"):
         choice = next((item["reference"] for item in choices["items"] if item["available"]), None)

@@ -49,8 +49,7 @@ async def test_window_cursor_rejects_wrong_query_account_and_changed_source():
                     )
                     assert bad.is_error and closed(bad) == {"error": {"code": "INVALID_INPUT"}}
                     assert len(wire.calls) == calls
-                # The synthetic source has exactly two dated grades. A cursor
-                # at its end must reject, not masquerade as an empty last page.
+                # Why: the source has two dated grades, so offset 2 is past the end, not empty.
                 past_end = await session.call_tool(
                     "get_grades_window", query | {"cursor": cursor | {"offset": 2}}
                 )
@@ -89,9 +88,7 @@ async def test_reference_backend_context_and_mark_read_guards_are_preflight_only
                     "identifier": "19",
                     "account": "account",
                 }
-                # Binding failures must not be hidden by missing consent.
-                # Independent account/context mutations are covered with
-                # actual message references in test_message_stdio.py.
+                # Why: missing consent must not hide binding failures (test_message_stdio too).
                 for ref, consent, error in (
                     (
                         message,
@@ -233,9 +230,7 @@ async def test_whole_grade_and_attendance_reads_are_paged_with_bound_cursors():
 
 @pytest.mark.asyncio
 async def test_announcements_at_the_api_text_maximum_are_returned_page_by_page():
-    # #90: the API accepts a 256 KiB page with up to 262144 characters of text.
-    # A quote costs 2 bytes in structuredContent and 4 in the escaped text copy,
-    # so these four notices (about 960 KiB returned at once) were a LIMIT.
+    # Why: escaped twice (docs/adr/0002), these four notices were ~960 KiB at once (#90).
     text = 'a"' * 30000
     notices = [(f"Ogłoszenie {index}", f"{index}{text}") for index in range(4)]
     wire = Wire()
@@ -307,7 +302,7 @@ def test_sized_page_edges_an_empty_collection_and_an_oversized_first_item():
     selected, pagination = sized_page((), context=context, query=("q",), cursor=None, limit=5)
     assert selected == () and pagination.next_cursor is None and pagination.reason is None
     items = ("x" * 300, "y", "z")
-    # An item over the whole budget still comes alone, so its cursor moves on.
+    # Why: an item over the whole budget still comes alone, so its cursor moves on.
     selected, pagination = sized_page(
         items, context=context, query=("q",), cursor=None, limit=5, max_bytes=100
     )
@@ -317,7 +312,7 @@ def test_sized_page_edges_an_empty_collection_and_an_oversized_first_item():
         items, context=context, query=("q",), cursor=pagination.next_cursor, limit=5
     )
     assert rest == ("y", "z") and last.next_cursor is None
-    # The same source digest as window_page, so the one-pass encoding is exact.
+    # Why: equal source digests show the one-pass encoding is exact.
     _, window = window_page(items, context=context, query=("q",), cursor=None, limit=1)
     assert window.next_cursor is not None
     assert window.next_cursor.source == pagination.next_cursor.source

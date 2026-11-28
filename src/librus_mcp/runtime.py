@@ -24,7 +24,7 @@ from librus_python_api.persistence import NotificationLimits, NotificationStore,
 from librus_mcp.config import AppConfig, notice
 from librus_mcp.resources import AttachmentResources
 
-# Opt-in: one stderr line per Librus operation, without logins or school data.
+# Why: opt-in; one stderr line per Librus operation, without logins or school data.
 LOG_OPERATIONS = "LIBRUS_MCP_LOG_OPERATIONS"
 
 
@@ -54,8 +54,7 @@ def notification_limits() -> NotificationLimits:
 
 
 def _create_missing_ancestors(directory: Path) -> None:
-    # Python applies mkdir modes only to the leaf, so create each absent ancestor
-    # explicitly. Existing ancestors are used as found.
+    # Why: mkdir applies its mode only to the leaf, so each absent ancestor is made here.
     missing = tuple(takewhile(lambda parent: not os.path.lexists(parent), directory.parents))
     for parent in reversed(missing):
         parent.mkdir(mode=0o700, exist_ok=True)
@@ -136,10 +135,9 @@ class Runtime:
         self._send_store: PersistenceStore | None = None
         self._notification_store: NotificationStore | None = None
         self.attachment_resources = AttachmentResources(config.download_dir / "native-v2")
-        # Serializes one-time 1.x state adoption within this process.
+        # Why: one-time 1.x state adoption must not run twice within this process.
         self.legacy_lock = asyncio.Lock()
-        # Hosts can bound a whole short-lived workflow across multiple tool calls.
-        # Normal serving passes None and uses the API's per-operation defaults.
+        # Why: hosts may bound a whole short-lived workflow; serving passes None for API defaults.
         self.budget = budget
         self._backends = {account.alias: account.messaging_backend for account in config.accounts}
         self.service = LibrusService(
@@ -177,9 +175,7 @@ class Runtime:
                     PersistenceStore(self.config.state_dir / "native-v2")
                 )
             if self.config.features.notifications:
-                # A native batch is serialized into both structured and text MCP
-                # content. Bound staging before side effects, leaving room for
-                # escaping/SDK formatting under the complete 512 KiB wire cap.
+                # Why: see docs/adr/0002-results-fit-the-cap-in-both-copies.md
                 self._notification_store = await self._stack.enter_async_context(
                     NotificationStore(
                         self.config.state_dir / "native-v2",

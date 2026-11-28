@@ -24,6 +24,9 @@ from tests_native.history_wire import (
 )
 from tests_native.legacy_wire import legacy_response
 
+PARENT_GROUP = 5
+STUDENT_GROUP = 8
+
 
 class Wire:
     def __init__(self):
@@ -39,28 +42,26 @@ class Wire:
         self.message_count = 3
         self.message_queries = []
         self.history_empty = False
-        # `Me.Account.GroupId`: 5 is a parent login, 8 a student login; None
-        # leaves it out. The API reads justifications for group 5 only.
-        self.account_group: int | None = 5
+        # Why: the API reads justifications for PARENT_GROUP only; None leaves GroupId out.
+        self.account_group: int | None = PARENT_GROUP
         self.justifications_empty = False
         self.announcements: list[tuple[str, str]] | None = None
         self.formative = False
         self.points = False
-        # Librus may list one cell's grades in a different order on each read.
+        # Why: Librus may list one cell's grades in a different order on each read.
         self.shuffle_grades = False
         self.grade_reads = 0
-        # Link both grades and, in the all view only, bracket them as a
-        # correction (#88); the week view showed no brackets.
+        # Why: Librus brackets a correction in the all view only (#88).
         self.corrections = False
         self.formative_text = "Fixture formative assessment"
-        # Add a Zachowanie row: tally 50 with entries +5 and -3, then -7 alone.
+        # Why: a Zachowanie row: tally 50 with entries +5 and -3, then -7 alone.
         self.behaviour_points = False
         self.descriptive_boxes = False
         self.sent_payloads = []
         self.send_unknown = False
         self.attachment_body = b"Fixture attachment bytes\x00"
         self.attachment_location = None
-        # None: details list no files; a bool lists file 91 with that archive flag.
+        # Why: None lists no files; a bool lists file 91 with that archive flag.
         self.detail_archive = None
         self.schedule_malformed = False
         self.schedule_disconnect = False
@@ -358,7 +359,7 @@ class Wire:
             if self.descriptive_boxes:
                 body = body.replace("</body>", descriptive_box_table() + "</body>")
             if self.corrections:
-                # Other flags rewrite the same anchors; keep this one alone.
+                # Why: other flags rewrite the same anchors.
                 assert not (self.formative or self.shuffle_grades)
                 first = '<span class="grade-box"><a title="Data: 2026-09-24">4+</a></span>'
                 second = (
@@ -367,7 +368,7 @@ class Wire:
                 )
                 assert body.count(first + second) == 1
                 original = first.replace("<a ", '<a href="/przegladaj_oceny/szczegoly/301" ')
-                # Tooltips carry escaped markup, as on the live page.
+                # Why: tooltips carry escaped markup on the live page.
                 correction = second.replace(
                     '<a title="Data: 2026-09-25">',
                     '<a href="/przegladaj_oceny/szczegoly/302" title="Data: 2026-09-25'

@@ -89,8 +89,7 @@ async def test_preview_binding_claim_outcome_and_restart_never_replays_send(
                 preview = await session.call_tool("preview_message", arguments)
                 assert not preview.is_error
                 token = preview.structured_content["confirmation_token"]
-            # New process reconstructs the approved immutable attempt from supplied
-            # references, not a memory token dictionary or a persisted body.
+            # Why: a new process rebuilds the attempt from references, not memory or a body.
             async with stdio_client(process) as streams, ClientSession(*streams) as session:
                 await session.initialize()
                 sent = await session.call_tool(
@@ -137,7 +136,7 @@ async def test_preview_binding_claim_outcome_and_restart_never_replays_send(
                 assert foreign.is_error and closed(foreign) == {"error": {"code": "INVALID_INPUT"}}
                 assert len(wire.calls) == calls
                 assert len(wire.sent_payloads) == 1
-        # Raw byte checks prove no plaintext at rest without depending on SQL layout.
+        # Why: raw bytes prove no plaintext at rest without depending on SQL layout.
         for path in (tmp_path / "state" / "native-v2").iterdir():
             if path.is_file():
                 body = path.read_bytes()
@@ -170,8 +169,7 @@ async def test_cancel_after_send_dispatch_keeps_uncertainty_and_never_resubmits(
                     )
                     await wire.send_started.wait()
                     tasks.cancel_scope.cancel()
-                # The client cancellation notification must cross stdio before
-                # the synthetic peer is allowed to acknowledge the write.
+                # Why: the cancellation must cross stdio before the peer acknowledges the write.
                 result = await session.call_tool(
                     "get_send_outcome", {"account_alias": "sender", "confirmation_token": token}
                 )

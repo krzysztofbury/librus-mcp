@@ -39,7 +39,7 @@ ArchiveItem = ArchiveYearItem | ArchiveAchievementItem
 
 
 class JustificationItem(WireModel):
-    # Own wire model: the API dataclass docstring would be published in the schema.
+    # Why: an own wire model keeps the API dataclass docstring out of the schema.
     start: date
     end: date
     lessons: tuple[int, ...]
@@ -68,7 +68,7 @@ def _justification_item(entry: Justification) -> JustificationItem:
 
 
 class JustificationsResult(SizedPagedResult[JustificationItem]):
-    # The window the list page shows by default; older entries are not read.
+    # Why: the list page's default window bounds the read; older entries are not read.
     date_from: date
     date_to: date
 

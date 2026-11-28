@@ -14,15 +14,14 @@ from librus_mcp.runtime import notification_limits, prepare_private_directory
 
 async def diagnose(config: AppConfig, *, check_storage: bool = False) -> dict[str, object]:
     if check_storage:
-        # Explicit diagnostic consent can provision the private parent. Never
-        # open or advance the real native-v2 database or old JSON state.
+        # Why: consent covers the private parent only, never the real database or old state.
         await prepare_private_directory(config.state_dir)
         try:
             with tempfile.TemporaryDirectory(prefix="doctor-", dir=config.state_dir) as directory:
                 async with (
                     LibrusService(
                         {account.alias: account.credentials() for account in config.accounts},
-                        # A disposable probe needs no persistent key; never create one here.
+                        # Why: a disposable probe needs no persistent key; never create one here.
                         context_key=config.key_bytes()
                         if config.context_key is not None
                         else secrets.token_bytes(32),

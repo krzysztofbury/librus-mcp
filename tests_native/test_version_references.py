@@ -14,7 +14,7 @@ SPEC = ROOT / "SPEC.md"
 
 @pytest.fixture
 def project_version():
-    # The installed-wheel run has no source checkout.
+    # Why: the installed-wheel run has no source checkout.
     if not (PROJECT.exists() and MIGRATION.exists() and SPEC.exists()):
         pytest.skip("source checkout only")
     return tomllib.loads(PROJECT.read_text(encoding="utf-8"))["project"]["version"]

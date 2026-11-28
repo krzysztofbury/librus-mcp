@@ -42,8 +42,7 @@ async def test_notification_consent_restart_exact_replay_ack_and_account_isolati
                 )
                 assert not status.is_error and not status.structured_content["has_pending_work"]
                 assert wire.calls == []
-                # New calendar events need consent (#91); repeated categories
-                # are bad input. Neither reads Librus.
+                # Why: events need consent (#91), repeats are bad input; both before any read.
                 for categories, error in (
                     (
                         ["grades", "agenda"],
@@ -101,7 +100,7 @@ async def test_notification_consent_restart_exact_replay_ack_and_account_isolati
                 for _ in range(2):
                     accepted = await session.call_tool("acknowledge_notifications", ack)
                     assert not accepted.is_error and accepted.structured_content["acknowledged"]
-                # Agents commonly pass the batch's context object back verbatim.
+                # Why: agents commonly pass the batch's context object back verbatim.
                 verbatim = await session.call_tool(
                     "acknowledge_notifications",
                     ack | {"context": {"alias": "first", "identifier": context}},
@@ -178,8 +177,7 @@ async def test_lost_consume_response_remains_uncertain_until_explicit_loss_accep
             )  # pragma: allowlist secret - loopback credentials
             write_config(path, data)
             settings = load_config(path)
-            # The operator normally uses production origins. Bind this isolated
-            # invocation to the same independently configured loopback context.
+            # Why: the operator uses production origins; this run binds the loopback context.
             monkeypatch.setattr(
                 "librus_mcp.migration.LibrusService",
                 partial(
@@ -350,7 +348,7 @@ async def test_valid_1x_state_is_adopted_on_first_poll_without_operator_steps(tm
         first = await poll_legacy_agenda(wire, state)
         assert not first.is_error
         assert "Kept" in json.dumps(first.structured_content["data"]["items"])
-        # Already consumed upstream by 1.x: delivered without a second consume.
+        # Why: 1.x already consumed it upstream, so no second consume.
         assert not any(
             path == "/terminarz/dodane_od_ostatniego_logowania" for _, path, _ in wire.calls
         )
@@ -374,7 +372,7 @@ async def test_adoption_stops_rather_than_replace_a_preserved_original(tmp_path)
         assert closed(blocked) == {"error": {"code": "STORAGE"}}
         assert baseline.exists()
         assert {(archived / name).read_bytes() for name in names} == {b"kept"}
-        # One free name is enough: the imported event is still delivered.
+        # Why: one free name is enough for the imported event to be delivered.
         (archived / names[-1]).unlink()
         resumed = await poll_legacy_agenda(wire, state)
         assert not resumed.is_error

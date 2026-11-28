@@ -59,7 +59,7 @@ LEGACY_ARCHIVE = "legacy-1x"
 
 
 def _archive(directory: Path, paths: tuple[Path, ...]) -> None:
-    # Preserve originals for manual recovery; only move them out of the scan.
+    # Why: originals stay for manual recovery; they only move out of the scan.
     archive = directory / LEGACY_ARCHIVE
     archive.mkdir(mode=0o700, exist_ok=True)
     for path in paths:
@@ -69,12 +69,13 @@ def _archive(directory: Path, paths: tuple[Path, ...]) -> None:
                 break
             target = archive / f"{path.name}.{index}"
         if os.path.lexists(target):
-            # Renaming now would replace a preserved original.
+            # Why: renaming now would replace a preserved original.
             raise FileExistsError
         try:
             path.rename(target)
         except FileNotFoundError:
-            continue  # Another process adopted the same file first.
+            # Why: another process adopted the same file first.
+            continue
 
 
 async def adopt_legacy_state(runtime: Runtime, alias: str) -> None:
@@ -107,7 +108,7 @@ async def adopt_legacy_state(runtime: Runtime, alias: str) -> None:
         if not status.initialized and not status.has_pending_work:
             events: tuple[RecentScheduleEvent, ...] = ()
             if os.name == "posix":
-                # Windows 1.x files have no qualified private read boundary.
+                # Why: see docs/adr/0003-old-state-and-snapshot-reads-are-posix-only.md
                 try:
                     await asyncio.to_thread(restrict_own_files, paths)
                     inventory = await asyncio.to_thread(inventory_legacy, directory, alias)
@@ -145,7 +146,7 @@ def register_notification_tools(server: MCPServer[Runtime]) -> None:
     server.tool(
         title="Acknowledge notifications",
         annotations=ToolAnnotations(
-            # Drops the replayable batch for good.
+            # Why: destructive, as it drops the replayable batch for good.
             read_only_hint=False,
             destructive_hint=True,
             open_world_hint=False,

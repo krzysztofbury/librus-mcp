@@ -60,7 +60,7 @@ async def test_download_namespace_follows_the_reference_unless_the_file_flag_is_
 
                 current = "/api/attachments/91/messages/81"
                 archive = "/api/archive/attachments/91/messages/81"
-                # Omitted: the message's mailbox. Explicit: the file's own namespace.
+                # Why: omitted follows the message's mailbox; explicit names the file's namespace.
                 for flag, route in ((None, archive if archived else current), (True, archive)):
                     result = await download(flag)
                     assert not result.is_error, result

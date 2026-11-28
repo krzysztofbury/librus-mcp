@@ -9,8 +9,7 @@ from tests_native.mutation_support import mutation_is_collecting
 
 @pytest.fixture(autouse=True)
 def isolated_home(monkeypatch, tmp_path_factory):
-    # Default features provision ~/.librus-mcp. Tests and their child servers
-    # inherit this disposable home, never the developer's real state.
+    # Why: default features provision ~/.librus-mcp; never the developer's real state.
     home = tmp_path_factory.mktemp("home")
     monkeypatch.setenv("HOME", str(home))
     monkeypatch.setenv("USERPROFILE", str(home))
